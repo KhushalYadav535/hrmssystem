@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { useAuth } from '@/lib/auth-context';
+import { redirect } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +13,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ArrowRight, CheckCircle2 } from 'lucide-react';
 
 export default function OnboardingCreatePage() {
+  const { isAuthenticated, hasPermission } = useAuth();
+
+  // Only HR Administrators can create onboarding records
+  if (!isAuthenticated || !hasPermission('manage_onboarding')) {
+    redirect('/dashboard');
+  }
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({
     name: '',

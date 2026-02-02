@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,23 +9,50 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowRight, CheckCircle2 } from 'lucide-react';
+import apiService from '@/lib/api';
+import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 
 export default function EmployeeCreatePage() {
+  const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
+  const [isCreating, setIsCreating] = useState(false);
+  const [departments, setDepartments] = useState<any[]>([]);
   const [formData, setFormData] = useState({
+    employeeCode: '',
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
+    dateOfBirth: '',
+    gender: 'Male',
     department: '',
     designation: '',
-    joinDate: '',
-    employmentType: '',
+    joinDate: new Date().toISOString().split('T')[0],
+    employmentType: 'Permanent',
     reportingManager: '',
+    location: '',
     salary: '',
+    ctc: '',
     bank: '',
     accountNumber: '',
+    status: 'Active',
   });
+
+  useEffect(() => {
+    loadDepartments();
+  }, []);
+
+  const loadDepartments = async () => {
+    try {
+      const response = await apiService.getDepartments();
+      if (response.success && response.data) {
+        setDepartments(Array.isArray(response.data) ? response.data : []);
+      }
+    } catch (error: any) {
+      console.error('Failed to load departments:', error);
+    }
+  };
 
   const handleInputChange = (e: any) => {
     const { name, value } = e.target;
@@ -38,6 +65,60 @@ export default function EmployeeCreatePage() {
     { number: 3, title: 'Compensation' },
     { number: 4, title: 'Review' },
   ];
+
+  const handleCreateEmployee = async () => {
+    // Final validation
+    if (!formData.employeeCode || !formData.firstName || !formData.lastName || !formData.email || 
+        !formData.phone || !formData.department || !formData.designation ||
+        !formData.dateOfBirth || !formData.joinDate || !formData.location ||
+        !formData.salary || !formData.ctc) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+
+    if (!formData.department) {
+      toast.error('Please select a department');
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const employeeData = {
+        employeeCode: formData.employeeCode.trim(),
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        email: formData.email.trim().toLowerCase(),
+        phone: formData.phone.trim(),
+        dateOfBirth: formData.dateOfBirth,
+        gender: formData.gender,
+        designation: formData.designation.trim(),
+        department: formData.department.trim(),
+        status: formData.status,
+        joinDate: formData.joinDate,
+        location: formData.location.trim(),
+        salary: parseFloat(formData.salary),
+        ctc: parseFloat(formData.ctc),
+        bankAccount: formData.accountNumber || undefined,
+        ifscCode: formData.bank || undefined,
+      };
+
+      console.log('Creating employee with data:', employeeData);
+
+      const response = await apiService.createEmployee(employeeData);
+      if (response.success) {
+        toast.success('Employee created successfully!');
+        router.push('/personnel');
+      } else {
+        toast.error(response.message || 'Failed to create employee');
+        console.error('Create employee error:', response);
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to create employee');
+      console.error('Create employee exception:', error);
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -74,7 +155,18 @@ export default function EmployeeCreatePage() {
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="firstName">First Name</Label>
+                    <Label htmlFor="employeeCode">Employee Code *</Label>
+                    <Input
+                      id="employeeCode"
+                      name="employeeCode"
+                      value={formData.employeeCode}
+                      onChange={handleInputChange}
+                      placeholder="EMP001"
+                      className="mt-2"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="firstName">First Name *</Label>
                     <Input
                       id="firstName"
                       name="firstName"
@@ -84,8 +176,10 @@ export default function EmployeeCreatePage() {
                       className="mt-2"
                     />
                   </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="lastName">Last Name</Label>
+                    <Label htmlFor="lastName">Last Name *</Label>
                     <Input
                       id="lastName"
                       name="lastName"
@@ -95,10 +189,8 @@ export default function EmployeeCreatePage() {
                       className="mt-2"
                     />
                   </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="email">Email Address</Label>
+                    <Label htmlFor="email">Email Address *</Label>
                     <Input
                       id="email"
                       name="email"
@@ -109,8 +201,10 @@ export default function EmployeeCreatePage() {
                       className="mt-2"
                     />
                   </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="phone">Phone Number</Label>
+                    <Label htmlFor="phone">Phone Number *</Label>
                     <Input
                       id="phone"
                       name="phone"
@@ -120,6 +214,32 @@ export default function EmployeeCreatePage() {
                       className="mt-2"
                     />
                   </div>
+                  <div>
+                    <Label htmlFor="dateOfBirth">Date of Birth *</Label>
+                    <Input
+                      id="dateOfBirth"
+                      name="dateOfBirth"
+                      type="date"
+                      value={formData.dateOfBirth}
+                      onChange={handleInputChange}
+                      className="mt-2"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="gender">Gender *</Label>
+                    <Select value={formData.gender} onValueChange={(value) => setFormData(prev => ({ ...prev, gender: value }))}>
+                      <SelectTrigger className="mt-2">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Male">Male</SelectItem>
+                        <SelectItem value="Female">Female</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
             )}
@@ -128,21 +248,32 @@ export default function EmployeeCreatePage() {
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="department">Department</Label>
-                    <Select>
+                    <Label htmlFor="department">Department *</Label>
+                    <Select 
+                      value={formData.department} 
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, department: value }))}
+                    >
                       <SelectTrigger className="mt-2">
                         <SelectValue placeholder="Select department" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="finance">Finance</SelectItem>
-                        <SelectItem value="operations">Operations</SelectItem>
-                        <SelectItem value="hr">Human Resources</SelectItem>
-                        <SelectItem value="it">IT</SelectItem>
+                        {departments.length > 0 ? (
+                          departments.map((dept) => (
+                            <SelectItem key={dept._id || dept.id} value={dept.name}>
+                              {dept.name}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground">No departments available</div>
+                        )}
                       </SelectContent>
                     </Select>
+                    {formData.department && (
+                      <p className="text-xs text-muted-foreground mt-1">Selected: {formData.department}</p>
+                    )}
                   </div>
                   <div>
-                    <Label htmlFor="designation">Designation</Label>
+                    <Label htmlFor="designation">Designation *</Label>
                     <Input
                       id="designation"
                       name="designation"
@@ -155,7 +286,7 @@ export default function EmployeeCreatePage() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="joinDate">Joining Date</Label>
+                    <Label htmlFor="joinDate">Joining Date *</Label>
                     <Input
                       id="joinDate"
                       name="joinDate"
@@ -167,14 +298,47 @@ export default function EmployeeCreatePage() {
                   </div>
                   <div>
                     <Label htmlFor="employmentType">Employment Type</Label>
-                    <Select>
+                    <Select 
+                      value={formData.employmentType} 
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, employmentType: value }))}
+                    >
                       <SelectTrigger className="mt-2">
                         <SelectValue placeholder="Select type" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="permanent">Permanent</SelectItem>
-                        <SelectItem value="contract">Contract</SelectItem>
-                        <SelectItem value="temporary">Temporary</SelectItem>
+                        <SelectItem value="Permanent">Permanent</SelectItem>
+                        <SelectItem value="Contract">Contract</SelectItem>
+                        <SelectItem value="Temporary">Temporary</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="location">Location *</Label>
+                    <Input
+                      id="location"
+                      name="location"
+                      value={formData.location}
+                      onChange={handleInputChange}
+                      placeholder="Mumbai"
+                      className="mt-2"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="status">Status *</Label>
+                    <Select 
+                      value={formData.status} 
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
+                    >
+                      <SelectTrigger className="mt-2">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Active">Active</SelectItem>
+                        <SelectItem value="Inactive">Inactive</SelectItem>
+                        <SelectItem value="On Leave">On Leave</SelectItem>
+                        <SelectItem value="Retired">Retired</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -186,16 +350,31 @@ export default function EmployeeCreatePage() {
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="salary">Annual Salary</Label>
+                    <Label htmlFor="salary">Monthly Salary *</Label>
                     <Input
                       id="salary"
                       name="salary"
+                      type="number"
                       value={formData.salary}
                       onChange={handleInputChange}
-                      placeholder="0.00"
+                      placeholder="50000"
                       className="mt-2"
                     />
                   </div>
+                  <div>
+                    <Label htmlFor="ctc">CTC (Cost to Company) *</Label>
+                    <Input
+                      id="ctc"
+                      name="ctc"
+                      type="number"
+                      value={formData.ctc}
+                      onChange={handleInputChange}
+                      placeholder="600000"
+                      className="mt-2"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="bank">Bank Name</Label>
                     <Input
@@ -207,17 +386,17 @@ export default function EmployeeCreatePage() {
                       className="mt-2"
                     />
                   </div>
-                </div>
-                <div>
-                  <Label htmlFor="accountNumber">Bank Account Number</Label>
-                  <Input
-                    id="accountNumber"
-                    name="accountNumber"
-                    value={formData.accountNumber}
-                    onChange={handleInputChange}
-                    placeholder="Account number"
-                    className="mt-2"
-                  />
+                  <div>
+                    <Label htmlFor="accountNumber">Bank Account Number</Label>
+                    <Input
+                      id="accountNumber"
+                      name="accountNumber"
+                      value={formData.accountNumber}
+                      onChange={handleInputChange}
+                      placeholder="Account number"
+                      className="mt-2"
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -228,6 +407,10 @@ export default function EmployeeCreatePage() {
                   <h3 className="font-semibold text-foreground">Review Employee Details</h3>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
+                      <p className="text-muted-foreground">Employee Code</p>
+                      <p className="font-medium">{formData.employeeCode || 'Not specified'}</p>
+                    </div>
+                    <div>
                       <p className="text-muted-foreground">Name</p>
                       <p className="font-medium">{formData.firstName} {formData.lastName}</p>
                     </div>
@@ -236,12 +419,36 @@ export default function EmployeeCreatePage() {
                       <p className="font-medium">{formData.email}</p>
                     </div>
                     <div>
+                      <p className="text-muted-foreground">Phone</p>
+                      <p className="font-medium">{formData.phone}</p>
+                    </div>
+                    <div>
                       <p className="text-muted-foreground">Department</p>
                       <p className="font-medium">{formData.department || 'Not specified'}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Designation</p>
-                      <p className="font-medium">{formData.designation}</p>
+                      <p className="font-medium">{formData.designation || 'Not specified'}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Join Date</p>
+                      <p className="font-medium">{formData.joinDate || 'Not specified'}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Location</p>
+                      <p className="font-medium">{formData.location || 'Not specified'}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Salary</p>
+                      <p className="font-medium">₹{formData.salary || 'Not specified'}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">CTC</p>
+                      <p className="font-medium">₹{formData.ctc || 'Not specified'}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Status</p>
+                      <p className="font-medium">{formData.status}</p>
                     </div>
                   </div>
                 </div>
@@ -258,11 +465,39 @@ export default function EmployeeCreatePage() {
               </Button>
               <div className="flex-1" />
               {currentStep < 4 ? (
-                <Button onClick={() => setCurrentStep(Math.min(4, currentStep + 1))} className="gap-2">
+                <Button 
+                  onClick={() => {
+                    // Validate current step before proceeding
+                    if (currentStep === 1) {
+                      if (!formData.employeeCode || !formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.dateOfBirth) {
+                        toast.error('Please fill all required fields in Personal Info');
+                        return;
+                      }
+                    } else if (currentStep === 2) {
+                      if (!formData.department || !formData.designation || !formData.joinDate || !formData.location) {
+                        toast.error('Please fill all required fields in Job Details');
+                        return;
+                      }
+                    } else if (currentStep === 3) {
+                      if (!formData.salary || !formData.ctc) {
+                        toast.error('Please fill all required fields in Compensation');
+                        return;
+                      }
+                    }
+                    setCurrentStep(Math.min(4, currentStep + 1));
+                  }} 
+                  className="gap-2"
+                >
                   Next <ArrowRight className="w-4 h-4" />
                 </Button>
               ) : (
-                <Button className="bg-green-600 hover:bg-green-700">Create Employee</Button>
+                <Button 
+                  className="bg-green-600 hover:bg-green-700"
+                  onClick={handleCreateEmployee}
+                  disabled={isCreating}
+                >
+                  {isCreating ? 'Creating...' : 'Create Employee'}
+                </Button>
               )}
             </div>
           </CardContent>

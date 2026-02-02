@@ -4,8 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { mockPayroll, mockLeaves, mockExpenses, mockPerformance, mockAttendance, mockNotifications, mockDashboardStats } from '@/lib/mock-data';
 import { Calendar, FileText, DollarSign, TrendingUp, Clock, Plane } from 'lucide-react';
+import { usePayroll } from '@/lib/hooks/usePayroll';
+import { useLeaves } from '@/lib/hooks/useLeaves';
+import { useExpenses } from '@/lib/hooks/useExpenses';
+import { useAuth } from '@/lib/auth-context';
+import { useState, useEffect } from 'react';
 
 const attendanceData = [
   { date: 'Mon', hours: 9 },
@@ -21,10 +25,15 @@ const leaveData = [
 ];
 
 export default function EmployeeDashboard() {
-  const recentPayroll = mockPayroll[0];
-  const recentLeave = mockLeaves[0];
-  const recentExpense = mockExpenses[0];
-  const appraisal = mockPerformance[0];
+  const { currentUser } = useAuth();
+  const { payrolls } = usePayroll({ employeeId: currentUser?.id });
+  const { leaves } = useLeaves({ employeeId: currentUser?.id });
+  const { expenses } = useExpenses({ employeeId: currentUser?.id });
+
+  const recentPayroll = payrolls[0] || null;
+  const recentLeave = leaves[0] || null;
+  const recentExpense = expenses[0] || null;
+  const appraisal = { overallRating: 4.2 }; // TODO: Load from API
 
   return (
     <div className="space-y-6">
@@ -41,7 +50,9 @@ export default function EmployeeDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Net Salary (Jan 2026)</p>
-                <p className="text-2xl font-bold text-foreground">₹{(recentPayroll?.netSalary / 100000).toFixed(1)}L</p>
+                <p className="text-2xl font-bold text-foreground">
+                  {recentPayroll?.netSalary ? `₹${(recentPayroll.netSalary / 100000).toFixed(1)}L` : 'N/A'}
+                </p>
               </div>
               <DollarSign className="w-10 h-10 text-primary/30" />
             </div>
@@ -101,11 +112,11 @@ export default function EmployeeDashboard() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-secondary/50 p-4 rounded-lg">
                   <p className="text-xs text-muted-foreground mb-1">Basic Salary</p>
-                  <p className="text-xl font-bold">₹{recentPayroll?.basicSalary?.toLocaleString()}</p>
+                  <p className="text-xl font-bold">₹{recentPayroll?.basicSalary?.toLocaleString() || '0'}</p>
                 </div>
                 <div className="bg-secondary/50 p-4 rounded-lg">
                   <p className="text-xs text-muted-foreground mb-1">HRA</p>
-                  <p className="text-xl font-bold">₹{recentPayroll?.hra?.toLocaleString()}</p>
+                  <p className="text-xl font-bold">₹{recentPayroll?.hra?.toLocaleString() || '0'}</p>
                 </div>
                 <div className="bg-destructive/10 p-4 rounded-lg">
                   <p className="text-xs text-muted-foreground mb-1">Total Deductions</p>
@@ -113,7 +124,7 @@ export default function EmployeeDashboard() {
                 </div>
                 <div className="bg-green-100/50 dark:bg-green-900/20 p-4 rounded-lg">
                   <p className="text-xs text-muted-foreground mb-1">Net Salary</p>
-                  <p className="text-xl font-bold text-green-700 dark:text-green-400">₹{recentPayroll?.netSalary?.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-green-700 dark:text-green-400">₹{recentPayroll?.netSalary?.toLocaleString() || '0'}</p>
                 </div>
               </div>
               <Button className="w-full bg-transparent" variant="outline">

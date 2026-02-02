@@ -10,13 +10,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { mockTenants, mockUsers } from '@/lib/mock-data';
+import apiService from '@/lib/api';
 import { Building2, Mail, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
+import { useEffect } from 'react';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, registerTenant } = useAuth();
+  const { login, registerTenant, loginWithUserSelect } = useAuth();
   const [activeTab, setActiveTab] = useState('email-login');
   const [isLoading, setIsLoading] = useState(false);
   
@@ -26,16 +27,34 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showRegPassword, setShowRegPassword] = useState(false);
   const [showRegConfirmPassword, setShowRegConfirmPassword] = useState(false);
-  const [selectedTenant, setSelectedTenant] = useState<string>(mockTenants[0]?.id || '');
+  const [selectedTenant, setSelectedTenant] = useState<string>('');
   const [selectedUser, setSelectedUser] = useState<string>('');
+  const [tenants, setTenants] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   
   // Registration State
   const [regTenantName, setRegTenantName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
+  const [regLocation, setRegLocation] = useState('India');
+  const [regCode, setRegCode] = useState('');
 
-  const usersInTenant = mockUsers.filter((user) => user.tenantId === selectedTenant);
+  // Load tenants for quick login (Super Admin only)
+  useEffect(() => {
+    const loadTenants = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (token) {
+          // Try to get tenants if super admin
+          // For now, we'll skip this as it requires super admin access
+        }
+      } catch (error) {
+        // Ignore errors
+      }
+    };
+    loadTenants();
+  }, []);
 
   // Email/Password Login Handler
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -47,42 +66,40 @@ export default function LoginPage() {
     }
 
     setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 600));
-
-    const result = login(email, password);
-    
-    if (result.success) {
-      toast.success('Login successful');
-      // Wait for localStorage to be written before redirecting
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      router.push('/dashboard');
-    } else {
-      toast.error(result.message);
+    try {
+      const result = await login(email, password);
+      
+      if (result.success) {
+        toast.success('Login successful');
+        router.push('/dashboard');
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Login failed');
+    } finally {
       setIsLoading(false);
     }
   };
 
-  // User Select Login Handler
+  // User Select Login Handler (for demo/testing)
   const handleUserSelectLogin = async () => {
     if (!selectedUser || !selectedTenant) {
       toast.error('Please select tenant and user');
       return;
     }
 
-    const user = mockUsers.find((u) => u.id === selectedUser);
-    if (user) {
-      setIsLoading(true);
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      const result = login(user.email, user.password, selectedTenant);
-      if (result.success) {
-        toast.success('Login successful');
-        // Wait for localStorage to be written before redirecting
-        await new Promise((resolve) => setTimeout(resolve, 200));
-        router.push('/dashboard');
-      } else {
-        toast.error(result.message);
-        setIsLoading(false);
-      }
+    setIsLoading(true);
+    try {
+      // For quick login, we'll use the email from selected user
+      // In production, this would be handled differently
+      await loginWithUserSelect(selectedUser, selectedTenant);
+      toast.success('Login successful');
+      router.push('/dashboard');
+    } catch (error: any) {
+      toast.error(error.message || 'Login failed');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -106,21 +123,23 @@ export default function LoginPage() {
     }
 
     setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 600));
-
-    const result = registerTenant(regTenantName, regEmail, regPassword);
-    if (result.success) {
-      toast.success('Tenant registered successfully! Please login.');
-      setRegTenantName('');
-      setRegEmail('');
-      setRegPassword('');
-      setRegConfirmPassword('');
-      setActiveTab('email-login');
-      setEmail(regEmail);
-    } else {
-      toast.error(result.message);
+    try {
+      const result = await registerTenant(regTenantName, regEmail, regPassword);
+      if (result.success) {
+        toast.success('Tenant registered successfully! Redirecting to dashboard...');
+        setRegTenantName('');
+        setRegEmail('');
+        setRegPassword('');
+        setRegConfirmPassword('');
+        router.push('/dashboard');
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Registration failed');
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   return (
@@ -205,57 +224,53 @@ export default function LoginPage() {
                     <p className="font-semibold text-sm text-foreground">Demo Credentials</p>
                   </div>
                   <div className="space-y-2 text-xs text-muted-foreground">
-                    <p className="font-medium">👤 Employee: <span className="text-foreground">rajesh.kumar@indianbank.com / password123</span></p>
-                    <p className="font-medium">👔 Manager: <span className="text-foreground">priya.sharma@indianbank.com / password123</span></p>
-                    <p className="font-medium">👨‍💼 HR Admin: <span className="text-foreground">admin.hr@indianbank.com / password123</span></p>
                     <p className="font-medium">🔐 Super Admin: <span className="text-foreground">superadmin@indianbank.com / admin123</span></p>
+                    <p className="font-medium">👑 Tenant Admin (CEO): <span className="text-foreground">ceo@indianbank.com / admin123</span></p>
+                    <p className="font-medium">👨‍💼 HR Administrator: <span className="text-foreground">admin.hr@indianbank.com / password123</span></p>
+                    <p className="font-medium">💰 Payroll Administrator: <span className="text-foreground">payroll@indianbank.com / password123</span></p>
+                    <p className="font-medium">💵 Finance Administrator: <span className="text-foreground">finance@indianbank.com / password123</span></p>
+                    <p className="font-medium">⚙️ System Administrator: <span className="text-foreground">system@indianbank.com / password123</span></p>
+                    <p className="font-medium">👔 Manager: <span className="text-foreground">priya.sharma@indianbank.com / password123</span></p>
+                    <p className="font-medium">👤 Employee: <span className="text-foreground">rajesh.kumar@indianbank.com / password123</span></p>
+                    <p className="font-medium">🔍 Auditor: <span className="text-foreground">auditor@indianbank.com / password123</span></p>
                   </div>
                 </div>
               </TabsContent>
 
-              {/* User Select Login */}
+              {/* User Select Login - Disabled for API integration */}
               <TabsContent value="user-login" className="space-y-4">
+                <div className="bg-accent/10 border border-accent rounded-lg p-4">
+                  <AlertCircle className="w-5 h-5 text-accent mb-2" />
+                  <p className="text-sm text-foreground">
+                    Quick login is available after initial login. Please use Email/Password login first.
+                  </p>
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="tenant" className="text-sm font-semibold">
                     Select Tenant
                   </Label>
-                  <select
+                  <Input
                     id="tenant"
+                    placeholder="Enter tenant code (e.g., INDBNK-HO)"
                     value={selectedTenant}
-                    onChange={(e) => {
-                      setSelectedTenant(e.target.value);
-                      setSelectedUser('');
-                    }}
-                    className="w-full h-10 px-3 border border-border rounded-md bg-card text-foreground"
-                  >
-                    {mockTenants.map((tenant) => (
-                      <option key={tenant.id} value={tenant.id}>
-                        {tenant.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(e) => setSelectedTenant(e.target.value)}
+                    className="h-10"
+                  />
                 </div>
 
-                {selectedTenant && (
-                  <div className="space-y-2">
-                    <Label htmlFor="user" className="text-sm font-semibold">
-                      Select User Account
-                    </Label>
-                    <select
-                      id="user"
-                      value={selectedUser}
-                      onChange={(e) => setSelectedUser(e.target.value)}
-                      className="w-full h-10 px-3 border border-border rounded-md bg-card text-foreground"
-                    >
-                      <option value="">Choose your account...</option>
-                      {usersInTenant.map((user) => (
-                        <option key={user.id} value={user.id}>
-                          {user.name} ({user.role})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                <div className="space-y-2">
+                  <Label htmlFor="user" className="text-sm font-semibold">
+                    User Email
+                  </Label>
+                  <Input
+                    id="user"
+                    type="email"
+                    placeholder="user@example.com"
+                    value={selectedUser}
+                    onChange={(e) => setSelectedUser(e.target.value)}
+                    className="h-10"
+                  />
+                </div>
 
                 <Button
                   onClick={handleUserSelectLogin}
@@ -278,20 +293,53 @@ export default function LoginPage() {
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="tenant-name" className="text-sm font-semibold">
-                      Tenant Name
+                      Tenant Name *
                     </Label>
                     <Input
                       id="tenant-name"
                       placeholder="e.g., Indian Bank - Mumbai"
                       value={regTenantName}
-                      onChange={(e) => setRegTenantName(e.target.value)}
+                      onChange={(e) => {
+                        setRegTenantName(e.target.value);
+                        // Auto-generate code
+                        setRegCode(e.target.value.toUpperCase().replace(/\s+/g, '-'));
+                      }}
                       className="h-10"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="tenant-code" className="text-sm font-semibold">
+                      Tenant Code *
+                    </Label>
+                    <Input
+                      id="tenant-code"
+                      placeholder="e.g., INDBNK-MUM"
+                      value={regCode}
+                      onChange={(e) => setRegCode(e.target.value.toUpperCase())}
+                      className="h-10"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="tenant-location" className="text-sm font-semibold">
+                      Location *
+                    </Label>
+                    <Input
+                      id="tenant-location"
+                      placeholder="e.g., Mumbai"
+                      value={regLocation}
+                      onChange={(e) => setRegLocation(e.target.value)}
+                      className="h-10"
+                      required
                     />
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="reg-email" className="text-sm font-semibold">
-                      Email Address
+                      Admin Email Address *
                     </Label>
                     <Input
                       id="reg-email"
@@ -300,6 +348,7 @@ export default function LoginPage() {
                       value={regEmail}
                       onChange={(e) => setRegEmail(e.target.value)}
                       className="h-10"
+                      required
                     />
                   </div>
 

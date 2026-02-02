@@ -7,7 +7,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
-import { Save } from 'lucide-react';
+import { Save, Copy, Plus } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 
 export default function PermissionMatrixPage() {
   const { isAuthenticated, hasPermission } = useAuth();
@@ -17,6 +28,9 @@ export default function PermissionMatrixPage() {
     employee: { view: true, create: false, edit: false, delete: false, approve: false },
     hr_officer: { view: true, create: true, edit: true, delete: false, approve: false },
   });
+  const [showCloneDialog, setShowCloneDialog] = useState(false);
+  const [cloneSourceRole, setCloneSourceRole] = useState('');
+  const [cloneTargetName, setCloneTargetName] = useState('');
 
   if (!isAuthenticated || !hasPermission('manage_settings')) {
     redirect('/dashboard');
@@ -54,6 +68,26 @@ export default function PermissionMatrixPage() {
     });
   };
 
+  const handleCloneRole = () => {
+    if (!cloneSourceRole || !cloneTargetName) {
+      toast.error('Please select source role and enter target role name');
+      return;
+    }
+
+    const sourcePermissions = permissions[cloneSourceRole as keyof typeof permissions];
+    const newRoleId = cloneTargetName.toLowerCase().replace(/\s+/g, '_');
+    
+    setPermissions({
+      ...permissions,
+      [newRoleId]: { ...sourcePermissions },
+    });
+
+    toast.success(`Role "${cloneTargetName}" cloned successfully from "${roles.find(r => r.id === cloneSourceRole)?.name}"`);
+    setShowCloneDialog(false);
+    setCloneSourceRole('');
+    setCloneTargetName('');
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -62,10 +96,61 @@ export default function PermissionMatrixPage() {
             <h1 className="text-3xl font-bold text-foreground">Permission Matrix</h1>
             <p className="text-muted-foreground mt-2">Configure role-based access permissions</p>
           </div>
-          <Button className="gap-2">
-            <Save className="w-4 h-4" />
-            Save Changes
-          </Button>
+          <div className="flex gap-2">
+            <Dialog open={showCloneDialog} onOpenChange={setShowCloneDialog}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <Copy className="w-4 h-4" />
+                  Clone Role
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Clone Role Permissions</DialogTitle>
+                  <DialogDescription>Create a new role by copying permissions from an existing role</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label>Source Role (Copy From)</Label>
+                    <select
+                      className="w-full px-3 py-2 border border-border rounded-lg bg-card mt-1"
+                      value={cloneSourceRole}
+                      onChange={(e) => setCloneSourceRole(e.target.value)}
+                    >
+                      <option value="">Select role to clone...</option>
+                      {roles.map((role) => (
+                        <option key={role.id} value={role.id}>
+                          {role.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label>New Role Name</Label>
+                    <Input
+                      value={cloneTargetName}
+                      onChange={(e) => setCloneTargetName(e.target.value)}
+                      placeholder="e.g., Senior Manager"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button variant="outline" onClick={() => setShowCloneDialog(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleCloneRole} className="gap-2">
+                      <Copy className="w-4 h-4" />
+                      Clone Role
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+            <Button className="gap-2">
+              <Save className="w-4 h-4" />
+              Save Changes
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

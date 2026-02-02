@@ -6,28 +6,85 @@ import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { mockAttendance } from '@/lib/mock-data';
 import { Calendar, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import CalendarView from '@/components/common/calendar-view';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import apiService from '@/lib/api';
+import { toast } from 'sonner';
 
 export default function AttendancePage() {
   const { isAuthenticated } = useAuth();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   if (!isAuthenticated) {
     redirect('/login');
   }
 
-  const attendanceRecords = mockAttendance;
+  const fetchAttendance = async () => {
+    try {
+      setLoading(true);
+      const res = await apiService.getAttendance({});
+      if (res.success && res.data) {
+        setAttendanceRecords(Array.isArray(res.data) ? res.data : []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch attendance', error);
+      toast.error('Failed to load attendance records');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+        fetchAttendance();
+    }
+  }, [isAuthenticated]);
+
+  const handleCheckIn = async () => {
+    try {
+        const res = await apiService.checkIn({
+            date: new Date().toISOString().split('T')[0],
+            time: new Date().toISOString()
+        });
+        if (res.success) {
+            toast.success('Checked in successfully');
+            fetchAttendance();
+        } else {
+            toast.error(res.message || 'Failed to check in');
+        }
+    } catch (error: any) {
+        toast.error(error.message || 'Failed to check in');
+    }
+  };
+
+  const handleCheckOut = async () => {
+    try {
+        const res = await apiService.checkOut({
+            date: new Date().toISOString().split('T')[0],
+            time: new Date().toISOString()
+        });
+        if (res.success) {
+            toast.success('Checked out successfully');
+            fetchAttendance();
+        } else {
+            toast.error(res.message || 'Failed to check out');
+        }
+    } catch (error: any) {
+        toast.error(error.message || 'Failed to check out');
+    }
+  };
+
   const presentDays = attendanceRecords.filter((a) => a.status === 'Present').length;
-  const totalWorkingHours = attendanceRecords.reduce((sum, a) => sum + a.workingHours, 0);
+  const totalWorkingHours = attendanceRecords.reduce((sum, a) => sum + (a.workingHours || 0), 0);
   const avgWorkingHours = attendanceRecords.length > 0 ? (totalWorkingHours / attendanceRecords.length).toFixed(1) : '0';
 
   const calendarEvents = attendanceRecords.map(record => ({
-    date: record.date,
+    date: record.date.split('T')[0],
     title: record.status,
-    type: record.status === 'Present' ? 'event' : record.status === 'Leave' ? 'leave' : 'holiday' as const,
+    type: (record.status === 'Present' ? 'event' : record.status === 'Leave' ? 'leave' : 'holiday') as any,
   }));
 
   const getStatusColor = (status: string) => {
@@ -44,6 +101,13 @@ export default function AttendancePage() {
         return 'bg-gray-100 text-gray-700';
     }
   };
+
+  // Check today's status
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayRecord = attendanceRecords.find(r => r.date.startsWith(todayStr));
+  const isCheckedIn = !!todayRecord?.checkIn && !todayRecord?.checkOut;
+  const isCheckedOut = !!todayRecord?.checkOut;
+  const hasCheckedInToday = !!todayRecord;
 
   return (
     <DashboardLayout>
@@ -106,11 +170,20 @@ export default function AttendancePage() {
               <CardDescription>Check in/out and manage attendance</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button className="w-full gap-2 bg-green-600 hover:bg-green-700">
+              <Button 
+                className="w-full gap-2 bg-green-600 hover:bg-green-700" 
+                onClick={handleCheckIn}
+                disabled={hasCheckedInToday}
+              >
                 <Clock className="w-4 h-4" />
-                Check In
+                {hasCheckedInToday ? 'Checked In' : 'Check In'}
               </Button>
-              <Button className="w-full gap-2 bg-transparent" variant="outline">
+              <Button 
+                className="w-full gap-2 bg-transparent" 
+                variant="outline"
+                onClick={handleCheckOut}
+                disabled={!isCheckedIn}
+              >
                 <Clock className="w-4 h-4" />
                 Check Out
               </Button>
@@ -119,8 +192,20 @@ export default function AttendancePage() {
               </Button>
               <div className="p-4 bg-secondary/50 rounded-lg">
                 <p className="text-sm text-muted-foreground">Today's Status</p>
-                <p className="text-lg font-semibold text-green-600 mt-2">Checked In at 9:00 AM</p>
-                <p className="text-xs text-muted-foreground mt-1">Working since 9 hours 30 minutes</p>
+                {todayRecord ? (
+                     <>
+                        <p className="text-lg font-semibold text-green-600 mt-2">
+                            {todayRecord.checkOut ? 'Checked Out' : 'Checked In'}
+                        </p>
+                        {todayRecord.checkIn && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                                at {new Date(todayRecord.checkIn).toLocaleTimeString()}
+                            </p>
+                        )}
+                     </>
+                ) : (
+                    <p className="text-lg font-semibold text-gray-600 mt-2">Not Checked In</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -129,7 +214,7 @@ export default function AttendancePage() {
         <Card className="border-0 shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg">Attendance Records</CardTitle>
-            <CardDescription>January 2026</CardDescription>
+            <CardDescription>History</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -144,24 +229,28 @@ export default function AttendancePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {attendanceRecords.map((record) => (
-                    <tr key={record.id} className="border-b border-border hover:bg-secondary/50 transition-colors">
+                  {attendanceRecords.length === 0 ? (
+                      <tr>
+                          <td colSpan={5} className="text-center p-4 text-muted-foreground">No attendance records found.</td>
+                      </tr>
+                  ) : attendanceRecords.map((record) => (
+                    <tr key={record._id} className="border-b border-border hover:bg-secondary/50 transition-colors">
                       <td className="p-3">
                         <div className="flex items-center gap-2">
                           <Calendar className="w-4 h-4 text-muted-foreground" />
-                          {record.date}
+                          {record.date.split('T')[0]}
                         </div>
                       </td>
                       <td className="p-3">
                         <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4 text-muted-foreground" />
-                          {record.checkIn}
+                          {record.checkIn ? new Date(record.checkIn).toLocaleTimeString() : '-'}
                         </div>
                       </td>
                       <td className="p-3">
                         <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4 text-muted-foreground" />
-                          {record.checkOut}
+                          {record.checkOut ? new Date(record.checkOut).toLocaleTimeString() : '-'}
                         </div>
                       </td>
                       <td className="text-right p-3 font-medium">{record.workingHours}h</td>

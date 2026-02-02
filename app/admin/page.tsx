@@ -7,14 +7,33 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertTriangle, Settings, Users, Lock, Database, FileText } from 'lucide-react';
+import { AlertTriangle, Settings, Users, Lock, Database, FileText, LogOut, UserX, Clock, History } from 'lucide-react';
+import { useState } from 'react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 
 export default function AdminPage() {
   const { isAuthenticated, hasPermission } = useAuth();
+  const [activeSessions, setActiveSessions] = useState([
+    { id: '1', userId: 'user-001', userName: 'Rajesh Kumar', email: 'rajesh.kumar@indianbank.com', loginTime: '2026-02-01 09:15:00', ipAddress: '192.168.1.100', device: 'Chrome - Windows', status: 'Active' },
+    { id: '2', userId: 'user-002', userName: 'Priya Sharma', email: 'priya.sharma@indianbank.com', loginTime: '2026-02-01 08:30:00', ipAddress: '192.168.1.105', device: 'Safari - macOS', status: 'Active' },
+    { id: '3', userId: 'user-003', userName: 'Deepa Gupta', email: 'admin.hr@indianbank.com', loginTime: '2026-02-01 07:45:00', ipAddress: '192.168.1.110', device: 'Firefox - Linux', status: 'Active' },
+  ]);
 
   if (!isAuthenticated || !hasPermission('configure_system')) {
     redirect('/dashboard');
   }
+
+  const handleTerminateSession = (sessionId: string, userName: string) => {
+    setActiveSessions(activeSessions.filter(s => s.id !== sessionId));
+    toast.success(`Session terminated for ${userName}`);
+  };
+
+  const handleTerminateAllSessions = () => {
+    setActiveSessions([]);
+    toast.success('All sessions terminated successfully');
+  };
 
   return (
     <DashboardLayout>
@@ -49,6 +68,8 @@ export default function AdminPage() {
             <TabsTrigger value="policies">Leave Policies</TabsTrigger>
             <TabsTrigger value="departments">Departments</TabsTrigger>
             <TabsTrigger value="access">Access Control</TabsTrigger>
+            <TabsTrigger value="sessions">User Sessions</TabsTrigger>
+            <TabsTrigger value="audit">Audit Log</TabsTrigger>
             <TabsTrigger value="compliance">Compliance</TabsTrigger>
             <TabsTrigger value="integrations">Integrations</TabsTrigger>
           </TabsList>
@@ -141,6 +162,98 @@ export default function AdminPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* User Sessions Tab */}
+          <TabsContent value="sessions" className="space-y-4">
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">Active User Sessions</CardTitle>
+                    <CardDescription>Monitor and manage active user sessions</CardDescription>
+                  </div>
+                  <Button variant="destructive" size="sm" onClick={handleTerminateAllSessions} className="gap-2">
+                    <LogOut className="w-4 h-4" />
+                    Terminate All
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {activeSessions.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <UserX className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                      <p>No active sessions</p>
+                    </div>
+                  ) : (
+                    activeSessions.map((session) => (
+                      <div key={session.id} className="flex items-center justify-between p-4 border border-border rounded-lg bg-secondary/50 hover:bg-secondary/70 transition-colors">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                              <span className="text-xs font-bold text-primary">
+                                {session.userName.split(' ').map(n => n[0]).join('')}
+                              </span>
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">{session.userName}</p>
+                              <p className="text-xs text-muted-foreground">{session.email}</p>
+                            </div>
+                            <Badge className="bg-green-100 text-green-700">{session.status}</Badge>
+                          </div>
+                          <div className="grid grid-cols-3 gap-4 mt-3 text-xs text-muted-foreground">
+                            <div>
+                              <span className="font-medium">Login Time:</span>
+                              <p>{session.loginTime}</p>
+                            </div>
+                            <div>
+                              <span className="font-medium">IP Address:</span>
+                              <p>{session.ipAddress}</p>
+                            </div>
+                            <div>
+                              <span className="font-medium">Device:</span>
+                              <p>{session.device}</p>
+                            </div>
+                          </div>
+                        </div>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleTerminateSession(session.id, session.userName)}
+                          className="ml-4 gap-2"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          Terminate
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Audit Log Tab */}
+          <TabsContent value="audit" className="space-y-4">
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg">Audit Log Viewer</CardTitle>
+                <CardDescription>View detailed audit trail of all system activities</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8">
+                  <FileText className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+                  <h3 className="text-lg font-semibold mb-2">Comprehensive Audit Log</h3>
+                  <p className="text-muted-foreground mb-4">
+                    View detailed audit logs with advanced filtering and search capabilities
+                  </p>
+                  <Button asChild>
+                    <a href="/admin/audit-log">View Full Audit Log</a>
+                  </Button>
                 </div>
               </CardContent>
             </Card>

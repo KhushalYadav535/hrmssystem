@@ -8,24 +8,131 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import apiService from '@/lib/api';
 import { Plus, Edit, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
+
+interface Department {
+  _id?: string;
+  id?: string;
+  name: string;
+  head: string;
+  employees: number;
+  costCenter: string;
+  status: 'Active' | 'Inactive';
+  parentDepartment?: string;
+}
 
 export default function DepartmentManagementPage() {
   const { isAuthenticated, hasPermission } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedDept, setSelectedDept] = useState<Department | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    head: '',
+    costCenter: '',
+    status: 'Active' as 'Active' | 'Inactive',
+    parentDepartment: '',
+  });
+
+  useEffect(() => {
+    loadDepartments();
+  }, []);
+
+  const loadDepartments = async () => {
+    try {
+      setIsLoading(true);
+      const response = await apiService.getDepartments();
+      if (response.success && response.data) {
+        setDepartments(Array.isArray(response.data) ? response.data : []);
+      }
+    } catch (error: any) {
+      toast.error('Failed to load departments');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   if (!isAuthenticated || !hasPermission('manage_settings')) {
     redirect('/dashboard');
   }
 
-  const departments = [
-    { id: 1, name: 'Finance', head: 'Deepa Gupta', employees: 45, costCenter: 'CC001', status: 'Active' },
-    { id: 2, name: 'IT', head: 'Rajesh Verma', employees: 65, costCenter: 'CC002', status: 'Active' },
-    { id: 3, name: 'HR', head: 'Priya Sharma', employees: 35, costCenter: 'CC003', status: 'Active' },
-    { id: 4, name: 'Operations', head: 'Amit Patel', employees: 80, costCenter: 'CC004', status: 'Active' },
-  ];
+  const handleCreate = async () => {
+    if (!formData.name || !formData.head || !formData.costCenter) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+    try {
+      const response = await apiService.createDepartment(formData);
+      if (response.success) {
+        toast.success('Department created successfully!');
+        setIsOpen(false);
+        setFormData({ name: '', head: '', costCenter: '', status: 'Active', parentDepartment: '' });
+        loadDepartments();
+      } else {
+        toast.error(response.message || 'Failed to create department');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to create department');
+    }
+  };
+
+  const handleEdit = (dept: Department) => {
+    setSelectedDept(dept);
+    setFormData({
+      name: dept.name,
+      head: dept.head,
+      costCenter: dept.costCenter,
+      status: dept.status,
+      parentDepartment: dept.parentDepartment || '',
+    });
+    setShowEditDialog(true);
+  };
+
+  const handleUpdate = async () => {
+    if (!selectedDept || !formData.name || !formData.head || !formData.costCenter) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+    try {
+      const deptId = selectedDept._id || selectedDept.id;
+      if (!deptId) return;
+      
+      const response = await apiService.updateDepartment(deptId.toString(), formData);
+      if (response.success) {
+        toast.success('Department updated successfully!');
+        setShowEditDialog(false);
+        setSelectedDept(null);
+        loadDepartments();
+      } else {
+        toast.error(response.message || 'Failed to update department');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update department');
+    }
+  };
+
+  const handleDelete = async (id: string | number) => {
+    if (confirm('Are you sure you want to delete this department?')) {
+      try {
+        const response = await apiService.deleteDepartment(id.toString());
+        if (response.success) {
+          toast.success('Department deleted successfully!');
+          loadDepartments();
+        } else {
+          toast.error(response.message || 'Failed to delete department');
+        }
+      } catch (error: any) {
+        toast.error(error.message || 'Failed to delete department');
+      }
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -49,22 +156,59 @@ export default function DepartmentManagementPage() {
               </DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Department Name</Label>
-                  <Input placeholder="e.g., Sales" />
+                  <Label>Department Name *</Label>
+                  <Input
+                    placeholder="e.g., Sales"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label>Department Head</Label>
-                  <Input placeholder="Select head" />
+                  <Label>Department Head *</Label>
+                  <Input
+                    placeholder="Enter head name"
+                    value={formData.head}
+                    onChange={(e) => setFormData({ ...formData, head: e.target.value })}
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label>Cost Center</Label>
-                  <Input placeholder="e.g., CC005" />
+                  <Label>Cost Center *</Label>
+                  <Input
+                    placeholder="e.g., CC005"
+                    value={formData.costCenter}
+                    onChange={(e) => setFormData({ ...formData, costCenter: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value as any })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Active">Active</SelectItem>
+                      <SelectItem value="Inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>Parent Department (Optional)</Label>
-                  <Input placeholder="Select parent" />
+                  <Select value={formData.parentDepartment || "none"} onValueChange={(value) => setFormData({ ...formData, parentDepartment: value === "none" ? "" : value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select parent department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {departments.map((d) => {
+                        const deptId = d._id || d.id || '';
+                        return (
+                          <SelectItem key={deptId} value={d.name}>{d.name}</SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <Button className="w-full">Create Department</Button>
+                <Button onClick={handleCreate} className="w-full">Create Department</Button>
               </div>
             </DialogContent>
           </Dialog>
@@ -128,11 +272,11 @@ export default function DepartmentManagementPage() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline" className="gap-2 bg-transparent">
+                    <Button size="sm" variant="outline" className="gap-2 bg-transparent" onClick={() => handleEdit(dept)}>
                       <Edit className="w-4 h-4" />
                       Edit
                     </Button>
-                    <Button size="sm" variant="destructive" className="gap-2">
+                    <Button size="sm" variant="destructive" className="gap-2" onClick={() => handleDelete(dept.id)}>
                       <Trash2 className="w-4 h-4" />
                       Delete
                     </Button>
@@ -142,6 +286,73 @@ export default function DepartmentManagementPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Edit Dialog */}
+        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Department</DialogTitle>
+              <DialogDescription>Update department information</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Department Name *</Label>
+                <Input
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Department Head *</Label>
+                <Input
+                  value={formData.head}
+                  onChange={(e) => setFormData({ ...formData, head: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Cost Center *</Label>
+                <Input
+                  value={formData.costCenter}
+                  onChange={(e) => setFormData({ ...formData, costCenter: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value as any })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Parent Department (Optional)</Label>
+                <Select value={formData.parentDepartment || "none"} onValueChange={(value) => setFormData({ ...formData, parentDepartment: value === "none" ? "" : value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select parent department" />
+                  </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {departments.filter(d => {
+                        const dId = d._id || d.id || '';
+                        const selectedId = selectedDept?._id || selectedDept?.id || '';
+                        return dId !== selectedId;
+                      }).map((d) => {
+                        const deptId = d._id || d.id || '';
+                        return (
+                          <SelectItem key={deptId} value={d.name}>{d.name}</SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={handleUpdate} className="w-full">Update Department</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { mockExpenses } from '@/lib/mock-data';
-import { Plus, Plane, MapPin } from 'lucide-react';
+import { Plus, Plane, MapPin, Briefcase, DollarSign, Calendar } from 'lucide-react';
+import Link from 'next/link';
 
 export default function TravelPage() {
   const { isAuthenticated, hasPermission } = useAuth();
@@ -49,10 +50,20 @@ export default function TravelPage() {
             <p className="text-muted-foreground mt-2">Submit and track your travel expenses</p>
           </div>
           {hasPermission('submit_expense') && (
-            <Button className="gap-2">
-              <Plus className="w-4 h-4" />
-              Submit Expense
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" className="gap-2" asChild>
+                <a href="/travel/request">
+                  <Plus className="w-4 h-4" />
+                  Travel Request
+                </a>
+              </Button>
+              <Button className="gap-2" asChild>
+                <a href="/travel/advance">
+                  <Plus className="w-4 h-4" />
+                  Request Advance
+                </a>
+              </Button>
+            </div>
           )}
         </div>
 
@@ -86,6 +97,57 @@ export default function TravelPage() {
                 <p className="text-xs text-muted-foreground mt-1">{approvedExpenses.length} claims</p>
               </div>
             </CardContent>
+          </Card>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer" asChild>
+            <Link href="/travel/request">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                    <Briefcase className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">Create Travel Request</p>
+                    <p className="text-xs text-muted-foreground">Submit new travel request</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Link>
+          </Card>
+
+          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer" asChild>
+            <Link href="/travel/advance">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                    <DollarSign className="w-6 h-6 text-green-600 dark:text-green-400" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">Request Advance</p>
+                    <p className="text-xs text-muted-foreground">Get travel advance payment</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Link>
+          </Card>
+
+          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer" asChild>
+            <Link href="/travel/lta">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                    <Calendar className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">LTA Management</p>
+                    <p className="text-xs text-muted-foreground">Manage Leave Travel Allowance</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Link>
           </Card>
         </div>
 

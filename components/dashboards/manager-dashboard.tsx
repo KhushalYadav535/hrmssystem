@@ -4,8 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { mockLeaves, mockExpenses, mockEmployees, mockDashboardStats } from '@/lib/mock-data';
 import { Calendar, Check, X, Clock, Users, TrendingUp, DollarSign } from 'lucide-react';
+import { useLeaves } from '@/lib/hooks/useLeaves';
+import { useExpenses } from '@/lib/hooks/useExpenses';
+import { useEmployees } from '@/lib/hooks/useEmployees';
+import { useAuth } from '@/lib/auth-context';
 
 const performanceData = [
   { employee: 'Rajesh', rating: 4.2 },
@@ -13,9 +16,14 @@ const performanceData = [
 ];
 
 export default function ManagerDashboard() {
-  const pendingLeaves = mockLeaves.filter((l) => l.status === 'Pending');
-  const pendingExpenses = mockExpenses.filter((e) => e.status === 'Pending');
-  const teamMembers = mockEmployees;
+  const { currentUser } = useAuth();
+  const { leaves } = useLeaves({ status: 'Pending' });
+  const { expenses } = useExpenses({ status: 'Pending' });
+  const { employees } = useEmployees();
+
+  const pendingLeaves = leaves.filter((l: any) => l.status === 'Pending');
+  const pendingExpenses = expenses.filter((e: any) => e.status === 'Pending');
+  const teamMembers = employees || [];
 
   return (
     <div className="space-y-6">
@@ -91,24 +99,29 @@ export default function ManagerDashboard() {
           <CardContent>
             <div className="space-y-4">
               {pendingLeaves.length > 0 ? (
-                pendingLeaves.map((leave) => (
-                  <div key={leave.id} className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-secondary/50 transition-colors">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm text-foreground">Leave Request</p>
-                      <p className="text-xs text-muted-foreground mt-1">{leave.leaveType}</p>
-                      <p className="text-xs text-muted-foreground">{leave.startDate} to {leave.endDate} ({leave.days} days)</p>
-                      <p className="text-xs text-muted-foreground mt-1">Reason: {leave.reason}</p>
+                pendingLeaves.map((leave: any) => {
+                  const leaveId = leave._id || leave.id || '';
+                  return (
+                    <div key={leaveId} className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-secondary/50 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-foreground">Leave Request</p>
+                        <p className="text-xs text-muted-foreground mt-1">{leave.leaveType}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {leave.startDate} to {leave.endDate} ({leave.days || 0} days)
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">Reason: {leave.reason || 'N/A'}</p>
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0 ml-4">
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700">
+                          <Check className="w-4 h-4" />
+                        </Button>
+                        <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700 bg-transparent">
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex gap-2 flex-shrink-0 ml-4">
-                      <Button size="sm" className="bg-green-600 hover:bg-green-700">
-                        <Check className="w-4 h-4" />
-                      </Button>
-                      <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700 bg-transparent">
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   <p>No pending leave requests</p>
@@ -179,19 +192,28 @@ export default function ManagerDashboard() {
             <CardDescription>{teamMembers.length} direct reports</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {teamMembers.map((member) => (
-                <div key={member.id} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg hover:bg-secondary transition-colors">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm text-foreground">{member.firstName} {member.lastName}</p>
-                    <p className="text-xs text-muted-foreground">{member.designation}</p>
-                  </div>
-                  <Badge className={member.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}>
-                    {member.status}
-                  </Badge>
-                </div>
-              ))}
-            </div>
+            {teamMembers.length === 0 ? (
+              <div className="text-center py-4">
+                <p className="text-sm text-muted-foreground">No team members found</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {teamMembers.map((member: any) => {
+                  const memberId = member._id || member.id || '';
+                  return (
+                    <div key={memberId} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg hover:bg-secondary transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-foreground">{member.firstName} {member.lastName}</p>
+                        <p className="text-xs text-muted-foreground">{member.designation}</p>
+                      </div>
+                      <Badge className={member.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}>
+                        {member.status}
+                      </Badge>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

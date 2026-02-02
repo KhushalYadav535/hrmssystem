@@ -5,18 +5,39 @@ import { redirect } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { mockTaxData } from '@/lib/mock-data';
-import { FileText, Download } from 'lucide-react';
+import { FileText, Download, Calculator, Receipt, CheckCircle2, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
+import DocumentViewer from '@/components/document-viewer';
+import apiService from '@/lib/api';
 
 export default function TaxPage() {
-  const { isAuthenticated, hasPermission } = useAuth();
+  const { isAuthenticated, hasPermission, currentUser } = useAuth();
+  const [selectedDocument, setSelectedDocument] = useState<any>(null);
+  const [taxRecords, setTaxRecords] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Load tax records from API when available
+    // For now, use empty array - API endpoint will be added later
+    setIsLoading(false);
+  }, []);
 
   if (!isAuthenticated) {
     redirect('/login');
   }
 
-  const taxRecords = mockTaxData;
+  const handleDownload = async (docName: string) => {
+    // TODO: Implement API call to download tax document
+    toast.info('Document download will be available once API is implemented.');
+  };
+
+  const handleViewDocument = async (docName: string) => {
+    // TODO: Implement API call to view tax document
+    toast.info('Document preview will be available once API is implemented.');
+  };
 
   return (
     <DashboardLayout>
@@ -102,17 +123,17 @@ export default function TaxPage() {
 
               {/* Actions */}
               <div className="flex gap-2 pt-4 border-t">
-                <Button variant="outline" className="gap-2 bg-transparent" size="sm">
-                  <FileText className="w-4 h-4" />
+                <Button variant="outline" className="gap-2 bg-transparent" size="sm" onClick={() => handleViewDocument('Form 16')}>
+                  <Eye className="w-4 h-4" />
                   View ITR
                 </Button>
                 {hasPermission('process_payroll') && (
                   <>
-                    <Button variant="outline" className="gap-2 bg-transparent" size="sm">
+                    <Button variant="outline" className="gap-2 bg-transparent" size="sm" onClick={() => handleDownload('Form 16')}>
                       <Download className="w-4 h-4" />
                       Download Certificate
                     </Button>
-                    <Button variant="outline" className="gap-2 bg-transparent" size="sm">
+                    <Button variant="outline" className="gap-2 bg-transparent" size="sm" onClick={() => handleDownload('Deduction')}>
                       <Download className="w-4 h-4" />
                       Download Deduction Summary
                     </Button>
@@ -123,6 +144,75 @@ export default function TaxPage() {
           </Card>
         ))}
 
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer" asChild>
+            <Link href="/tax/regime-comparison">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                    <Calculator className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">Regime Comparison</p>
+                    <p className="text-xs text-muted-foreground">Compare old vs new</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Link>
+          </Card>
+
+          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer" asChild>
+            <Link href="/tax/form16">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                    <FileText className="w-6 h-6 text-green-600 dark:text-green-400" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">Form 16</p>
+                    <p className="text-xs text-muted-foreground">Download certificate</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Link>
+          </Card>
+
+          {hasPermission('process_payroll') && (
+            <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer" asChild>
+              <Link href="/tax/form24q">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                      <Receipt className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <div>
+                      <p className="font-semibold">Form 24Q</p>
+                      <p className="text-xs text-muted-foreground">Quarterly TDS return</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Link>
+            </Card>
+          )}
+
+          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer" asChild>
+            <Link href="/tax/proof-uploads">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                    <CheckCircle2 className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">Proof Verification</p>
+                    <p className="text-xs text-muted-foreground">Upload & verify</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Link>
+          </Card>
+        </div>
+
         {/* Tax Documents */}
         <Card className="border-0 shadow-sm">
           <CardHeader>
@@ -131,9 +221,9 @@ export default function TaxPage() {
           <CardContent>
             <div className="space-y-3">
               {[
-                { name: 'Form 16', year: 'FY 2025-26', status: 'Available' },
-                { name: 'Form 12BB', year: 'FY 2025-26', status: 'Available' },
-                { name: 'Deduction Certificate', year: 'FY 2025-26', status: 'Available' },
+                { name: 'Form 16', year: 'FY 2025-26', status: 'Available', link: '/tax/form16' },
+                { name: 'Form 12BB', year: 'FY 2025-26', status: 'Available', link: '#' },
+                { name: 'Deduction Certificate', year: 'FY 2025-26', status: 'Available', link: '#' },
               ].map((doc, idx) => (
                 <div key={idx} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg border border-border">
                   <div>
@@ -142,7 +232,11 @@ export default function TaxPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     <Badge className="bg-green-100 text-green-700">{doc.status}</Badge>
-                    <Button size="sm" variant="outline">
+                    <Button size="sm" variant="outline" onClick={() => handleViewDocument(doc.name)}>
+                      <Eye className="w-4 h-4 mr-1" />
+                      View
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => handleDownload(doc.name)}>
                       <Download className="w-4 h-4" />
                     </Button>
                   </div>
@@ -151,6 +245,15 @@ export default function TaxPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Document Viewer */}
+        <DocumentViewer
+          open={!!selectedDocument}
+          onOpenChange={(open) => {
+            if (!open) setSelectedDocument(null);
+          }}
+          document={selectedDocument}
+        />
       </div>
     </DashboardLayout>
   );

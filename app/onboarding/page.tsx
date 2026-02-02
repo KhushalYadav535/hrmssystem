@@ -1,5 +1,7 @@
 'use client';
 
+import { useAuth } from '@/lib/auth-context';
+import { redirect } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,6 +10,12 @@ import { CheckCircle2, Clock, Users, FileText, AlertCircle } from 'lucide-react'
 import Link from 'next/link';
 
 export default function OnboardingPage() {
+  const { isAuthenticated, hasPermission } = useAuth();
+
+  // Only HR Administrators can access onboarding management
+  if (!isAuthenticated || !hasPermission('manage_onboarding')) {
+    redirect('/dashboard');
+  }
   const onboardingCandidates = [
     {
       id: 'OB-001',

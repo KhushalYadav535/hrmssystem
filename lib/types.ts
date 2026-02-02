@@ -1,6 +1,15 @@
 // Type definitions for HRMS System
 
-export type UserRole = 'Employee' | 'Manager' | 'HR Administrator' | 'Payroll Administrator';
+export type UserRole = 
+  | 'Super Admin' 
+  | 'Tenant Admin' 
+  | 'HR Administrator' 
+  | 'Payroll Administrator'
+  | 'Finance Administrator'
+  | 'System Administrator'
+  | 'Manager' 
+  | 'Employee'
+  | 'Auditor';
 
 export interface Tenant {
   id: string;

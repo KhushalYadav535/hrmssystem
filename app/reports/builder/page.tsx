@@ -13,7 +13,8 @@ import { useState } from 'react';
 export default function CustomReportBuilderPage() {
   const { isAuthenticated, hasPermission } = useAuth();
 
-  if (!isAuthenticated || !hasPermission('view_reports')) {
+  // Allow access for: managers, HR admins, payroll admins, finance admins, and auditors
+  if (!isAuthenticated || (!hasPermission('view_reports') && !hasPermission('view_all_reports'))) {
     redirect('/dashboard');
   }
 

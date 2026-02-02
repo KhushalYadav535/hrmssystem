@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { mockPayroll, mockTaxData, mockEmployees } from '@/lib/mock-data';
 import { DollarSign, FileText, TrendingUp, AlertTriangle, Plus, Download } from 'lucide-react';
+import { usePayroll } from '@/lib/hooks/usePayroll';
+import { useState, useEffect } from 'react';
 
 const payrollTrendData = [
   { month: 'Nov', amount: 3200000 },
@@ -13,15 +14,26 @@ const payrollTrendData = [
   { month: 'Jan', amount: 3180000 },
 ];
 
-const deductionData = [
-  { name: 'PF', amount: mockPayroll.reduce((sum, p) => sum + (p.pfDeduction || 0), 0) },
-  { name: 'ESI', amount: mockPayroll.reduce((sum, p) => sum + (p.esiDeduction || 0), 0) },
-  { name: 'Tax', amount: mockPayroll.reduce((sum, p) => sum + (p.incomeTax || 0), 0) },
-];
-
 export default function PayrollAdminDashboard() {
-  const totalNetPayroll = mockPayroll.reduce((sum, p) => sum + (p.netSalary || 0), 0);
-  const totalDeductions = mockPayroll.reduce((sum, p) => sum + ((p.pfDeduction || 0) + (p.esiDeduction || 0) + (p.incomeTax || 0)), 0);
+  const { payrolls } = usePayroll();
+  const [deductionData, setDeductionData] = useState([
+    { name: 'PF', amount: 0 },
+    { name: 'ESI', amount: 0 },
+    { name: 'Tax', amount: 0 },
+  ]);
+
+  useEffect(() => {
+    if (payrolls && payrolls.length > 0) {
+      setDeductionData([
+        { name: 'PF', amount: payrolls.reduce((sum: number, p: any) => sum + (p.pfDeduction || 0), 0) },
+        { name: 'ESI', amount: payrolls.reduce((sum: number, p: any) => sum + (p.esiDeduction || 0), 0) },
+        { name: 'Tax', amount: payrolls.reduce((sum: number, p: any) => sum + (p.incomeTax || 0), 0) },
+      ]);
+    }
+  }, [payrolls]);
+
+  const totalNetPayroll = payrolls.reduce((sum: number, p: any) => sum + (p.netSalary || 0), 0);
+  const totalDeductions = payrolls.reduce((sum: number, p: any) => sum + ((p.pfDeduction || 0) + (p.esiDeduction || 0) + (p.incomeTax || 0)), 0);
 
   return (
     <div className="space-y-6">
@@ -98,7 +110,7 @@ export default function PayrollAdminDashboard() {
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-primary/5 p-4 rounded-lg border border-primary/20">
                   <p className="text-xs text-muted-foreground mb-1">Employees</p>
-                  <p className="text-2xl font-bold">{mockEmployees.length}</p>
+                  <p className="text-2xl font-bold">{payrolls.length}</p>
                 </div>
                 <div className="bg-green-100/50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200/50">
                   <p className="text-xs text-muted-foreground mb-1">Net Payroll</p>
@@ -106,18 +118,18 @@ export default function PayrollAdminDashboard() {
                 </div>
                 <div className="bg-blue-100/50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200/50">
                   <p className="text-xs text-muted-foreground mb-1">Processed</p>
-                  <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{mockPayroll.length}/{mockEmployees.length}</p>
+                  <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{payrolls.length}/{payrolls.length}</p>
                 </div>
               </div>
 
               <div className="bg-secondary/50 p-4 rounded-lg space-y-3">
                 <div className="flex justify-between text-sm">
                   <span>Total Basic Salary</span>
-                  <span className="font-semibold">₹{mockPayroll.reduce((sum, p) => sum + (p.basicSalary || 0), 0).toLocaleString()}</span>
+                  <span className="font-semibold">₹{payrolls.reduce((sum: number, p: any) => sum + (p.basicSalary || 0), 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Total Allowances (DA+HRA+Other)</span>
-                  <span className="font-semibold">₹{mockPayroll.reduce((sum, p) => sum + ((p.da || 0) + (p.hra || 0) + (p.allowances || 0)), 0).toLocaleString()}</span>
+                  <span className="font-semibold">₹{payrolls.reduce((sum: number, p: any) => sum + ((p.da || 0) + (p.hra || 0) + (p.allowances || 0)), 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Total Deductions</span>

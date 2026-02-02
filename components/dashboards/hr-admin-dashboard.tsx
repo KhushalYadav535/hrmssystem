@@ -4,19 +4,56 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
-import { mockEmployees, mockRecruitement, mockDashboardStats, mockChartData } from '@/lib/mock-data';
+import { useEmployees } from '@/lib/hooks/useEmployees';
+import { useJobs } from '@/lib/hooks/useJobs';
 import { Users, BarChart3, TrendingUp, Briefcase, AlertCircle, Plus } from 'lucide-react';
-
-const departmentData = [
-  { name: 'Finance', value: 320, fill: 'var(--color-chart-1)' },
-  { name: 'IT', value: 450, fill: 'var(--color-chart-2)' },
-  { name: 'HR', value: 120, fill: 'var(--color-chart-3)' },
-  { name: 'Operations', value: 230, fill: 'var(--color-chart-4)' },
-  { name: 'Retail Banking', value: 380, fill: 'var(--color-chart-5)' },
-];
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
 
 export default function HRAdminDashboard() {
-  const openPositions = mockRecruitement.filter((j) => j.status === 'Open').length;
+  const { employees, isLoading: employeesLoading } = useEmployees();
+  const { jobs, isLoading: jobsLoading } = useJobs({ status: 'Open' });
+  const [dashboardStats, setDashboardStats] = useState({
+    totalEmployees: 0,
+    activeEmployees: 0,
+    onLeaveToday: 0,
+    pendingOnboarding: 0,
+  });
+
+  useEffect(() => {
+    if (employees) {
+      setDashboardStats({
+        totalEmployees: employees.length,
+        activeEmployees: employees.filter((e: any) => e.status === 'Active').length,
+        onLeaveToday: employees.filter((e: any) => e.status === 'On Leave').length,
+        pendingOnboarding: 0, // Will be fetched from onboarding API
+      });
+    }
+  }, [employees]);
+
+  const openPositions = jobs.length;
+  
+  // Calculate department distribution from employees
+  const departmentData = employees.reduce((acc: any[], emp: any) => {
+    const dept = emp.department || 'Other';
+    const existing = acc.find(d => d.name === dept);
+    if (existing) {
+      existing.value += 1;
+    } else {
+      acc.push({ name: dept, value: 1, fill: `var(--color-chart-${(acc.length % 5) + 1})` });
+    }
+    return acc;
+  }, []);
+
+  // Mock chart data for recruitment pipeline
+  const mockChartData = [
+    { month: 'Jan', applications: 65, hires: 8 },
+    { month: 'Feb', applications: 59, hires: 6 },
+    { month: 'Mar', applications: 80, hires: 10 },
+    { month: 'Apr', applications: 81, hires: 9 },
+    { month: 'May', applications: 56, hires: 7 },
+    { month: 'Jun', applications: 55, hires: 5 },
+  ];
 
   return (
     <div className="space-y-6">
@@ -33,8 +70,8 @@ export default function HRAdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Total Employees</p>
-                <p className="text-2xl font-bold text-foreground">{mockDashboardStats.totalEmployees.toLocaleString()}</p>
-                <p className="text-xs text-green-600 mt-1">↑ 12 new joinings</p>
+                <p className="text-2xl font-bold text-foreground">{dashboardStats.totalEmployees.toLocaleString()}</p>
+                <p className="text-xs text-green-600 mt-1">Active employees</p>
               </div>
               <Users className="w-10 h-10 text-primary/30" />
             </div>
@@ -46,8 +83,8 @@ export default function HRAdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Open Positions</p>
-                <p className="text-2xl font-bold text-foreground">{mockRecruitement.reduce((sum, j) => sum + j.openPositions, 0)}</p>
-                <p className="text-xs text-muted-foreground mt-1">{mockRecruitement.reduce((sum, j) => sum + j.applications, 0)} applications</p>
+                <p className="text-2xl font-bold text-foreground">{jobs.reduce((sum: number, j: any) => sum + (j.openPositions || 0), 0)}</p>
+                <p className="text-xs text-muted-foreground mt-1">{jobs.reduce((sum: number, j: any) => sum + (j.applications || 0), 0)} applications</p>
               </div>
               <Briefcase className="w-10 h-10 text-accent/30" />
             </div>
@@ -72,7 +109,7 @@ export default function HRAdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Pending Onboarding</p>
-                <p className="text-2xl font-bold text-foreground">{mockDashboardStats.pendingOnboarding}</p>
+                <p className="text-2xl font-bold text-foreground">{dashboardStats.pendingOnboarding}</p>
                 <p className="text-xs text-yellow-600 mt-1">⚠️ Action required</p>
               </div>
               <AlertCircle className="w-10 h-10 text-yellow-500/30" />
@@ -140,20 +177,35 @@ export default function HRAdminDashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {mockRecruitement.map((job) => (
-                <div key={job.id} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg border border-border">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm text-foreground">{job.title}</p>
-                    <p className="text-xs text-muted-foreground">{job.department} • Posted {job.postedDate}</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                    <Badge className="bg-primary/20 text-primary">{job.openPositions} Open</Badge>
-                    <span className="text-xs text-muted-foreground">{job.applications} applications</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {jobsLoading ? (
+              <div className="text-center py-4">
+                <p className="text-sm text-muted-foreground">Loading jobs...</p>
+              </div>
+            ) : jobs.length === 0 ? (
+              <div className="text-center py-4">
+                <p className="text-sm text-muted-foreground">No open positions</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {jobs.slice(0, 5).map((job: any) => {
+                  const jobId = job._id || job.id || '';
+                  return (
+                    <div key={jobId} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg border border-border">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-foreground">{job.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {job.department} • Posted {job.postedDate ? new Date(job.postedDate).toLocaleDateString() : 'N/A'}
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                        <Badge className="bg-primary/20 text-primary">{job.openPositions || 0} Open</Badge>
+                        <span className="text-xs text-muted-foreground">{job.applications || 0} applications</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -170,11 +222,13 @@ export default function HRAdminDashboard() {
                   <p className="text-xs text-muted-foreground">Configure leave types and balances</p>
                 </div>
               </Button>
-              <Button variant="outline" className="w-full justify-start h-auto py-3 bg-transparent">
-                <div className="text-left">
-                  <p className="font-medium text-sm">Department Management</p>
-                  <p className="text-xs text-muted-foreground">Add/edit departments and roles</p>
-                </div>
+              <Button variant="outline" className="w-full justify-start h-auto py-3 bg-transparent" asChild>
+                <Link href="/settings/departments">
+                  <div className="text-left">
+                    <p className="font-medium text-sm">Department Management</p>
+                    <p className="text-xs text-muted-foreground">Add/edit departments and roles</p>
+                  </div>
+                </Link>
               </Button>
               <Button variant="outline" className="w-full justify-start h-auto py-3 bg-transparent">
                 <div className="text-left">

@@ -1,10 +1,29 @@
 'use client';
 
 import React from 'react';
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, AreaChart, Area, RadarChart, Radar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, LineChart, Line, PieChart, Pie, AreaChart, Area, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
-export function LineChartComponent({ data, dataKey, title, description }: any) {
+export function LineChartComponent({ data, dataKey, xAxisKey, title, description }: any) {
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>{title}</CardTitle>
+          {description && <CardDescription>{description}</CardDescription>}
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+            No data available
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Auto-detect x-axis key if not provided
+  const xKey = xAxisKey || (data.length > 0 ? Object.keys(data[0]).find(key => key !== dataKey) || Object.keys(data[0])[0] : 'month');
+
   return (
     <Card>
       <CardHeader>
@@ -15,7 +34,7 @@ export function LineChartComponent({ data, dataKey, title, description }: any) {
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis stroke="var(--muted-foreground)" />
+            <XAxis dataKey={xKey} stroke="var(--muted-foreground)" />
             <YAxis stroke="var(--muted-foreground)" />
             <Tooltip contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }} />
             <Legend />
@@ -27,7 +46,26 @@ export function LineChartComponent({ data, dataKey, title, description }: any) {
   );
 }
 
-export function BarChartComponent({ data, dataKey, title, description }: any) {
+export function BarChartComponent({ data, dataKey, xAxisKey, title, description }: any) {
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>{title}</CardTitle>
+          {description && <CardDescription>{description}</CardDescription>}
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+            No data available
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Auto-detect x-axis key if not provided
+  const xKey = xAxisKey || (data.length > 0 ? Object.keys(data[0]).find(key => key !== dataKey) || Object.keys(data[0])[0] : 'department');
+
   return (
     <Card>
       <CardHeader>
@@ -38,7 +76,7 @@ export function BarChartComponent({ data, dataKey, title, description }: any) {
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis stroke="var(--muted-foreground)" />
+            <XAxis dataKey={xKey} stroke="var(--muted-foreground)" />
             <YAxis stroke="var(--muted-foreground)" />
             <Tooltip contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }} />
             <Legend />
@@ -52,6 +90,22 @@ export function BarChartComponent({ data, dataKey, title, description }: any) {
 
 export function PieChartComponent({ data, dataKey, nameKey, title, description }: any) {
   const COLORS = ['var(--primary)', 'var(--accent)', '#10b981', '#f59e0b', '#ef4444'];
+  
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>{title}</CardTitle>
+          {description && <CardDescription>{description}</CardDescription>}
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+            No data available
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
   
   return (
     <Card>
@@ -67,7 +121,11 @@ export function PieChartComponent({ data, dataKey, nameKey, title, description }
               cx="50%"
               cy="50%"
               labelLine={false}
-              label={({ name, value }) => `${name}: ${value}`}
+              label={(entry: any) => {
+                const name = nameKey ? entry[nameKey] : entry.name || entry.type || 'Unknown';
+                const value = entry[dataKey] || 0;
+                return `${name}: ${value}`;
+              }}
               outerRadius={80}
               fill="#8884d8"
               dataKey={dataKey}
@@ -113,6 +171,26 @@ export function AreaChartComponent({ data, dataKey, title, description }: any) {
 }
 
 export function RadarChartComponent({ data, dataKey, title, description }: any) {
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>{title}</CardTitle>
+          {description && <CardDescription>{description}</CardDescription>}
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+            No data available
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Get all keys except 'name' for multiple series
+  const seriesKeys = data.length > 0 ? Object.keys(data[0]).filter(key => key !== 'name') : [];
+  const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#00ff00'];
+
   return (
     <Card>
       <CardHeader>
@@ -121,11 +199,28 @@ export function RadarChartComponent({ data, dataKey, title, description }: any) 
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
-          <RadarChart data={data}>
-            <CartesianGrid stroke="var(--border)" />
-            <XAxis dataKey="name" stroke="var(--muted-foreground)" />
-            <YAxis stroke="var(--muted-foreground)" />
-            <Radar name={dataKey} dataKey={dataKey} stroke="var(--primary)" fill="var(--primary)" fillOpacity={0.6} />
+          <RadarChart data={data} margin={{ top: 20, right: 30, bottom: 20, left: 20 }}>
+            <PolarGrid />
+            <PolarAngleAxis dataKey="name" />
+            <PolarRadiusAxis angle={90} domain={[0, 100]} />
+            {seriesKeys.length > 0 ? seriesKeys.map((key, index) => (
+              <Radar
+                key={`radar-${key}-${index}`}
+                name={key}
+                dataKey={key}
+                stroke={colors[index % colors.length]}
+                fill={colors[index % colors.length]}
+                fillOpacity={0.6}
+              />
+            )) : dataKey ? (
+              <Radar
+                name={dataKey || 'Value'}
+                dataKey={dataKey}
+                stroke="#8884d8"
+                fill="#8884d8"
+                fillOpacity={0.6}
+              />
+            ) : null}
             <Tooltip contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }} />
             <Legend />
           </RadarChart>
