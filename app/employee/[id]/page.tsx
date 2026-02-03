@@ -1,23 +1,129 @@
 'use client';
 
 import { useAuth } from '@/lib/auth-context';
-import { redirect } from 'next/navigation';
+import { redirect, useRouter, useParams } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { mockUsers } from '@/lib/mock-data';
 import { User, FileText, MapPin, Award, BookOpen, AlertCircle, Download, Edit } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import apiService from '@/lib/api';
+import { toast } from 'sonner';
 
-export default function EmployeeDetailPage({ params }: { params: { id: string } }) {
+interface Employee {
+  _id?: string;
+  id?: string;
+  employeeCode: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  designation: string;
+  department: string;
+  status: string;
+  joinDate?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  location?: string;
+  salary?: number;
+  ctc?: number;
+  panNumber?: string;
+  aadhaarNumber?: string;
+  maritalStatus?: string;
+  reportingManager?: string;
+  [key: string]: any;
+}
+
+export default function EmployeeDetailPage() {
   const { isAuthenticated, hasPermission } = useAuth();
+  const router = useRouter();
+  const params = useParams();
+  const [employee, setEmployee] = useState<Employee | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [employeeId, setEmployeeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Ensure params are available and extract ID
+    if (params && params.id) {
+      let id = Array.isArray(params.id) ? params.id[0] : params.id;
+      // Decode URL-encoded ID
+      if (typeof id === 'string') {
+        id = decodeURIComponent(id);
+      }
+      setEmployeeId(id);
+      console.log('Extracted employee ID from params:', id);
+    } else {
+      console.error('No ID found in params:', params);
+    }
+  }, [params]);
+
+  useEffect(() => {
+    if (isAuthenticated && employeeId) {
+      loadEmployee();
+    }
+  }, [isAuthenticated, employeeId]);
+
+  const loadEmployee = async () => {
+    if (!employeeId) {
+      console.error('Employee ID is missing from URL params');
+      console.error('Params:', params);
+      toast.error('Invalid employee ID');
+      router.push('/personnel');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      console.log('Loading employee with ID:', employeeId);
+      const response = await apiService.getEmployee(employeeId);
+      if (response.success && response.data) {
+        setEmployee(response.data);
+      } else {
+        toast.error('Employee not found');
+        router.push('/personnel');
+      }
+    } catch (error: any) {
+      toast.error('Failed to load employee details');
+      console.error('Load employee error:', error);
+      console.error('Employee ID used:', employeeId);
+      router.push('/personnel');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   if (!isAuthenticated || !hasPermission('manage_employees')) {
     redirect('/dashboard');
   }
 
-  const employee = mockUsers.find(u => u.id === params.id) || mockUsers[0];
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <p className="text-muted-foreground">Loading employee details...</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!employee) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <p className="text-muted-foreground">Employee not found</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const fullName = `${employee.firstName} ${employee.lastName}`;
+  const formatDate = (date: string | Date | undefined) => {
+    if (!date) return 'N/A';
+    const d = typeof date === 'string' ? new Date(date) : date;
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
 
   return (
     <DashboardLayout>
@@ -26,7 +132,7 @@ export default function EmployeeDetailPage({ params }: { params: { id: string } 
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Employee Profile</h1>
-            <p className="text-muted-foreground mt-2">{employee.name} - {employee.designation}</p>
+            <p className="text-muted-foreground mt-2">{fullName} - {employee.designation}</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" className="gap-2 bg-transparent">
@@ -47,7 +153,7 @@ export default function EmployeeDetailPage({ params }: { params: { id: string } 
               <CardTitle className="text-sm font-medium">Employee ID</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{employee.id}</div>
+              <div className="text-2xl font-bold">{employee.employeeCode}</div>
             </CardContent>
           </Card>
           <Card>
@@ -55,7 +161,9 @@ export default function EmployeeDetailPage({ params }: { params: { id: string } 
               <CardTitle className="text-sm font-medium">Status</CardTitle>
             </CardHeader>
             <CardContent>
-              <Badge className="bg-green-600">Active</Badge>
+              <Badge className={employee.status === 'Active' ? 'bg-green-600' : 'bg-gray-600'}>
+                {employee.status}
+              </Badge>
             </CardContent>
           </Card>
           <Card>
@@ -63,7 +171,7 @@ export default function EmployeeDetailPage({ params }: { params: { id: string } 
               <CardTitle className="text-sm font-medium">Department</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{employee.department}</div>
+              <div className="text-2xl font-bold">{employee.department || 'N/A'}</div>
             </CardContent>
           </Card>
           <Card>
@@ -71,7 +179,7 @@ export default function EmployeeDetailPage({ params }: { params: { id: string } 
               <CardTitle className="text-sm font-medium">Join Date</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{employee.joinDate}</div>
+              <div className="text-2xl font-bold">{formatDate(employee.joinDate)}</div>
             </CardContent>
           </Card>
         </div>
@@ -95,35 +203,35 @@ export default function EmployeeDetailPage({ params }: { params: { id: string } 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <p className="text-sm text-muted-foreground">Full Name</p>
-                    <p className="text-lg font-semibold">{employee.name}</p>
+                    <p className="text-lg font-semibold">{fullName}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Email</p>
-                    <p className="text-lg font-semibold">{employee.email}</p>
+                    <p className="text-lg font-semibold">{employee.email || 'N/A'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Phone</p>
-                    <p className="text-lg font-semibold">+91 98765 43210</p>
+                    <p className="text-lg font-semibold">{employee.phone || 'N/A'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Date of Birth</p>
-                    <p className="text-lg font-semibold">15-Mar-1990</p>
+                    <p className="text-lg font-semibold">{formatDate(employee.dateOfBirth)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Gender</p>
-                    <p className="text-lg font-semibold">Male</p>
+                    <p className="text-lg font-semibold">{employee.gender || 'N/A'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Marital Status</p>
-                    <p className="text-lg font-semibold">Married</p>
+                    <p className="text-lg font-semibold">{employee.maritalStatus || 'N/A'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">PAN</p>
-                    <p className="text-lg font-semibold">AAAPK1234X</p>
+                    <p className="text-lg font-semibold">{employee.panNumber || 'N/A'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Aadhaar</p>
-                    <p className="text-lg font-semibold">XXXX XXXX 1234</p>
+                    <p className="text-lg font-semibold">{employee.aadhaarNumber ? `${employee.aadhaarNumber.substring(0, 4)} XXXX ${employee.aadhaarNumber.substring(8)}` : 'N/A'}</p>
                   </div>
                 </div>
               </CardContent>
@@ -156,7 +264,7 @@ export default function EmployeeDetailPage({ params }: { params: { id: string } 
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Join Date</p>
-                      <p className="text-lg font-semibold">{employee.joinDate}</p>
+                      <p className="text-lg font-semibold">{formatDate(employee.joinDate)}</p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Employment Type</p>
@@ -173,19 +281,19 @@ export default function EmployeeDetailPage({ params }: { params: { id: string } 
                 <CardContent className="space-y-3">
                   <div className="flex justify-between p-3 bg-secondary/50 rounded">
                     <span className="font-medium">Basic Salary</span>
-                    <span className="font-bold">₹50,000</span>
+                    <span className="font-bold">₹{employee.salary ? employee.salary.toLocaleString('en-IN') : 'N/A'}</span>
                   </div>
                   <div className="flex justify-between p-3 bg-secondary/50 rounded">
                     <span className="font-medium">HRA</span>
-                    <span className="font-bold">₹15,000</span>
+                    <span className="font-bold">₹{employee.salary ? Math.round(employee.salary * 0.3).toLocaleString('en-IN') : 'N/A'}</span>
                   </div>
                   <div className="flex justify-between p-3 bg-secondary/50 rounded">
                     <span className="font-medium">Conveyance</span>
-                    <span className="font-bold">₹5,000</span>
+                    <span className="font-bold">₹{employee.salary ? Math.round(employee.salary * 0.1).toLocaleString('en-IN') : 'N/A'}</span>
                   </div>
                   <div className="flex justify-between p-3 bg-primary/10 rounded border border-primary/20">
                     <span className="font-bold">Total CTC</span>
-                    <span className="font-bold text-primary">₹70,000/month</span>
+                    <span className="font-bold text-primary">₹{employee.ctc ? employee.ctc.toLocaleString('en-IN') : (employee.salary ? (employee.salary * 12).toLocaleString('en-IN') : 'N/A')}/year</span>
                   </div>
                 </CardContent>
               </Card>

@@ -229,7 +229,6 @@ export default function LoginPage() {
                     <p className="font-medium">👨‍💼 HR Administrator: <span className="text-foreground">admin.hr@indianbank.com / password123</span></p>
                     <p className="font-medium">💰 Payroll Administrator: <span className="text-foreground">payroll@indianbank.com / password123</span></p>
                     <p className="font-medium">💵 Finance Administrator: <span className="text-foreground">finance@indianbank.com / password123</span></p>
-                    <p className="font-medium">⚙️ System Administrator: <span className="text-foreground">system@indianbank.com / password123</span></p>
                     <p className="font-medium">👔 Manager: <span className="text-foreground">priya.sharma@indianbank.com / password123</span></p>
                     <p className="font-medium">👤 Employee: <span className="text-foreground">rajesh.kumar@indianbank.com / password123</span></p>
                     <p className="font-medium">🔍 Auditor: <span className="text-foreground">auditor@indianbank.com / password123</span></p>

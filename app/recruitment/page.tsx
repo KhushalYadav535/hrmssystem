@@ -75,24 +75,28 @@ export default function RecruitmentPage() {
   const totalApplications = jobs.reduce((sum, j) => sum + (j.applications || 0), 0);
 
   const handleCreateJob = async () => {
-    if (!formData.title || !formData.department) {
-      toast.error('Please fill all required fields');
+    if (!formData.title || !formData.department || !formData.openPositions) {
+      toast.error('Please fill all required fields (Title, Department, Open Positions)');
+      return;
+    }
+    if (formData.openPositions && formData.openPositions < 1) {
+      toast.error('Open Positions must be at least 1');
       return;
     }
     try {
       const response = await apiService.createJob({
-        title: formData.title!,
-        department: formData.department!,
+        title: formData.title!.trim(),
+        department: formData.department!.trim(),
         status: formData.status || 'Open',
-        openPositions: formData.openPositions || 1,
-        description: formData.description,
-        location: formData.location,
-        salaryRange: formData.salaryRange,
+        openPositions: Number(formData.openPositions) || 1,
+        description: formData.description?.trim() || '',
+        location: formData.location?.trim() || '',
+        salaryRange: formData.salaryRange?.trim() || '',
       });
       if (response.success) {
         toast.success('Job posted successfully!');
         setShowCreateDialog(false);
-        setFormData({ title: '', department: '', status: 'Open', openPositions: 1 });
+        setFormData({ title: '', department: '', status: 'Open', openPositions: 1, description: '', location: '', salaryRange: '' });
         loadJobs();
       } else {
         toast.error(response.message || 'Failed to create job');

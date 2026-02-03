@@ -49,6 +49,7 @@ export default function PersonnelPage() {
     firstName: '',
     lastName: '',
     email: '',
+    password: '',
     phone: '',
     dateOfBirth: '',
     gender: 'Male',
@@ -62,8 +63,19 @@ export default function PersonnelPage() {
   });
 
   useEffect(() => {
-    loadEmployees();
-    loadDepartments();
+    if (isAuthenticated) {
+      loadEmployees();
+      loadDepartments();
+    }
+  }, [isAuthenticated]);
+
+  // Refresh data when page comes into focus (e.g., after navigation)
+  useEffect(() => {
+    const handleFocus = () => {
+      loadEmployees();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
   const loadDepartments = async () => {
@@ -83,12 +95,47 @@ export default function PersonnelPage() {
       const params: any = {};
       if (searchTerm) params.search = searchTerm;
       
+      // HR Administrator and other admin roles should see all employees
+      // Don't filter by status unless explicitly needed
+      
+      console.log('Loading employees for role:', currentUser?.role);
       const response = await apiService.getEmployees(params);
+      console.log('Employees API response:', response);
+      
       if (response.success && response.data) {
-        setEmployees(Array.isArray(response.data) ? response.data : []);
+        const employeesList = Array.isArray(response.data) ? response.data : [];
+        console.log('Employees loaded:', employeesList.length);
+        
+        // Ensure each employee has both _id and id for compatibility
+        const normalizedEmployees = employeesList.map((emp: any) => {
+          // Convert _id to string if it exists
+          const employeeId = emp._id ? (typeof emp._id === 'string' ? emp._id : emp._id.toString()) : (emp.id || null);
+          return {
+            ...emp,
+            _id: employeeId,
+            id: employeeId, // Ensure id exists for backward compatibility
+            // Ensure employeeCode is preserved
+            employeeCode: emp.employeeCode || emp.employee_code || '',
+          };
+        });
+        
+        console.log('Normalized employees sample:', normalizedEmployees.slice(0, 2).map(e => ({ 
+          name: `${e.firstName} ${e.lastName}`, 
+          employeeCode: e.employeeCode,
+          hasEmployeeCode: !!e.employeeCode 
+        })));
+        setEmployees(normalizedEmployees);
+        
+        if (normalizedEmployees.length === 0) {
+          console.warn('No employees found. Check tenantId and role permissions.');
+        }
+      } else {
+        console.error('Failed to load employees:', response.message);
+        toast.error(response.message || 'Failed to load employees');
       }
     } catch (error: any) {
-      toast.error('Failed to load employees');
+      console.error('Error loading employees:', error);
+      toast.error('Failed to load employees: ' + (error.message || 'Unknown error'));
     } finally {
       setIsLoading(false);
     }
@@ -123,12 +170,26 @@ export default function PersonnelPage() {
   );
 
   const handleViewEmployee = (employee: Employee) => {
-    setSelectedEmployee(employee);
+    // Ensure employee has proper ID fields
+    const normalizedEmployee = {
+      ...employee,
+      _id: employee._id ? (typeof employee._id === 'string' ? employee._id : employee._id.toString()) : employee.id,
+      id: employee._id ? (typeof employee._id === 'string' ? employee._id : employee._id.toString()) : (employee.id || null),
+    };
+    setSelectedEmployee(normalizedEmployee);
+    setShowEditDialog(false);
     setShowViewDialog(true);
   };
 
   const handleEditEmployee = (employee: Employee) => {
-    setSelectedEmployee(employee);
+    // Ensure employee has proper ID fields
+    const normalizedEmployee = {
+      ...employee,
+      _id: employee._id ? (typeof employee._id === 'string' ? employee._id : employee._id.toString()) : employee.id,
+      id: employee._id ? (typeof employee._id === 'string' ? employee._id : employee._id.toString()) : (employee.id || null),
+    };
+    console.log('Setting selected employee:', normalizedEmployee);
+    setSelectedEmployee(normalizedEmployee);
     setShowEditDialog(true);
   };
 
@@ -140,11 +201,16 @@ export default function PersonnelPage() {
   const handleCreateEmployee = async () => {
     // Validate required fields
     if (!employeeForm.firstName || !employeeForm.lastName || !employeeForm.email || 
-        !employeeForm.phone || !employeeForm.department || !employeeForm.designation ||
+        !employeeForm.password || !employeeForm.phone || !employeeForm.department || !employeeForm.designation ||
         !employeeForm.employeeCode || !employeeForm.dateOfBirth || !employeeForm.joinDate ||
         !employeeForm.location || !employeeForm.salary || !employeeForm.ctc) {
       toast.error('Please fill all required fields');
       console.log('Form validation failed:', employeeForm);
+      return;
+    }
+
+    if (employeeForm.password.length < 6) {
+      toast.error('Password must be at least 6 characters long');
       return;
     }
 
@@ -160,6 +226,7 @@ export default function PersonnelPage() {
         firstName: employeeForm.firstName.trim(),
         lastName: employeeForm.lastName.trim(),
         email: employeeForm.email.trim().toLowerCase(),
+        password: employeeForm.password,
         phone: employeeForm.phone.trim(),
         dateOfBirth: employeeForm.dateOfBirth,
         gender: employeeForm.gender,
@@ -183,6 +250,7 @@ export default function PersonnelPage() {
           firstName: '',
           lastName: '',
           email: '',
+          password: '',
           phone: '',
           dateOfBirth: '',
           gender: 'Male',
@@ -307,6 +375,18 @@ export default function PersonnelPage() {
                       />
                     </div>
                     <div>
+                      <Label htmlFor="password">Password *</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        value={employeeForm.password}
+                        onChange={(e) => setEmployeeForm({ ...employeeForm, password: e.target.value })}
+                        placeholder="Enter password for login"
+                        minLength={6}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">Minimum 6 characters</p>
+                    </div>
+                    <div>
                       <Label htmlFor="phone">Phone *</Label>
                       <Input
                         id="phone"
@@ -358,7 +438,7 @@ export default function PersonnelPage() {
                               </SelectItem>
                             ))
                           ) : (
-                            <SelectItem value="" disabled>No departments available</SelectItem>
+                            <SelectItem value="no_departments" disabled>No departments available</SelectItem>
                           )}
                         </SelectContent>
                       </Select>
@@ -471,25 +551,49 @@ export default function PersonnelPage() {
                 </thead>
                 <tbody>
                   {filteredEmployees.map((employee) => (
-                    <tr key={employee.id} className="border-b border-border hover:bg-secondary/50 transition-colors">
-                      <td className="p-3 text-sm font-medium">{employee.employeeCode}</td>
+                    <tr key={employee._id || employee.id || employee.employeeCode} className="border-b border-border hover:bg-secondary/50 transition-colors">
+                      <td className="p-3 text-sm font-medium">{employee.employeeCode || employee.employee_code || 'N/A'}</td>
                       <td className="p-3 text-sm">
                         {employee.firstName} {employee.lastName}
                       </td>
                       <td className="p-3 text-sm text-muted-foreground">{employee.designation || 'Not specified'}</td>
                       <td className="p-3 text-sm text-muted-foreground">{employee.department || 'Not specified'}</td>
                       <td className="p-3 text-sm">
-                        <Badge className={employee.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}>
-                          {employee.status}
+                        <Badge className={employee.status === 'Active' ? 'bg-green-100 text-green-700' : employee.status === 'Inactive' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}>
+                          {employee.status || 'N/A'}
                         </Badge>
                       </td>
                       <td className="p-3 text-sm">
                         <div className="flex gap-2">
-                          <Button size="sm" variant="ghost" onClick={() => handleViewEmployee(employee)}>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            onClick={() => {
+                              // Normalize employee ID before passing
+                              const normalizedEmployee = {
+                                ...employee,
+                                _id: employee._id ? (typeof employee._id === 'string' ? employee._id : employee._id.toString()) : employee.id,
+                                id: employee._id ? (typeof employee._id === 'string' ? employee._id : employee._id.toString()) : (employee.id || null),
+                              };
+                              handleViewEmployee(normalizedEmployee);
+                            }}
+                          >
                             <Eye className="w-4 h-4" />
                           </Button>
                           {hasPermission('manage_employees') && currentUser?.role !== 'Auditor' && (
-                            <Button size="sm" variant="ghost" onClick={() => handleEditEmployee(employee)}>
+                            <Button 
+                              size="sm" 
+                              variant="ghost" 
+                              onClick={() => {
+                                // Normalize employee ID before passing
+                                const normalizedEmployee = {
+                                  ...employee,
+                                  _id: employee._id ? (typeof employee._id === 'string' ? employee._id : employee._id.toString()) : employee.id,
+                                  id: employee._id ? (typeof employee._id === 'string' ? employee._id : employee._id.toString()) : (employee.id || null),
+                                };
+                                handleEditEmployee(normalizedEmployee);
+                              }}
+                            >
                               <Edit2 className="w-4 h-4" />
                             </Button>
                           )}
@@ -575,7 +679,29 @@ export default function PersonnelPage() {
                   </div>
                 )}
                 <div className="flex gap-2 pt-4">
-                  <Button variant="outline" onClick={() => router.push(`/employee/${selectedEmployee._id || selectedEmployee.id}`)} className="flex-1">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      // Get employee ID - handle both string and ObjectId
+                      let employeeId = selectedEmployee._id || selectedEmployee.id;
+                      
+                      // Convert to string if it's an object
+                      if (employeeId && typeof employeeId !== 'string') {
+                        employeeId = employeeId.toString();
+                      }
+                      
+                      if (!employeeId) {
+                        toast.error('Employee ID not found. Please refresh the page.');
+                        console.error('Employee object:', selectedEmployee);
+                        return;
+                      }
+                      
+                      // Use window.location for reliable navigation with proper encoding
+                      const idString = typeof employeeId === 'string' ? employeeId : employeeId.toString();
+                      window.location.href = `/employee/${encodeURIComponent(idString)}`;
+                    }} 
+                    className="flex-1"
+                  >
                     View Full Profile
                   </Button>
                   {hasPermission('manage_employees') && currentUser?.role !== 'Auditor' && (
@@ -604,7 +730,34 @@ export default function PersonnelPage() {
                 <p className="text-sm text-muted-foreground">
                   Employee editing form would go here. For now, you can navigate to the employee page.
                 </p>
-                <Button onClick={() => router.push(`/employee/${selectedEmployee.id}`)} className="w-full">
+                <Button 
+                  onClick={() => {
+                    // Debug: Log the employee object
+                    console.log('Selected Employee:', selectedEmployee);
+                    console.log('Employee _id:', selectedEmployee._id);
+                    console.log('Employee id:', selectedEmployee.id);
+                    
+                    // Get employee ID - handle both string and ObjectId
+                    let employeeId = selectedEmployee._id || selectedEmployee.id;
+                    
+                    // Convert to string if it's an object
+                    if (employeeId && typeof employeeId !== 'string') {
+                      employeeId = employeeId.toString();
+                    }
+                    
+                    if (!employeeId) {
+                      toast.error('Employee ID not found. Please refresh the page.');
+                      console.error('Employee object:', selectedEmployee);
+                      return;
+                    }
+                    
+                    console.log('Navigating to employee:', employeeId);
+                    // Use window.location for reliable navigation with proper encoding
+                    const idString = typeof employeeId === 'string' ? employeeId : employeeId.toString();
+                    window.location.href = `/employee/${encodeURIComponent(idString)}`;
+                  }} 
+                  className="w-full"
+                >
                   Go to Employee Page
                 </Button>
               </div>

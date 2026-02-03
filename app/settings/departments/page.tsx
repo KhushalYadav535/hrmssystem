@@ -76,10 +76,14 @@ export default function DepartmentManagementPage() {
         setFormData({ name: '', head: '', costCenter: '', status: 'Active', parentDepartment: '' });
         loadDepartments();
       } else {
-        toast.error(response.message || 'Failed to create department');
+        const errorMsg = response.message || response.error || 'Failed to create department';
+        toast.error(errorMsg);
+        console.error('Department creation error:', response);
       }
     } catch (error: any) {
-      toast.error(error.message || 'Failed to create department');
+      const errorMsg = error.message || error.error || 'Failed to create department';
+      toast.error(errorMsg);
+      console.error('Department creation error:', error);
     }
   };
 

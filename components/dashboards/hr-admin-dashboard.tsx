@@ -9,6 +9,7 @@ import { useJobs } from '@/lib/hooks/useJobs';
 import { Users, BarChart3, TrendingUp, Briefcase, AlertCircle, Plus } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import apiService from '@/lib/api';
 
 export default function HRAdminDashboard() {
   const { employees, isLoading: employeesLoading } = useEmployees();
@@ -18,23 +19,86 @@ export default function HRAdminDashboard() {
     activeEmployees: 0,
     onLeaveToday: 0,
     pendingOnboarding: 0,
+    pendingLeaveApprovals: 0,
+    pendingExpenseApprovals: 0,
+    attritionRate: 0,
   });
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
 
   useEffect(() => {
-    if (employees) {
-      setDashboardStats({
-        totalEmployees: employees.length,
-        activeEmployees: employees.filter((e: any) => e.status === 'Active').length,
-        onLeaveToday: employees.filter((e: any) => e.status === 'On Leave').length,
-        pendingOnboarding: 0, // Will be fetched from onboarding API
-      });
-    }
+    loadDashboardStats();
   }, [employees]);
+
+  const loadDashboardStats = async () => {
+    try {
+      setIsLoadingStats(true);
+      
+      // Calculate employee stats from loaded employees
+      if (employees && employees.length > 0) {
+        const totalEmployees = employees.length;
+        const activeEmployees = employees.filter((e: any) => e.status === 'Active').length;
+        const inactiveEmployees = employees.filter((e: any) => e.status === 'Inactive' || e.status === 'Retired').length;
+        const onLeaveToday = employees.filter((e: any) => e.status === 'On Leave').length;
+        
+        // Calculate attrition rate
+        const attritionRate = totalEmployees > 0 
+          ? ((inactiveEmployees / totalEmployees) * 100).toFixed(1)
+          : '0.0';
+
+        // Fetch pending onboarding
+        const onboardingResponse = await apiService.getOnboardings({ status: 'pending' });
+        const pendingOnboarding = onboardingResponse.success && onboardingResponse.data 
+          ? onboardingResponse.data.length 
+          : 0;
+
+        // Fetch pending leave approvals
+        const leavesResponse = await apiService.getLeaves({ status: 'Pending' });
+        const pendingLeaveApprovals = leavesResponse.success && leavesResponse.data 
+          ? leavesResponse.data.length 
+          : 0;
+
+        // Fetch pending expense approvals
+        const expensesResponse = await apiService.getExpenses({ status: 'Pending' });
+        const pendingExpenseApprovals = expensesResponse.success && expensesResponse.data 
+          ? expensesResponse.data.length 
+          : 0;
+
+        setDashboardStats({
+          totalEmployees,
+          activeEmployees,
+          onLeaveToday,
+          pendingOnboarding,
+          pendingLeaveApprovals,
+          pendingExpenseApprovals,
+          attritionRate: parseFloat(attritionRate),
+        });
+      } else {
+        // If no employees, still fetch other stats
+        const onboardingResponse = await apiService.getOnboardings({ status: 'pending' });
+        const leavesResponse = await apiService.getLeaves({ status: 'Pending' });
+        const expensesResponse = await apiService.getExpenses({ status: 'Pending' });
+        
+        setDashboardStats({
+          totalEmployees: 0,
+          activeEmployees: 0,
+          onLeaveToday: 0,
+          pendingOnboarding: onboardingResponse.success && onboardingResponse.data ? onboardingResponse.data.length : 0,
+          pendingLeaveApprovals: leavesResponse.success && leavesResponse.data ? leavesResponse.data.length : 0,
+          pendingExpenseApprovals: expensesResponse.success && expensesResponse.data ? expensesResponse.data.length : 0,
+          attritionRate: 0,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load dashboard stats:', error);
+    } finally {
+      setIsLoadingStats(false);
+    }
+  };
 
   const openPositions = jobs.length;
   
   // Calculate department distribution from employees
-  const departmentData = employees.reduce((acc: any[], emp: any) => {
+  const departmentData = employees && employees.length > 0 ? employees.reduce((acc: any[], emp: any) => {
     const dept = emp.department || 'Other';
     const existing = acc.find(d => d.name === dept);
     if (existing) {
@@ -43,17 +107,30 @@ export default function HRAdminDashboard() {
       acc.push({ name: dept, value: 1, fill: `var(--color-chart-${(acc.length % 5) + 1})` });
     }
     return acc;
-  }, []);
+  }, []) : [];
 
-  // Mock chart data for recruitment pipeline
-  const mockChartData = [
-    { month: 'Jan', applications: 65, hires: 8 },
-    { month: 'Feb', applications: 59, hires: 6 },
-    { month: 'Mar', applications: 80, hires: 10 },
-    { month: 'Apr', applications: 81, hires: 9 },
-    { month: 'May', applications: 56, hires: 7 },
-    { month: 'Jun', applications: 55, hires: 5 },
-  ];
+  // Calculate recruitment pipeline data from jobs
+  const recruitmentData = jobs.reduce((acc: any[], job: any) => {
+    const month = job.postedDate ? new Date(job.postedDate).toLocaleDateString('en-US', { month: 'short' }) : 'N/A';
+    const existing = acc.find(d => d.month === month);
+    if (existing) {
+      existing.applications += job.applications || 0;
+      existing.hires += 0; // Would need to track actual hires separately
+    } else {
+      acc.push({ 
+        month, 
+        applications: job.applications || 0, 
+        hires: 0 // Would need actual hire data
+      });
+    }
+    return acc;
+  }, []);
+  
+  // Sort by month order
+  const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const sortedRecruitmentData = recruitmentData.sort((a, b) => {
+    return monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month);
+  });
 
   return (
     <div className="space-y-6">
@@ -70,8 +147,12 @@ export default function HRAdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Total Employees</p>
-                <p className="text-2xl font-bold text-foreground">{dashboardStats.totalEmployees.toLocaleString()}</p>
-                <p className="text-xs text-green-600 mt-1">Active employees</p>
+                <p className="text-2xl font-bold text-foreground">
+                  {isLoadingStats ? '...' : dashboardStats.totalEmployees.toLocaleString()}
+                </p>
+                <p className="text-xs text-green-600 mt-1">
+                  {isLoadingStats ? '...' : `${dashboardStats.activeEmployees} active`}
+                </p>
               </div>
               <Users className="w-10 h-10 text-primary/30" />
             </div>
@@ -83,8 +164,12 @@ export default function HRAdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Open Positions</p>
-                <p className="text-2xl font-bold text-foreground">{jobs.reduce((sum: number, j: any) => sum + (j.openPositions || 0), 0)}</p>
-                <p className="text-xs text-muted-foreground mt-1">{jobs.reduce((sum: number, j: any) => sum + (j.applications || 0), 0)} applications</p>
+                <p className="text-2xl font-bold text-foreground">
+                  {isLoadingStats ? '...' : jobs.reduce((sum: number, j: any) => sum + (j.openPositions || 0), 0)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {isLoadingStats ? '...' : `${jobs.reduce((sum: number, j: any) => sum + (j.applications || 0), 0)} applications`}
+                </p>
               </div>
               <Briefcase className="w-10 h-10 text-accent/30" />
             </div>
@@ -96,8 +181,10 @@ export default function HRAdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Attrition Rate</p>
-                <p className="text-2xl font-bold text-foreground">2.1%</p>
-                <p className="text-xs text-green-600 mt-1">↓ 0.3% from last month</p>
+                <p className="text-2xl font-bold text-foreground">
+                  {isLoadingStats ? '...' : `${dashboardStats.attritionRate}%`}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">Based on inactive employees</p>
               </div>
               <TrendingUp className="w-10 h-10 text-green-500/30" />
             </div>
@@ -109,7 +196,9 @@ export default function HRAdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Pending Onboarding</p>
-                <p className="text-2xl font-bold text-foreground">{dashboardStats.pendingOnboarding}</p>
+                <p className="text-2xl font-bold text-foreground">
+                  {isLoadingStats ? '...' : dashboardStats.pendingOnboarding}
+                </p>
                 <p className="text-xs text-yellow-600 mt-1">⚠️ Action required</p>
               </div>
               <AlertCircle className="w-10 h-10 text-yellow-500/30" />
@@ -126,15 +215,23 @@ export default function HRAdminDashboard() {
             <CardTitle className="text-lg">Department Distribution</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie data={departmentData} cx="50%" cy="50%" labelLine={false} label={(entry) => entry.name} outerRadius={80} fill="#8884d8" dataKey="value">
-                  {departmentData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
+            {departmentData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie data={departmentData} cx="50%" cy="50%" labelLine={false} label={(entry) => `${entry.name}: ${entry.value}`} outerRadius={80} fill="#8884d8" dataKey="value">
+                    {departmentData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No department data available</p>
+                <p className="text-xs mt-2">Data will appear as employees are added</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -145,17 +242,24 @@ export default function HRAdminDashboard() {
             <CardDescription>Hiring trends for 2026</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={mockChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="applications" stroke="var(--color-chart-1)" strokeWidth={2} />
-                <Line type="monotone" dataKey="hires" stroke="var(--color-chart-2)" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
+            {sortedRecruitmentData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={sortedRecruitmentData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="applications" stroke="var(--color-chart-1)" strokeWidth={2} name="Applications" />
+                  <Line type="monotone" dataKey="hires" stroke="var(--color-chart-2)" strokeWidth={2} name="Hires" />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No recruitment data available</p>
+                <p className="text-xs mt-2">Data will appear as jobs are posted</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -170,9 +274,11 @@ export default function HRAdminDashboard() {
                 <CardTitle className="text-lg">Open Positions</CardTitle>
                 <CardDescription>{openPositions} active job postings</CardDescription>
               </div>
-              <Button size="sm" className="gap-2">
-                <Plus className="w-4 h-4" />
-                New Job
+              <Button size="sm" className="gap-2" asChild>
+                <Link href="/recruitment">
+                  <Plus className="w-4 h-4" />
+                  New Job
+                </Link>
               </Button>
             </div>
           </CardHeader>

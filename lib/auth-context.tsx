@@ -276,11 +276,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'manage_all', 'view_all', 'configure_all', 'delete_all'
         ],
         'Tenant Admin': [
-          // Company owner/CEO - can manage everything except system-level config
+          // Company owner/CEO - can manage everything including system configuration within tenant
           'manage_employees', 'view_all_reports', 'manage_policies', 'manage_onboarding', 
           'manage_recruitment', 'view_payroll_reports', 'approve_leave', 'approve_expense',
           'approve_appraisal', 'view_team', 'manage_finance', 'view_financial_reports',
-          'manage_departments', 'manage_designations', 'view_audit_logs'
+          'manage_departments', 'manage_designations', 'view_audit_logs',
+          // Merged System Administrator permissions
+          'configure_system', 'manage_users', 'manage_roles', 'manage_integrations',
+          'manage_settings', 'manage_sms', 'manage_whatsapp', 'system_maintenance'
         ],
         'HR Administrator': [
           'manage_employees', 'configure_system', 'view_all_reports', 'manage_policies', 
@@ -296,11 +299,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         'Finance Administrator': [
           'view_financial_reports', 'approve_expense', 'manage_budget', 'view_payroll_reports',
           'reconcile_accounts', 'view_audit_logs', 'manage_finance'
-        ],
-        'System Administrator': [
-          'configure_system', 'manage_users', 'manage_roles', 'manage_integrations',
-          'view_audit_logs', 'manage_settings', 'manage_sms', 'manage_whatsapp',
-          'system_maintenance'
         ],
         'Manager': [
           'approve_leave', 'approve_expense', 'approve_travel', 'view_team', 

@@ -13,78 +13,58 @@ import apiService from '@/lib/api';
 import { toast } from 'sonner';
 
 export default function AttendancePage() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, hasPermission, currentUser } = useAuth();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [summary, setSummary] = useState<any>(null);
+
+  useEffect(() => {
+    loadAttendances();
+  }, []);
+
+  const loadAttendances = async () => {
+    try {
+      setIsLoading(true);
+      // Get current month's attendance
+      const now = new Date();
+      const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+      
+      const response = await apiService.getAttendances({ startDate, endDate });
+      if (response.success && response.data) {
+        const records = Array.isArray(response.data) ? response.data : [];
+        setAttendanceRecords(records);
+        
+        // Calculate summary
+        const presentDays = records.filter((a) => a.status === 'Present').length;
+        const totalWorkingHours = records.reduce((sum, a) => sum + (a.workingHours || 0), 0);
+        const avgWorkingHours = records.length > 0 ? (totalWorkingHours / records.length).toFixed(1) : '0';
+        const attendanceRate = records.length > 0 ? Math.round((presentDays / records.length) * 100) : 0;
+        
+        setSummary({
+          presentDays,
+          totalWorkingHours,
+          avgWorkingHours,
+          attendanceRate,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load attendance data', error);
+      toast.error('Failed to load attendance records');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   if (!isAuthenticated) {
     redirect('/login');
   }
 
-  const fetchAttendance = async () => {
-    try {
-      setLoading(true);
-      const res = await apiService.getAttendance({});
-      if (res.success && res.data) {
-        setAttendanceRecords(Array.isArray(res.data) ? res.data : []);
-      }
-    } catch (error) {
-      console.error('Failed to fetch attendance', error);
-      toast.error('Failed to load attendance records');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isAuthenticated) {
-        fetchAttendance();
-    }
-  }, [isAuthenticated]);
-
-  const handleCheckIn = async () => {
-    try {
-        const res = await apiService.checkIn({
-            date: new Date().toISOString().split('T')[0],
-            time: new Date().toISOString()
-        });
-        if (res.success) {
-            toast.success('Checked in successfully');
-            fetchAttendance();
-        } else {
-            toast.error(res.message || 'Failed to check in');
-        }
-    } catch (error: any) {
-        toast.error(error.message || 'Failed to check in');
-    }
-  };
-
-  const handleCheckOut = async () => {
-    try {
-        const res = await apiService.checkOut({
-            date: new Date().toISOString().split('T')[0],
-            time: new Date().toISOString()
-        });
-        if (res.success) {
-            toast.success('Checked out successfully');
-            fetchAttendance();
-        } else {
-            toast.error(res.message || 'Failed to check out');
-        }
-    } catch (error: any) {
-        toast.error(error.message || 'Failed to check out');
-    }
-  };
-
-  const presentDays = attendanceRecords.filter((a) => a.status === 'Present').length;
-  const totalWorkingHours = attendanceRecords.reduce((sum, a) => sum + (a.workingHours || 0), 0);
-  const avgWorkingHours = attendanceRecords.length > 0 ? (totalWorkingHours / attendanceRecords.length).toFixed(1) : '0';
-
   const calendarEvents = attendanceRecords.map(record => ({
-    date: record.date.split('T')[0],
+    date: new Date(record.date).toISOString().split('T')[0],
     title: record.status,
-    type: (record.status === 'Present' ? 'event' : record.status === 'Leave' ? 'leave' : 'holiday') as any,
+    type: record.status === 'Present' ? 'event' : record.status === 'Leave' ? 'leave' : 'holiday' as const,
   }));
 
   const getStatusColor = (status: string) => {
@@ -102,13 +82,6 @@ export default function AttendancePage() {
     }
   };
 
-  // Check today's status
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todayRecord = attendanceRecords.find(r => r.date.startsWith(todayStr));
-  const isCheckedIn = !!todayRecord?.checkIn && !todayRecord?.checkOut;
-  const isCheckedOut = !!todayRecord?.checkOut;
-  const hasCheckedInToday = !!todayRecord;
-
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -122,7 +95,7 @@ export default function AttendancePage() {
             <CardContent className="p-6">
               <div>
                 <p className="text-sm text-muted-foreground">Present Days</p>
-                <p className="text-2xl font-bold">{presentDays}</p>
+                <p className="text-2xl font-bold">{isLoading ? '...' : (summary?.presentDays || 0)}</p>
                 <p className="text-xs text-muted-foreground mt-1">Current month</p>
               </div>
             </CardContent>
@@ -132,7 +105,7 @@ export default function AttendancePage() {
             <CardContent className="p-6">
               <div>
                 <p className="text-sm text-muted-foreground">Total Working Hours</p>
-                <p className="text-2xl font-bold">{totalWorkingHours.toFixed(1)}h</p>
+                <p className="text-2xl font-bold">{isLoading ? '...' : (summary?.totalWorkingHours?.toFixed(1) || '0')}h</p>
                 <p className="text-xs text-muted-foreground mt-1">This period</p>
               </div>
             </CardContent>
@@ -142,7 +115,7 @@ export default function AttendancePage() {
             <CardContent className="p-6">
               <div>
                 <p className="text-sm text-muted-foreground">Average Daily Hours</p>
-                <p className="text-2xl font-bold">{avgWorkingHours}h</p>
+                <p className="text-2xl font-bold">{isLoading ? '...' : (summary?.avgWorkingHours || '0')}h</p>
                 <p className="text-xs text-muted-foreground mt-1">Per working day</p>
               </div>
             </CardContent>
@@ -152,7 +125,7 @@ export default function AttendancePage() {
             <CardContent className="p-6">
               <div>
                 <p className="text-sm text-muted-foreground">Attendance Rate</p>
-                <p className="text-2xl font-bold text-green-600">100%</p>
+                <p className="text-2xl font-bold text-green-600">{isLoading ? '...' : (summary?.attendanceRate || 0)}%</p>
                 <p className="text-xs text-muted-foreground mt-1">This period</p>
               </div>
             </CardContent>
@@ -170,20 +143,11 @@ export default function AttendancePage() {
               <CardDescription>Check in/out and manage attendance</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button 
-                className="w-full gap-2 bg-green-600 hover:bg-green-700" 
-                onClick={handleCheckIn}
-                disabled={hasCheckedInToday}
-              >
+              <Button className="w-full gap-2 bg-green-600 hover:bg-green-700">
                 <Clock className="w-4 h-4" />
-                {hasCheckedInToday ? 'Checked In' : 'Check In'}
+                Check In
               </Button>
-              <Button 
-                className="w-full gap-2 bg-transparent" 
-                variant="outline"
-                onClick={handleCheckOut}
-                disabled={!isCheckedIn}
-              >
+              <Button className="w-full gap-2 bg-transparent" variant="outline">
                 <Clock className="w-4 h-4" />
                 Check Out
               </Button>
@@ -192,20 +156,8 @@ export default function AttendancePage() {
               </Button>
               <div className="p-4 bg-secondary/50 rounded-lg">
                 <p className="text-sm text-muted-foreground">Today's Status</p>
-                {todayRecord ? (
-                     <>
-                        <p className="text-lg font-semibold text-green-600 mt-2">
-                            {todayRecord.checkOut ? 'Checked Out' : 'Checked In'}
-                        </p>
-                        {todayRecord.checkIn && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                                at {new Date(todayRecord.checkIn).toLocaleTimeString()}
-                            </p>
-                        )}
-                     </>
-                ) : (
-                    <p className="text-lg font-semibold text-gray-600 mt-2">Not Checked In</p>
-                )}
+                <p className="text-lg font-semibold text-green-600 mt-2">Checked In at 9:00 AM</p>
+                <p className="text-xs text-muted-foreground mt-1">Working since 9 hours 30 minutes</p>
               </div>
             </CardContent>
           </Card>
@@ -214,7 +166,7 @@ export default function AttendancePage() {
         <Card className="border-0 shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg">Attendance Records</CardTitle>
-            <CardDescription>History</CardDescription>
+            <CardDescription>January 2026</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -229,36 +181,51 @@ export default function AttendancePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {attendanceRecords.length === 0 ? (
-                      <tr>
-                          <td colSpan={5} className="text-center p-4 text-muted-foreground">No attendance records found.</td>
-                      </tr>
-                  ) : attendanceRecords.map((record) => (
-                    <tr key={record._id} className="border-b border-border hover:bg-secondary/50 transition-colors">
-                      <td className="p-3">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-muted-foreground" />
-                          {record.date.split('T')[0]}
-                        </div>
-                      </td>
-                      <td className="p-3">
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-muted-foreground" />
-                          {record.checkIn ? new Date(record.checkIn).toLocaleTimeString() : '-'}
-                        </div>
-                      </td>
-                      <td className="p-3">
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-muted-foreground" />
-                          {record.checkOut ? new Date(record.checkOut).toLocaleTimeString() : '-'}
-                        </div>
-                      </td>
-                      <td className="text-right p-3 font-medium">{record.workingHours}h</td>
-                      <td className="text-center p-3">
-                        <Badge className={getStatusColor(record.status)}>{record.status}</Badge>
-                      </td>
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={5} className="p-8 text-center text-muted-foreground">Loading attendance records...</td>
                     </tr>
-                  ))}
+                  ) : attendanceRecords.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-8 text-center text-muted-foreground">No attendance records found</td>
+                    </tr>
+                  ) : (
+                    attendanceRecords.map((record) => {
+                      const recordId = record._id || record.id;
+                      const recordDate = record.date ? new Date(record.date).toLocaleDateString() : 'N/A';
+                      const checkIn = record.checkIn ? new Date(record.checkIn).toLocaleTimeString() : '-';
+                      const checkOut = record.checkOut ? new Date(record.checkOut).toLocaleTimeString() : '-';
+                      const workingHours = record.workingHours || 0;
+                      const status = record.status || 'Absent';
+                      
+                      return (
+                        <tr key={recordId} className="border-b border-border hover:bg-secondary/50 transition-colors">
+                          <td className="p-3">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-4 h-4 text-muted-foreground" />
+                              {recordDate}
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-4 h-4 text-muted-foreground" />
+                              {checkIn}
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-4 h-4 text-muted-foreground" />
+                              {checkOut}
+                            </div>
+                          </td>
+                          <td className="text-right p-3 font-medium">{workingHours}h</td>
+                          <td className="text-center p-3">
+                            <Badge className={getStatusColor(status)}>{status}</Badge>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>

@@ -6,7 +6,6 @@ export type UserRole =
   | 'HR Administrator' 
   | 'Payroll Administrator'
   | 'Finance Administrator'
-  | 'System Administrator'
   | 'Manager' 
   | 'Employee'
   | 'Auditor';

@@ -89,6 +89,12 @@ const navigationItems: NavItem[] = [
     href: '/tax',
     icon: <FileText className="w-5 h-5" />,
     roles: ['Super Admin', 'Tenant Admin', 'Employee', 'Payroll Administrator', 'HR Administrator', 'Finance Administrator', 'Auditor'],
+    subItems: [
+      { label: 'Overview', href: '/tax' },
+      { label: 'Declarations', href: '/tax/declarations' },
+      { label: 'Form 16', href: '/tax/form16' },
+      { label: 'Regime Comparison', href: '/tax/regime-comparison' },
+    ],
   },
   {
     label: 'Recruitment',
@@ -130,7 +136,7 @@ const navigationItems: NavItem[] = [
     label: 'Administration',
     href: '/admin',
     icon: <Settings className="w-5 h-5" />,
-    roles: ['Super Admin', 'Tenant Admin', 'HR Administrator', 'System Administrator'],
+    roles: ['Super Admin', 'Tenant Admin', 'HR Administrator'],
     subItems: [
       { label: 'Users', href: '/admin/users' },
       { label: 'Departments', href: '/settings/departments' },

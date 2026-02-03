@@ -57,8 +57,6 @@ export default function DashboardPage() {
         return <PayrollAdminDashboard />;
       case 'Finance Administrator':
         return <PayrollAdminDashboard />; // Can reuse or create separate
-      case 'System Administrator':
-        return <SuperAdminDashboard />; // Can reuse or create separate
       case 'Manager':
         return <ManagerDashboard />;
       case 'Employee':

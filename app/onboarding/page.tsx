@@ -8,61 +8,38 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, Clock, Users, FileText, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
+import apiService from '@/lib/api';
+import { toast } from 'sonner';
 
 export default function OnboardingPage() {
   const { isAuthenticated, hasPermission } = useAuth();
+  const [onboardingCandidates, setOnboardingCandidates] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Only HR Administrators can access onboarding management
+  useEffect(() => {
+    loadOnboardings();
+  }, []);
+
+  const loadOnboardings = async () => {
+    try {
+      setIsLoading(true);
+      const response = await apiService.getOnboardings();
+      if (response.success && response.data) {
+        setOnboardingCandidates(Array.isArray(response.data) ? response.data : []);
+      }
+    } catch (error) {
+      console.error('Failed to load onboarding data', error);
+      toast.error('Failed to load onboarding records');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Only HR Administrators and Tenant Admin can access onboarding management
   if (!isAuthenticated || !hasPermission('manage_onboarding')) {
     redirect('/dashboard');
   }
-  const onboardingCandidates = [
-    {
-      id: 'OB-001',
-      name: 'Raj Kumar Singh',
-      position: 'Senior Analyst',
-      joiningDate: '2026-02-15',
-      department: 'Finance',
-      status: 'in-progress',
-      completionRate: 65,
-      tasks: [
-        { title: 'Document Collection', completed: true },
-        { title: 'Background Verification', completed: true },
-        { title: 'System Access Setup', completed: false },
-        { title: 'Induction Training', completed: false },
-      ],
-    },
-    {
-      id: 'OB-002',
-      name: 'Priya Desai',
-      position: 'Software Engineer',
-      joiningDate: '2026-02-10',
-      department: 'IT',
-      status: 'completed',
-      completionRate: 100,
-      tasks: [
-        { title: 'Document Collection', completed: true },
-        { title: 'Background Verification', completed: true },
-        { title: 'System Access Setup', completed: true },
-        { title: 'Induction Training', completed: true },
-      ],
-    },
-    {
-      id: 'OB-003',
-      name: 'Suresh Patel',
-      position: 'HR Manager',
-      joiningDate: '2026-02-20',
-      department: 'HR',
-      status: 'pending',
-      completionRate: 20,
-      tasks: [
-        { title: 'Document Collection', completed: true },
-        { title: 'Background Verification', completed: false },
-        { title: 'System Access Setup', completed: false },
-        { title: 'Induction Training', completed: false },
-      ],
-    },
-  ];
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -85,9 +62,12 @@ export default function OnboardingPage() {
             <h1 className="text-3xl font-bold text-foreground">Onboarding Management</h1>
             <p className="text-muted-foreground mt-2">Manage new employee onboarding process</p>
           </div>
-          <Link href="/onboarding/create">
-            <Button>+ New Onboarding</Button>
-          </Link>
+          <Button onClick={() => {
+            // Navigate to create onboarding page or open dialog
+            window.location.href = '/onboarding/create';
+          }}>
+            + Create Onboarding
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -96,7 +76,7 @@ export default function OnboardingPage() {
               <CardTitle className="text-sm font-medium">Total Onboarding</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-foreground">{onboardingCandidates.length}</div>
+              <div className="text-3xl font-bold text-foreground">{isLoading ? '...' : onboardingCandidates.length}</div>
               <p className="text-xs text-muted-foreground mt-2">Active candidates</p>
             </CardContent>
           </Card>
@@ -144,45 +124,64 @@ export default function OnboardingPage() {
             <CardDescription>Track onboarding progress for all candidates</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {onboardingCandidates.map((candidate) => (
-              <div key={candidate.id} className="p-4 border border-border rounded-lg hover:bg-secondary/30 transition-colors">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h3 className="font-semibold text-foreground">{candidate.name}</h3>
-                    <p className="text-sm text-muted-foreground">{candidate.position} • {candidate.department}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Joining: {candidate.joiningDate}</p>
-                  </div>
-                  <div className="text-right">
-                    {getStatusBadge(candidate.status)}
-                    <p className="text-2xl font-bold text-foreground mt-2">{candidate.completionRate}%</p>
-                  </div>
-                </div>
-
-                <div className="w-full bg-secondary/50 rounded-full h-2 mb-4">
-                  <div
-                    className="bg-primary h-2 rounded-full transition-all"
-                    style={{ width: `${candidate.completionRate}%` }}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
-                  {candidate.tasks.map((task, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      {task.completed ? (
-                        <CheckCircle2 className="w-4 h-4 text-green-600" />
-                      ) : (
-                        <Clock className="w-4 h-4 text-muted-foreground" />
-                      )}
-                      <span className={`text-xs ${task.completed ? 'text-green-600 font-medium' : 'text-muted-foreground'}`}>
-                        {task.title}
-                      </span>
+            {isLoading ? (
+              <div className="text-center py-8 text-muted-foreground">Loading onboarding records...</div>
+            ) : onboardingCandidates.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">No onboarding records found</div>
+            ) : (
+              onboardingCandidates.map((candidate) => {
+                const candidateId = candidate._id || candidate.id;
+                const candidateName = candidate.candidateName || candidate.name || 'Unknown';
+                const position = candidate.position || 'N/A';
+                const department = candidate.department || 'N/A';
+                const joiningDate = candidate.joiningDate ? new Date(candidate.joiningDate).toLocaleDateString() : 'N/A';
+                const status = candidate.status || 'pending';
+                const completionRate = candidate.completionRate || 0;
+                const tasks = candidate.tasks || [];
+                
+                return (
+                  <div key={candidateId} className="p-4 border border-border rounded-lg hover:bg-secondary/30 transition-colors">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h3 className="font-semibold text-foreground">{candidateName}</h3>
+                        <p className="text-sm text-muted-foreground">{position} • {department}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Joining: {joiningDate}</p>
+                      </div>
+                      <div className="text-right">
+                        {getStatusBadge(status)}
+                        <p className="text-2xl font-bold text-foreground mt-2">{completionRate}%</p>
+                      </div>
                     </div>
-                  ))}
-                </div>
 
-                <Button variant="outline" size="sm">View Details</Button>
-              </div>
-            ))}
+                    <div className="w-full bg-secondary/50 rounded-full h-2 mb-4">
+                      <div
+                        className="bg-primary h-2 rounded-full transition-all"
+                        style={{ width: `${completionRate}%` }}
+                      />
+                    </div>
+
+                    {tasks.length > 0 && (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                        {tasks.map((task: any, idx: number) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            {task.completed ? (
+                              <CheckCircle2 className="w-4 h-4 text-green-600" />
+                            ) : (
+                              <Clock className="w-4 h-4 text-muted-foreground" />
+                            )}
+                            <span className={`text-xs ${task.completed ? 'text-green-600 font-medium' : 'text-muted-foreground'}`}>
+                              {task.title}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <Button variant="outline" size="sm">View Details</Button>
+                  </div>
+                );
+              })
+            )}
           </CardContent>
         </Card>
       </div>

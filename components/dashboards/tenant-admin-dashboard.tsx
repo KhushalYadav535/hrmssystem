@@ -3,29 +3,13 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
-import { Users, BarChart3, TrendingUp, Briefcase, AlertCircle, Plus, DollarSign, Calendar, Building2, Award } from 'lucide-react';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { Users, BarChart3, TrendingUp, Briefcase, DollarSign, Building2, Award } from 'lucide-react';
 import Link from 'next/link';
 import { useEmployees } from '@/lib/hooks/useEmployees';
 import { useJobs } from '@/lib/hooks/useJobs';
 import { useState, useEffect } from 'react';
-
-const departmentData = [
-  { name: 'Finance', value: 320, fill: 'hsl(var(--chart-1))' },
-  { name: 'IT', value: 450, fill: 'hsl(var(--chart-2))' },
-  { name: 'HR', value: 120, fill: 'hsl(var(--chart-3))' },
-  { name: 'Operations', value: 230, fill: 'hsl(var(--chart-4))' },
-  { name: 'Retail Banking', value: 380, fill: 'hsl(var(--chart-5))' },
-];
-
-const monthlyRevenue = [
-  { month: 'Jan', revenue: 45000000, expenses: 32000000 },
-  { month: 'Feb', revenue: 52000000, expenses: 35000000 },
-  { month: 'Mar', revenue: 48000000, expenses: 33000000 },
-  { month: 'Apr', revenue: 55000000, expenses: 36000000 },
-  { month: 'May', revenue: 60000000, expenses: 38000000 },
-  { month: 'Jun', revenue: 58000000, expenses: 37000000 },
-];
+import { apiService } from '@/lib/api';
 
 export default function TenantAdminDashboard() {
   const { employees } = useEmployees();
@@ -33,25 +17,53 @@ export default function TenantAdminDashboard() {
   const [dashboardStats, setDashboardStats] = useState({
     totalEmployees: 0,
     newJoinings: 0,
-    pendingApprovals: 0,
-    pendingOnboarding: 0,
+    pendingApprovals: {
+      leaves: 0,
+      expenses: 0,
+      onboarding: 0
+    },
+    openPositions: 0,
+    applications: 0
   });
+  
+  const [departmentData, setDepartmentData] = useState<any[]>([]);
+  const [financialData, setFinancialData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (employees) {
-      setDashboardStats({
-        totalEmployees: employees.length,
-        newJoinings: 0, // TODO: Calculate from joinDate
-        pendingApprovals: 0, // TODO: Load from API
-        pendingOnboarding: 0, // TODO: Load from API
-      });
-    }
-  }, [employees]);
+    const fetchStats = async () => {
+      try {
+        const response = await apiService.getDashboardStats();
+        if (response.success && response.data) {
+          setDashboardStats(prev => ({
+            ...prev,
+            totalEmployees: response.data.totalEmployees,
+            newJoinings: response.data.newJoinings,
+            pendingApprovals: response.data.pendingApprovals,
+            openPositions: response.data.openPositions,
+            applications: response.data.applications
+          }));
+          setDepartmentData(response.data.departmentData || []);
+          setFinancialData(response.data.financialData || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch dashboard stats', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  const openPositions = jobs.reduce((sum: number, j: any) => sum + (j.openPositions || 0), 0);
-  const totalRevenue = monthlyRevenue.reduce((sum, m) => sum + m.revenue, 0);
-  const totalExpenses = monthlyRevenue.reduce((sum, m) => sum + m.expenses, 0);
-  const netProfit = totalRevenue - totalExpenses;
+    fetchStats();
+  }, []);
+
+  const totalRevenue = financialData.reduce((sum, m) => sum + (m.revenue || 0), 0);
+  const totalExpenses = financialData.reduce((sum, m) => sum + (m.expenses || 0), 0);
+  const netProfit = totalRevenue - totalExpenses; // Or just show Total Cost since it's HRMS
+
+  // Get recent joinings from employees list
+  const recentJoinings = employees
+    .sort((a, b) => new Date(b.joinDate).getTime() - new Date(a.joinDate).getTime())
+    .slice(0, 5);
 
   return (
     <div className="space-y-6">
@@ -80,9 +92,9 @@ export default function TenantAdminDashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Monthly Revenue</p>
-                <p className="text-2xl font-bold text-foreground">₹{(totalRevenue / 10000000).toFixed(1)}Cr</p>
-                <p className="text-xs text-green-600 mt-1">↑ 12% vs last month</p>
+                <p className="text-sm text-muted-foreground">Total Cost (6M)</p>
+                <p className="text-2xl font-bold text-foreground">₹{(totalExpenses / 100000).toFixed(1)}L</p>
+                <p className="text-xs text-muted-foreground mt-1">Payroll & Expenses</p>
               </div>
               <DollarSign className="w-10 h-10 text-primary/30" />
             </div>
@@ -93,9 +105,11 @@ export default function TenantAdminDashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Net Profit</p>
-                <p className="text-2xl font-bold text-foreground">₹{(netProfit / 10000000).toFixed(1)}Cr</p>
-                <p className="text-xs text-green-600 mt-1">↑ 8% growth</p>
+                <p className="text-sm text-muted-foreground">Pending Approvals</p>
+                <p className="text-2xl font-bold text-foreground">
+                  {dashboardStats.pendingApprovals.leaves + dashboardStats.pendingApprovals.expenses}
+                </p>
+                <p className="text-xs text-yellow-600 mt-1">Action required</p>
               </div>
               <TrendingUp className="w-10 h-10 text-primary/30" />
             </div>
@@ -107,8 +121,8 @@ export default function TenantAdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Open Positions</p>
-                <p className="text-2xl font-bold text-foreground">{openPositions}</p>
-                <p className="text-xs text-muted-foreground mt-1">{jobs.reduce((sum: number, j: any) => sum + (j.applications || 0), 0)} applications</p>
+                <p className="text-2xl font-bold text-foreground">{dashboardStats.openPositions}</p>
+                <p className="text-xs text-muted-foreground mt-1">{dashboardStats.applications} applications</p>
               </div>
               <Briefcase className="w-10 h-10 text-primary/30" />
             </div>
@@ -148,19 +162,18 @@ export default function TenantAdminDashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Revenue vs Expenses</CardTitle>
-            <CardDescription>Monthly financial overview</CardDescription>
+            <CardTitle>Cost Overview</CardTitle>
+            <CardDescription>Monthly Payroll & Expenses</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={monthlyRevenue}>
+              <BarChart data={financialData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
-                <Tooltip formatter={(value: number) => `₹${(value / 1000000).toFixed(1)}M`} />
+                <Tooltip formatter={(value: number) => `₹${(value / 1000).toFixed(1)}k`} />
                 <Legend />
-                <Bar dataKey="revenue" fill="hsl(var(--chart-1))" name="Revenue" />
-                <Bar dataKey="expenses" fill="hsl(var(--chart-2))" name="Expenses" />
+                <Bar dataKey="expenses" fill="hsl(var(--chart-2))" name="Total Cost" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -212,16 +225,16 @@ export default function TenantAdminDashboard() {
         <Card>
           <CardHeader>
             <CardTitle>Recent Joinings</CardTitle>
-            <CardDescription>New employees this month</CardDescription>
+            <CardDescription>New employees</CardDescription>
           </CardHeader>
           <CardContent>
-            {employees.length === 0 ? (
+            {recentJoinings.length === 0 ? (
               <div className="text-center py-4">
                 <p className="text-sm text-muted-foreground">No recent joinings</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {employees.slice(0, 5).map((emp: any) => {
+                {recentJoinings.map((emp: any) => {
                   const empId = emp._id || emp.id || '';
                   return (
                     <div key={empId} className="flex items-center justify-between p-3 border rounded-lg">
@@ -248,7 +261,7 @@ export default function TenantAdminDashboard() {
               <div className="flex items-center justify-between p-3 border rounded-lg">
                 <div>
                   <p className="font-medium">Leave Requests</p>
-                  <p className="text-sm text-muted-foreground">{dashboardStats.pendingApprovals} pending approvals</p>
+                  <p className="text-sm text-muted-foreground">{dashboardStats.pendingApprovals.leaves} pending approvals</p>
                 </div>
                 <Button size="sm" variant="outline" asChild>
                   <Link href="/approvals/leave">Review</Link>
@@ -257,7 +270,7 @@ export default function TenantAdminDashboard() {
               <div className="flex items-center justify-between p-3 border rounded-lg">
                 <div>
                   <p className="font-medium">Expense Claims</p>
-                  <p className="text-sm text-muted-foreground">15 pending approvals</p>
+                  <p className="text-sm text-muted-foreground">{dashboardStats.pendingApprovals.expenses} pending approvals</p>
                 </div>
                 <Button size="sm" variant="outline" asChild>
                   <Link href="/approvals/expense">Review</Link>
@@ -266,7 +279,7 @@ export default function TenantAdminDashboard() {
               <div className="flex items-center justify-between p-3 border rounded-lg">
                 <div>
                   <p className="font-medium">Onboarding</p>
-                  <p className="text-sm text-muted-foreground">{dashboardStats.pendingOnboarding} candidates pending</p>
+                  <p className="text-sm text-muted-foreground">{dashboardStats.pendingApprovals.onboarding} candidates pending</p>
                 </div>
                 <Button size="sm" variant="outline" asChild>
                   <Link href="/onboarding">Review</Link>

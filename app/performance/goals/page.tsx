@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
@@ -13,24 +13,32 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Plus, Target, Trash2, Save, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
-import apiService from '@/lib/api';
 
 interface Goal {
-  _id: string;
-  id?: string;
+  id: string;
   description: string;
   kpi: string;
   target: string;
   weightage: number;
   timeline: string;
   category: string;
-  status: 'draft' | 'submitted' | 'approved' | 'rejected' | 'completed';
+  status: 'draft' | 'submitted' | 'approved';
 }
 
 export default function GoalsPage() {
   const { isAuthenticated } = useAuth();
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [goals, setGoals] = useState<Goal[]>([
+    {
+      id: '1',
+      description: 'Increase customer satisfaction score',
+      kpi: 'Customer Satisfaction Index',
+      target: '4.5/5',
+      weightage: 30,
+      timeline: 'Q4 2026',
+      category: 'Customer Service',
+      status: 'approved',
+    },
+  ]);
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [newGoal, setNewGoal] = useState<Partial<Goal>>({
     description: '',
@@ -46,30 +54,9 @@ export default function GoalsPage() {
     redirect('/login');
   }
 
-  const fetchGoals = async () => {
-    try {
-      setLoading(true);
-      const res = await apiService.getGoals();
-      if (res.success && res.data) {
-        setGoals(Array.isArray(res.data) ? res.data : []);
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to load goals');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchGoals();
-    }
-  }, [isAuthenticated]);
-
   const totalWeightage = goals.reduce((sum, goal) => sum + goal.weightage, 0);
 
-  const handleAddGoal = async () => {
+  const handleAddGoal = () => {
     if (!newGoal.description || !newGoal.kpi || !newGoal.target || !newGoal.weightage) {
       toast.error('Please fill all required fields');
       return;
@@ -80,50 +67,37 @@ export default function GoalsPage() {
       return;
     }
 
-    try {
-      const res = await apiService.createGoal({
-        ...newGoal,
-        status: 'draft',
-      });
+    const goal: Goal = {
+      id: Date.now().toString(),
+      description: newGoal.description || '',
+      kpi: newGoal.kpi || '',
+      target: newGoal.target || '',
+      weightage: newGoal.weightage || 0,
+      timeline: newGoal.timeline || '',
+      category: newGoal.category || '',
+      status: 'draft',
+    };
 
-      if (res.success) {
-        toast.success('Goal added successfully');
-        setNewGoal({
-          description: '',
-          kpi: '',
-          target: '',
-          weightage: 0,
-          timeline: '',
-          category: '',
-          status: 'draft',
-        });
-        setShowAddGoal(false);
-        fetchGoals();
-      } else {
-        toast.error(res.message || 'Failed to add goal');
-      }
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to add goal');
-    }
+    setGoals([...goals, goal]);
+    setNewGoal({
+      description: '',
+      kpi: '',
+      target: '',
+      weightage: 0,
+      timeline: '',
+      category: '',
+      status: 'draft',
+    });
+    setShowAddGoal(false);
+    toast.success('Goal added successfully');
   };
 
-  const handleDeleteGoal = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this goal?')) return;
-    
-    try {
-      const res = await apiService.deleteGoal(id);
-      if (res.success) {
-        toast.success('Goal deleted');
-        fetchGoals();
-      } else {
-        toast.error(res.message || 'Failed to delete goal');
-      }
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to delete goal');
-    }
+  const handleDeleteGoal = (id: string) => {
+    setGoals(goals.filter(g => g.id !== id));
+    toast.success('Goal deleted');
   };
 
-  const handleSubmitGoals = async () => {
+  const handleSubmitGoals = () => {
     if (goals.length < 5) {
       toast.error('Minimum 5 goals required');
       return;
@@ -132,26 +106,7 @@ export default function GoalsPage() {
       toast.error('Total weightage must be exactly 100%');
       return;
     }
-
-    try {
-      const drafts = goals.filter(g => g.status === 'draft');
-      let successCount = 0;
-      
-      // Submit each draft goal
-      for (const goal of drafts) {
-        const res = await apiService.submitGoal(goal._id);
-        if (res.success) successCount++;
-      }
-
-      if (successCount > 0) {
-        toast.success(`${successCount} goals submitted for approval`);
-        fetchGoals();
-      } else {
-        toast.info('No draft goals to submit');
-      }
-    } catch (error: any) {
-      toast.error('Failed to submit goals');
-    }
+    toast.success('Goals submitted for manager approval');
   };
 
   return (
@@ -303,13 +258,8 @@ export default function GoalsPage() {
 
         {/* Goals List */}
         <div className="space-y-4">
-          {loading ? (
-             <div className="text-center p-4">Loading goals...</div>
-          ) : goals.length === 0 ? (
-             <div className="text-center p-4 text-muted-foreground">No goals set yet. Add a goal to get started.</div>
-          ) : (
-            goals.map((goal) => (
-            <Card key={goal._id} className={goal.status === 'approved' ? 'border-green-500' : ''}>
+          {goals.map((goal) => (
+            <Card key={goal.id} className={goal.status === 'approved' ? 'border-green-500' : ''}>
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex-1 space-y-3">
@@ -347,7 +297,7 @@ export default function GoalsPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleDeleteGoal(goal._id)}
+                      onClick={() => handleDeleteGoal(goal.id)}
                       className="text-red-600 hover:text-red-700"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -356,7 +306,7 @@ export default function GoalsPage() {
                 </div>
               </CardContent>
             </Card>
-          )))}
+          ))}
         </div>
 
         {/* Submit Button */}
@@ -372,7 +322,7 @@ export default function GoalsPage() {
                 </div>
                 <Button
                   onClick={handleSubmitGoals}
-                  disabled={goals.length < 5 || totalWeightage !== 100 || goals.every(g => g.status !== 'draft')}
+                  disabled={goals.length < 5 || totalWeightage !== 100}
                   className="gap-2"
                 >
                   <CheckCircle2 className="w-4 h-4" />

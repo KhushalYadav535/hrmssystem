@@ -23,6 +23,7 @@ export default function EmployeeCreatePage() {
     firstName: '',
     lastName: '',
     email: '',
+    password: '',
     phone: '',
     dateOfBirth: '',
     gender: 'Male',
@@ -69,10 +70,15 @@ export default function EmployeeCreatePage() {
   const handleCreateEmployee = async () => {
     // Final validation
     if (!formData.employeeCode || !formData.firstName || !formData.lastName || !formData.email || 
-        !formData.phone || !formData.department || !formData.designation ||
+        !formData.password || !formData.phone || !formData.department || !formData.designation ||
         !formData.dateOfBirth || !formData.joinDate || !formData.location ||
         !formData.salary || !formData.ctc) {
       toast.error('Please fill all required fields');
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      toast.error('Password must be at least 6 characters long');
       return;
     }
 
@@ -88,6 +94,7 @@ export default function EmployeeCreatePage() {
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
         email: formData.email.trim().toLowerCase(),
+        password: formData.password,
         phone: formData.phone.trim(),
         dateOfBirth: formData.dateOfBirth,
         gender: formData.gender,
@@ -106,14 +113,17 @@ export default function EmployeeCreatePage() {
 
       const response = await apiService.createEmployee(employeeData);
       if (response.success) {
-        toast.success('Employee created successfully!');
+        toast.success('Employee and User account created successfully! Both records are now available in Employee and User sections.');
         router.push('/personnel');
+        router.refresh();
       } else {
-        toast.error(response.message || 'Failed to create employee');
+        const errorMsg = response.message || response.error || 'Failed to create employee';
+        toast.error(errorMsg);
         console.error('Create employee error:', response);
       }
     } catch (error: any) {
-      toast.error(error.message || 'Failed to create employee');
+      const errorMsg = error.message || error.error || 'Failed to create employee';
+      toast.error(errorMsg);
       console.error('Create employee exception:', error);
     } finally {
       setIsCreating(false);
@@ -203,6 +213,20 @@ export default function EmployeeCreatePage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="password">Password *</Label>
+                    <Input
+                      id="password"
+                      name="password"
+                      type="password"
+                      value={formData.password}
+                      onChange={handleInputChange}
+                      placeholder="Enter password for login"
+                      className="mt-2"
+                      minLength={6}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Minimum 6 characters</p>
+                  </div>
                   <div>
                     <Label htmlFor="phone">Phone Number *</Label>
                     <Input
@@ -419,6 +443,10 @@ export default function EmployeeCreatePage() {
                       <p className="font-medium">{formData.email}</p>
                     </div>
                     <div>
+                      <p className="text-muted-foreground">Password</p>
+                      <p className="font-medium">{formData.password ? '••••••••' : 'Not set'}</p>
+                    </div>
+                    <div>
                       <p className="text-muted-foreground">Phone</p>
                       <p className="font-medium">{formData.phone}</p>
                     </div>
@@ -469,8 +497,12 @@ export default function EmployeeCreatePage() {
                   onClick={() => {
                     // Validate current step before proceeding
                     if (currentStep === 1) {
-                      if (!formData.employeeCode || !formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.dateOfBirth) {
+                      if (!formData.employeeCode || !formData.firstName || !formData.lastName || !formData.email || !formData.password || !formData.phone || !formData.dateOfBirth) {
                         toast.error('Please fill all required fields in Personal Info');
+                        return;
+                      }
+                      if (formData.password.length < 6) {
+                        toast.error('Password must be at least 6 characters long');
                         return;
                       }
                     } else if (currentStep === 2) {

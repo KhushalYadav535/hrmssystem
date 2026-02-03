@@ -7,27 +7,390 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertTriangle, Settings, Users, Lock, Database, FileText, LogOut, UserX, Clock, History } from 'lucide-react';
-import { useState } from 'react';
+import { AlertTriangle, Settings, Users, Lock, Database, FileText, LogOut, UserX, Clock, History, Plus, Edit, Trash2, Save, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
+import apiService from '@/lib/api';
+
+interface RolePermission {
+  _id?: string;
+  role: string;
+  permissions: string[];
+  status: string;
+}
+
+interface LeavePolicy {
+  _id?: string;
+  leaveType: string;
+  daysPerYear: number;
+  carryForward: boolean;
+  maxCarryForward?: number;
+  requiresApproval: boolean;
+  description?: string;
+  status: string;
+}
+
+interface Department {
+  _id?: string;
+  name: string;
+  head: string;
+  employees?: number;
+  costCenter: string;
+  status: string;
+}
+
+interface SystemStatus {
+  systemStatus: string;
+  database: string;
+  activeUsers: string;
+  pendingTasks: string;
+}
 
 export default function AdminPage() {
   const { isAuthenticated, hasPermission } = useAuth();
-  const [activeSessions, setActiveSessions] = useState([
-    { id: '1', userId: 'user-001', userName: 'Rajesh Kumar', email: 'rajesh.kumar@indianbank.com', loginTime: '2026-02-01 09:15:00', ipAddress: '192.168.1.100', device: 'Chrome - Windows', status: 'Active' },
-    { id: '2', userId: 'user-002', userName: 'Priya Sharma', email: 'priya.sharma@indianbank.com', loginTime: '2026-02-01 08:30:00', ipAddress: '192.168.1.105', device: 'Safari - macOS', status: 'Active' },
-    { id: '3', userId: 'user-003', userName: 'Deepa Gupta', email: 'admin.hr@indianbank.com', loginTime: '2026-02-01 07:45:00', ipAddress: '192.168.1.110', device: 'Firefox - Linux', status: 'Active' },
-  ]);
+  const [rolePermissions, setRolePermissions] = useState<RolePermission[]>([]);
+  const [availablePermissions, setAvailablePermissions] = useState<string[]>([]);
+  const [leavePolicies, setLeavePolicies] = useState<LeavePolicy[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isPermissionDialogOpen, setIsPermissionDialogOpen] = useState(false);
+  const [isLeavePolicyDialogOpen, setIsLeavePolicyDialogOpen] = useState(false);
+  const [isDepartmentDialogOpen, setIsDepartmentDialogOpen] = useState(false);
+  const [editingRole, setEditingRole] = useState<string | null>(null);
+  const [editingLeavePolicy, setEditingLeavePolicy] = useState<LeavePolicy | null>(null);
+  const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
+  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
+  const [leavePolicyForm, setLeavePolicyForm] = useState({
+    leaveType: '',
+    daysPerYear: 0,
+    carryForward: false,
+    maxCarryForward: 0,
+    requiresApproval: true,
+    description: '',
+    status: 'Active',
+  });
+  const [departmentForm, setDepartmentForm] = useState({
+    name: '',
+    head: '',
+    costCenter: '',
+    status: 'Active',
+  });
+  const [activeSessions, setActiveSessions] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadAllData();
+    }
+  }, [isAuthenticated]);
+
+  const loadAllData = async () => {
+    setIsLoading(true);
+    try {
+      await Promise.all([
+        loadRolePermissions(),
+        loadAvailablePermissions(),
+        loadLeavePolicies(),
+        loadDepartments(),
+        loadSystemStatus(),
+        loadActiveSessions(),
+      ]);
+    } catch (error) {
+      console.error('Error loading admin data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   if (!isAuthenticated || !hasPermission('configure_system')) {
     redirect('/dashboard');
   }
 
+  const loadRolePermissions = async () => {
+    try {
+      setIsLoading(true);
+      const response = await apiService.getRolePermissions();
+      if (response.success && response.data) {
+        setRolePermissions(Array.isArray(response.data) ? response.data : []);
+      }
+    } catch (error: any) {
+      toast.error('Failed to load role permissions');
+      console.error('Load role permissions error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadAvailablePermissions = async () => {
+    try {
+      const response = await apiService.getAvailablePermissions();
+      if (response.success && response.data) {
+        setAvailablePermissions(Array.isArray(response.data) ? response.data : []);
+      }
+    } catch (error: any) {
+      console.error('Load available permissions error:', error);
+    }
+  };
+
+  const handleEditPermissions = async (role: string) => {
+    try {
+      const response = await apiService.getRolePermission(role);
+      if (response.success && response.data) {
+        setEditingRole(role);
+        setSelectedPermissions(response.data.permissions || []);
+        setIsPermissionDialogOpen(true);
+      }
+    } catch (error: any) {
+      toast.error('Failed to load role permissions');
+    }
+  };
+
+  const handleTogglePermission = (permission: string) => {
+    setSelectedPermissions(prev =>
+      prev.includes(permission)
+        ? prev.filter(p => p !== permission)
+        : [...prev, permission]
+    );
+  };
+
+  const handleSelectAll = () => {
+    setSelectedPermissions([...availablePermissions]);
+  };
+
+  const handleClearAll = () => {
+    setSelectedPermissions([]);
+  };
+
+  const handleUpdatePermissions = async () => {
+    if (!editingRole) return;
+
+    try {
+      const response = await apiService.updateRolePermissions(editingRole, {
+        permissions: selectedPermissions,
+      });
+
+      if (response.success) {
+        toast.success('Permissions updated successfully');
+        setIsPermissionDialogOpen(false);
+        setEditingRole(null);
+        loadRolePermissions();
+      } else {
+        toast.error(response.message || 'Failed to update permissions');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update permissions');
+    }
+  };
+
   const handleTerminateSession = (sessionId: string, userName: string) => {
     setActiveSessions(activeSessions.filter(s => s.id !== sessionId));
     toast.success(`Session terminated for ${userName}`);
+  };
+
+  const loadLeavePolicies = async () => {
+    try {
+      const response = await apiService.getLeavePolicies();
+      if (response.success && response.data) {
+        setLeavePolicies(Array.isArray(response.data) ? response.data : []);
+      }
+    } catch (error: any) {
+      console.error('Load leave policies error:', error);
+    }
+  };
+
+  const loadDepartments = async () => {
+    try {
+      const response = await apiService.getDepartments();
+      if (response.success && response.data) {
+        const depts = Array.isArray(response.data) ? response.data : [];
+        // Calculate employee count for each department
+        const deptsWithCounts = await Promise.all(
+          depts.map(async (dept: Department) => {
+            const empResponse = await apiService.getEmployees({ department: dept.name });
+            const empCount = empResponse.success && empResponse.data ? (Array.isArray(empResponse.data) ? empResponse.data.length : 0) : 0;
+            return { ...dept, employees: empCount };
+          })
+        );
+        setDepartments(deptsWithCounts);
+      }
+    } catch (error: any) {
+      console.error('Load departments error:', error);
+    }
+  };
+
+  const loadSystemStatus = async () => {
+    try {
+      const response = await apiService.getSystemStatus();
+      if (response.success && response.data) {
+        setSystemStatus(response.data);
+      }
+    } catch (error: any) {
+      console.error('Load system status error:', error);
+    }
+  };
+
+  const loadActiveSessions = async () => {
+    try {
+      // Get recent login audit logs as active sessions
+      const response = await apiService.getAuditLogs({
+        module: 'Authentication',
+        action: 'Login',
+        status: 'Success',
+      });
+      if (response.success && response.data) {
+        const logs = Array.isArray(response.data) ? response.data.slice(0, 10) : [];
+        const sessions = logs.map((log: any, index: number) => ({
+          id: log._id || `session-${index}`,
+          userId: log.userId?._id || log.userId,
+          userName: log.userName || 'Unknown',
+          email: log.userEmail || 'unknown@example.com',
+          loginTime: log.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A',
+          ipAddress: log.ipAddress || 'N/A',
+          device: log.userAgent ? log.userAgent.substring(0, 50) : 'Unknown',
+          status: 'Active',
+        }));
+        setActiveSessions(sessions);
+      }
+    } catch (error: any) {
+      console.error('Load active sessions error:', error);
+    }
+  };
+
+  const handleEditLeavePolicy = (policy: LeavePolicy) => {
+    setEditingLeavePolicy(policy);
+    setLeavePolicyForm({
+      leaveType: policy.leaveType,
+      daysPerYear: policy.daysPerYear,
+      carryForward: policy.carryForward,
+      maxCarryForward: policy.maxCarryForward || 0,
+      requiresApproval: policy.requiresApproval,
+      description: policy.description || '',
+      status: policy.status,
+    });
+    setIsLeavePolicyDialogOpen(true);
+  };
+
+  const handleCreateLeavePolicy = () => {
+    setEditingLeavePolicy(null);
+    setLeavePolicyForm({
+      leaveType: '',
+      daysPerYear: 0,
+      carryForward: false,
+      maxCarryForward: 0,
+      requiresApproval: true,
+      description: '',
+      status: 'Active',
+    });
+    setIsLeavePolicyDialogOpen(true);
+  };
+
+  const handleSaveLeavePolicy = async () => {
+    try {
+      if (editingLeavePolicy) {
+        const response = await apiService.updateLeavePolicy(editingLeavePolicy._id!, leavePolicyForm);
+        if (response.success) {
+          toast.success('Leave policy updated successfully');
+          setIsLeavePolicyDialogOpen(false);
+          loadLeavePolicies();
+        } else {
+          toast.error(response.message || 'Failed to update leave policy');
+        }
+      } else {
+        const response = await apiService.createLeavePolicy(leavePolicyForm);
+        if (response.success) {
+          toast.success('Leave policy created successfully');
+          setIsLeavePolicyDialogOpen(false);
+          loadLeavePolicies();
+        } else {
+          toast.error(response.message || 'Failed to create leave policy');
+        }
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save leave policy');
+    }
+  };
+
+  const handleDeleteLeavePolicy = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this leave policy?')) return;
+    try {
+      const response = await apiService.deleteLeavePolicy(id);
+      if (response.success) {
+        toast.success('Leave policy deleted successfully');
+        loadLeavePolicies();
+      } else {
+        toast.error(response.message || 'Failed to delete leave policy');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete leave policy');
+    }
+  };
+
+  const handleEditDepartment = (dept: Department) => {
+    setEditingDepartment(dept);
+    setDepartmentForm({
+      name: dept.name,
+      head: dept.head,
+      costCenter: dept.costCenter,
+      status: dept.status,
+    });
+    setIsDepartmentDialogOpen(true);
+  };
+
+  const handleCreateDepartment = () => {
+    setEditingDepartment(null);
+    setDepartmentForm({
+      name: '',
+      head: '',
+      costCenter: '',
+      status: 'Active',
+    });
+    setIsDepartmentDialogOpen(true);
+  };
+
+  const handleSaveDepartment = async () => {
+    try {
+      if (editingDepartment) {
+        const response = await apiService.updateDepartment(editingDepartment._id!, departmentForm);
+        if (response.success) {
+          toast.success('Department updated successfully');
+          setIsDepartmentDialogOpen(false);
+          loadDepartments();
+        } else {
+          toast.error(response.message || 'Failed to update department');
+        }
+      } else {
+        const response = await apiService.createDepartment(departmentForm);
+        if (response.success) {
+          toast.success('Department created successfully');
+          setIsDepartmentDialogOpen(false);
+          loadDepartments();
+        } else {
+          toast.error(response.message || 'Failed to create department');
+        }
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save department');
+    }
+  };
+
+  const handleDeleteDepartment = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this department?')) return;
+    try {
+      const response = await apiService.deleteDepartment(id);
+      if (response.success) {
+        toast.success('Department deleted successfully');
+        loadDepartments();
+      } else {
+        toast.error(response.message || 'Failed to delete department');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete department');
+    }
   };
 
   const handleTerminateAllSessions = () => {
@@ -46,24 +409,44 @@ export default function AdminPage() {
 
         {/* System Status */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {[
-            { label: 'System Status', value: 'Operational', color: 'bg-green-100 text-green-700' },
-            { label: 'Database', value: 'Connected', color: 'bg-green-100 text-green-700' },
-            { label: 'Active Users', value: '4,850', color: 'bg-blue-100 text-blue-700' },
-            { label: 'Pending Tasks', value: '35', color: 'bg-yellow-100 text-yellow-700' },
-          ].map((stat) => (
-            <Card key={stat.label} className="border-0 shadow-sm">
-              <CardContent className="p-6">
-                <p className="text-sm text-muted-foreground mb-2">{stat.label}</p>
-                <p className="text-2xl font-bold mb-2">{stat.value}</p>
-                <Badge className={stat.color}>Live</Badge>
-              </CardContent>
-            </Card>
-          ))}
+          {systemStatus ? (
+            <>
+              <Card className="border-0 shadow-sm">
+                <CardContent className="p-6">
+                  <p className="text-sm text-muted-foreground mb-2">System Status</p>
+                  <p className="text-2xl font-bold mb-2">{systemStatus.systemStatus}</p>
+                  <Badge className="bg-green-100 text-green-700">Live</Badge>
+                </CardContent>
+              </Card>
+              <Card className="border-0 shadow-sm">
+                <CardContent className="p-6">
+                  <p className="text-sm text-muted-foreground mb-2">Database</p>
+                  <p className="text-2xl font-bold mb-2">{systemStatus.database}</p>
+                  <Badge className={systemStatus.database === 'Connected' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>Live</Badge>
+                </CardContent>
+              </Card>
+              <Card className="border-0 shadow-sm">
+                <CardContent className="p-6">
+                  <p className="text-sm text-muted-foreground mb-2">Active Users</p>
+                  <p className="text-2xl font-bold mb-2">{systemStatus.activeUsers}</p>
+                  <Badge className="bg-blue-100 text-blue-700">Live</Badge>
+                </CardContent>
+              </Card>
+              <Card className="border-0 shadow-sm">
+                <CardContent className="p-6">
+                  <p className="text-sm text-muted-foreground mb-2">Pending Tasks</p>
+                  <p className="text-2xl font-bold mb-2">{systemStatus.pendingTasks}</p>
+                  <Badge className="bg-yellow-100 text-yellow-700">Live</Badge>
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <div className="col-span-4 text-center py-8 text-muted-foreground">Loading system status...</div>
+          )}
         </div>
 
         {/* Configuration Tabs */}
-        <Tabs defaultValue="policies" className="w-full">
+        <Tabs defaultValue="access" className="w-full">
           <TabsList className="mb-6">
             <TabsTrigger value="policies">Leave Policies</TabsTrigger>
             <TabsTrigger value="departments">Departments</TabsTrigger>
@@ -78,29 +461,46 @@ export default function AdminPage() {
           <TabsContent value="policies" className="space-y-4">
             <Card className="border-0 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-lg">Leave Types Configuration</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">Leave Types Configuration</CardTitle>
+                  <Button size="sm" onClick={handleCreateLeavePolicy} className="gap-2">
+                    <Plus className="w-4 h-4" />
+                    Add Policy
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {[
-                    { type: 'Casual Leave', days: 12, carryForward: true },
-                    { type: 'Sick Leave', days: 6, carryForward: false },
-                    { type: 'Earned Leave', days: 20, carryForward: true },
-                    { type: 'Maternity Leave', days: 180, carryForward: false },
-                  ].map((policy) => (
-                    <div key={policy.type} className="flex items-center justify-between p-3 border border-border rounded-lg bg-secondary/50">
-                      <div>
-                        <p className="font-medium text-sm">{policy.type}</p>
-                        <p className="text-xs text-muted-foreground">{policy.days} days per year • Carry forward: {policy.carryForward ? 'Yes' : 'No'}</p>
+                {isLoading ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">Loading leave policies...</p>
+                  </div>
+                ) : leavePolicies.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No leave policies found</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {leavePolicies.map((policy) => (
+                      <div key={policy._id} className="flex items-center justify-between p-3 border border-border rounded-lg bg-secondary/50">
+                        <div>
+                          <p className="font-medium text-sm">{policy.leaveType}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {policy.daysPerYear} days per year • Carry forward: {policy.carryForward ? 'Yes' : 'No'} • Status: {policy.status}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" onClick={() => handleEditLeavePolicy(policy)}>
+                            <Edit className="w-4 h-4 mr-2" />
+                            Edit
+                          </Button>
+                          <Button size="sm" variant="destructive" onClick={() => policy._id && handleDeleteLeavePolicy(policy._id)}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline">
-                          Edit
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -109,29 +509,46 @@ export default function AdminPage() {
           <TabsContent value="departments" className="space-y-4">
             <Card className="border-0 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-lg">Department Configuration</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">Department Configuration</CardTitle>
+                  <Button size="sm" onClick={handleCreateDepartment} className="gap-2">
+                    <Plus className="w-4 h-4" />
+                    Add Department
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {[
-                    { name: 'Finance', head: 'Amit Verma', employees: 320 },
-                    { name: 'IT', head: 'Deepa Gupta', employees: 450 },
-                    { name: 'HR', head: 'Priya Sharma', employees: 120 },
-                    { name: 'Operations', head: 'Rajesh Kumar', employees: 230 },
-                  ].map((dept) => (
-                    <div key={dept.name} className="flex items-center justify-between p-3 border border-border rounded-lg bg-secondary/50">
-                      <div>
-                        <p className="font-medium text-sm">{dept.name}</p>
-                        <p className="text-xs text-muted-foreground">Head: {dept.head} • {dept.employees} employees</p>
+                {isLoading ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">Loading departments...</p>
+                  </div>
+                ) : departments.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No departments found</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {departments.map((dept) => (
+                      <div key={dept._id} className="flex items-center justify-between p-3 border border-border rounded-lg bg-secondary/50">
+                        <div>
+                          <p className="font-medium text-sm">{dept.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Head: {dept.head} • {dept.employees || 0} employees • Cost Center: {dept.costCenter} • Status: {dept.status}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" onClick={() => handleEditDepartment(dept)}>
+                            <Edit className="w-4 h-4 mr-2" />
+                            Edit
+                          </Button>
+                          <Button size="sm" variant="destructive" onClick={() => dept._id && handleDeleteDepartment(dept._id)}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline">
-                          Edit
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -140,29 +557,46 @@ export default function AdminPage() {
           <TabsContent value="access" className="space-y-4">
             <Card className="border-0 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-lg">Role-Based Access Control</CardTitle>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">Role-Based Access Control</CardTitle>
+                    <CardDescription>Manage permissions for each role</CardDescription>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {[
-                    { role: 'Employee', permissions: 4, status: 'Active' },
-                    { role: 'Manager', permissions: 4, status: 'Active' },
-                    { role: 'HR Administrator', permissions: 4, status: 'Active' },
-                    { role: 'Payroll Administrator', permissions: 3, status: 'Active' },
-                  ].map((role) => (
-                    <div key={role.role} className="flex items-center justify-between p-3 border border-border rounded-lg bg-secondary/50">
-                      <div>
-                        <p className="font-medium text-sm">{role.role}</p>
-                        <p className="text-xs text-muted-foreground">{role.permissions} permissions • {role.status}</p>
+                {isLoading ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">Loading role permissions...</p>
+                  </div>
+                ) : rolePermissions.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No role permissions found</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {rolePermissions.map((rolePerm) => (
+                      <div key={rolePerm.role} className="flex items-center justify-between p-3 border border-border rounded-lg bg-secondary/50">
+                        <div>
+                          <p className="font-medium text-sm">{rolePerm.role}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {rolePerm.permissions?.length || 0} permissions • {rolePerm.status || 'Active'}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditPermissions(rolePerm.role)}
+                          >
+                            <Edit className="w-4 h-4 mr-2" />
+                            Edit Permissions
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline">
-                          Edit Permissions
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -241,19 +675,26 @@ export default function AdminPage() {
           <TabsContent value="audit" className="space-y-4">
             <Card className="border-0 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-lg">Audit Log Viewer</CardTitle>
-                <CardDescription>View detailed audit trail of all system activities</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">Audit Log Viewer</CardTitle>
+                    <CardDescription>View detailed audit trail of all system activities</CardDescription>
+                  </div>
+                  <Button asChild>
+                    <a href="/admin/audit-log">View Full Audit Log</a>
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="text-center py-8">
                   <FileText className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
                   <h3 className="text-lg font-semibold mb-2">Comprehensive Audit Log</h3>
                   <p className="text-muted-foreground mb-4">
-                    View detailed audit logs with advanced filtering and search capabilities
+                    All system activities are automatically logged with complete audit trail including user actions, IP addresses, timestamps, and changes made.
                   </p>
-                  <Button asChild>
-                    <a href="/admin/audit-log">View Full Audit Log</a>
-                  </Button>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Click "View Full Audit Log" to access detailed logs with advanced filtering, search, and export capabilities.
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -264,23 +705,20 @@ export default function AdminPage() {
             <Card className="border-0 shadow-sm">
               <CardHeader>
                 <CardTitle className="text-lg">Statutory Compliance</CardTitle>
+                <CardDescription>Compliance settings are managed through Tenant Settings</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {[
-                    { name: 'EPFO Contribution', value: '12%', status: 'Configured' },
-                    { name: 'ESI Coverage', value: '0.75%', status: 'Configured' },
-                    { name: 'Gratuity', value: '15 days', status: 'Configured' },
-                    { name: 'PF Interest Rate', value: '8.15%', status: 'Configured' },
-                  ].map((item) => (
-                    <div key={item.name} className="flex items-center justify-between p-3 border border-border rounded-lg bg-secondary/50">
-                      <div>
-                        <p className="font-medium text-sm">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">{item.value}</p>
-                      </div>
-                      <Badge className="bg-green-100 text-green-700">{item.status}</Badge>
-                    </div>
-                  ))}
+                  <div className="text-center py-8">
+                    <Settings className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+                    <h3 className="text-lg font-semibold mb-2">Compliance Configuration</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Compliance settings such as EPFO, ESI, Gratuity, and other statutory requirements are configured through the Tenant Settings page.
+                    </p>
+                    <Button asChild>
+                      <a href="/settings">Go to Settings</a>
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -291,66 +729,254 @@ export default function AdminPage() {
             <Card className="border-0 shadow-sm">
               <CardHeader>
                 <CardTitle className="text-lg">Third-party Integrations</CardTitle>
+                <CardDescription>Integration settings are managed through Tenant Settings</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {[
-                    { name: 'Banking System (CBS)', status: 'Connected' },
-                    { name: 'Email Server (SMTP)', status: 'Connected' },
-                    { name: 'SMS Gateway', status: 'Pending' },
-                    { name: 'Active Directory (LDAP)', status: 'Connected' },
-                    { name: 'Biometric System', status: 'Not Connected' },
-                  ].map((integration) => (
-                    <div key={integration.name} className="flex items-center justify-between p-3 border border-border rounded-lg bg-secondary/50">
-                      <div>
-                        <p className="font-medium text-sm">{integration.name}</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Badge
-                          className={
-                            integration.status === 'Connected'
-                              ? 'bg-green-100 text-green-700'
-                              : integration.status === 'Pending'
-                                ? 'bg-yellow-100 text-yellow-700'
-                                : 'bg-red-100 text-red-700'
-                          }
-                        >
-                          {integration.status}
-                        </Badge>
-                        <Button size="sm" variant="outline">
-                          Configure
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                  <div className="text-center py-8">
+                    <Settings className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+                    <h3 className="text-lg font-semibold mb-2">Integration Configuration</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Third-party integrations such as Banking System (CBS), Email Server (SMTP), SMS Gateway, Active Directory (LDAP), and Biometric System are configured through the Tenant Settings page.
+                    </p>
+                    <Button asChild>
+                      <a href="/settings">Go to Settings</a>
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
 
+        {/* Edit Leave Policy Dialog */}
+        <Dialog open={isLeavePolicyDialogOpen} onOpenChange={setIsLeavePolicyDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>{editingLeavePolicy ? 'Edit Leave Policy' : 'Create Leave Policy'}</DialogTitle>
+              <DialogDescription>
+                {editingLeavePolicy ? 'Update leave policy details' : 'Create a new leave policy'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div>
+                <Label htmlFor="leaveType">Leave Type *</Label>
+                <Input
+                  id="leaveType"
+                  value={leavePolicyForm.leaveType}
+                  onChange={(e) => setLeavePolicyForm({ ...leavePolicyForm, leaveType: e.target.value })}
+                  placeholder="e.g., Casual Leave"
+                />
+              </div>
+              <div>
+                <Label htmlFor="daysPerYear">Days Per Year *</Label>
+                <Input
+                  id="daysPerYear"
+                  type="number"
+                  value={leavePolicyForm.daysPerYear}
+                  onChange={(e) => setLeavePolicyForm({ ...leavePolicyForm, daysPerYear: parseInt(e.target.value) || 0 })}
+                  placeholder="12"
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="carryForward"
+                  checked={leavePolicyForm.carryForward}
+                  onCheckedChange={(checked) => setLeavePolicyForm({ ...leavePolicyForm, carryForward: checked as boolean })}
+                />
+                <Label htmlFor="carryForward" className="cursor-pointer">Allow Carry Forward</Label>
+              </div>
+              {leavePolicyForm.carryForward && (
+                <div>
+                  <Label htmlFor="maxCarryForward">Max Carry Forward Days</Label>
+                  <Input
+                    id="maxCarryForward"
+                    type="number"
+                    value={leavePolicyForm.maxCarryForward}
+                    onChange={(e) => setLeavePolicyForm({ ...leavePolicyForm, maxCarryForward: parseInt(e.target.value) || 0 })}
+                    placeholder="0"
+                  />
+                </div>
+              )}
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="requiresApproval"
+                  checked={leavePolicyForm.requiresApproval}
+                  onCheckedChange={(checked) => setLeavePolicyForm({ ...leavePolicyForm, requiresApproval: checked as boolean })}
+                />
+                <Label htmlFor="requiresApproval" className="cursor-pointer">Requires Approval</Label>
+              </div>
+              <div>
+                <Label htmlFor="description">Description</Label>
+                <Input
+                  id="description"
+                  value={leavePolicyForm.description}
+                  onChange={(e) => setLeavePolicyForm({ ...leavePolicyForm, description: e.target.value })}
+                  placeholder="Optional description"
+                />
+              </div>
+              <div>
+                <Label htmlFor="status">Status</Label>
+                <Select
+                  value={leavePolicyForm.status}
+                  onValueChange={(value) => setLeavePolicyForm({ ...leavePolicyForm, status: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsLeavePolicyDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveLeavePolicy}>
+                <Save className="w-4 h-4 mr-2" />
+                {editingLeavePolicy ? 'Update' : 'Create'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Department Dialog */}
+        <Dialog open={isDepartmentDialogOpen} onOpenChange={setIsDepartmentDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>{editingDepartment ? 'Edit Department' : 'Create Department'}</DialogTitle>
+              <DialogDescription>
+                {editingDepartment ? 'Update department details' : 'Create a new department'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div>
+                <Label htmlFor="deptName">Department Name *</Label>
+                <Input
+                  id="deptName"
+                  value={departmentForm.name}
+                  onChange={(e) => setDepartmentForm({ ...departmentForm, name: e.target.value })}
+                  placeholder="e.g., Finance"
+                />
+              </div>
+              <div>
+                <Label htmlFor="deptHead">Department Head *</Label>
+                <Input
+                  id="deptHead"
+                  value={departmentForm.head}
+                  onChange={(e) => setDepartmentForm({ ...departmentForm, head: e.target.value })}
+                  placeholder="e.g., John Doe"
+                />
+              </div>
+              <div>
+                <Label htmlFor="costCenter">Cost Center *</Label>
+                <Input
+                  id="costCenter"
+                  value={departmentForm.costCenter}
+                  onChange={(e) => setDepartmentForm({ ...departmentForm, costCenter: e.target.value })}
+                  placeholder="e.g., CC001"
+                />
+              </div>
+              <div>
+                <Label htmlFor="deptStatus">Status</Label>
+                <Select
+                  value={departmentForm.status}
+                  onValueChange={(value) => setDepartmentForm({ ...departmentForm, status: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsDepartmentDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveDepartment}>
+                <Save className="w-4 h-4 mr-2" />
+                {editingDepartment ? 'Update' : 'Create'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Permissions Dialog */}
+        <Dialog open={isPermissionDialogOpen} onOpenChange={setIsPermissionDialogOpen}>
+          <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Permissions - {editingRole}</DialogTitle>
+              <DialogDescription>
+                Select permissions for this role
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={handleSelectAll}>
+                  Select All
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleClearAll}>
+                  Clear All
+                </Button>
+              </div>
+              <div className="grid grid-cols-1 gap-3 max-h-[400px] overflow-y-auto">
+                {availablePermissions.map((permission) => (
+                  <div key={permission} className="flex items-center space-x-2 p-2 border rounded-lg hover:bg-secondary/50">
+                    <Checkbox
+                      id={permission}
+                      checked={selectedPermissions.includes(permission)}
+                      onCheckedChange={() => handleTogglePermission(permission)}
+                    />
+                    <Label htmlFor={permission} className="cursor-pointer flex-1 text-sm">
+                      {permission.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => {
+                setIsPermissionDialogOpen(false);
+                setEditingRole(null);
+              }} className="gap-2">
+                <X className="w-4 h-4" />
+                Cancel
+              </Button>
+              <Button onClick={handleUpdatePermissions} className="gap-2">
+                <Save className="w-4 h-4" />
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* System Alerts */}
-        <Card className="border-0 shadow-sm border-2 border-yellow-200 bg-yellow-50 dark:bg-yellow-900/10">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-yellow-600" />
-              <CardTitle className="text-lg">System Alerts</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {[
-                '⚠️ Database backup scheduled for tonight at 2:00 AM',
-                '⚠️ 8 users pending onboarding completion',
-                '⚠️ Payroll cycle for February 2026 due in 5 days',
-              ].map((alert, idx) => (
-                <p key={idx} className="text-sm text-yellow-700 dark:text-yellow-400">
-                  {alert}
-                </p>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        {systemStatus && parseInt(systemStatus.pendingTasks) > 0 && (
+          <Card className="border-0 shadow-sm border-2 border-yellow-200 bg-yellow-50 dark:bg-yellow-900/10">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-yellow-600" />
+                <CardTitle className="text-lg">System Alerts</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {parseInt(systemStatus.pendingTasks) > 0 && (
+                  <p className="text-sm text-yellow-700 dark:text-yellow-400">
+                    ⚠️ {systemStatus.pendingTasks} pending tasks require attention (Leave requests and Expense claims)
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </DashboardLayout>
   );

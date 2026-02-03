@@ -105,20 +105,6 @@ export const mockUsers = [
     joinDate: '2016-04-15',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Vikram',
   },
-  // System Administrator
-  {
-    id: 'user-system-admin',
-    tenantId: 'tenant-001',
-    email: 'system@indianbank.com',
-    password: 'password123',
-    name: 'Ravi Kumar',
-    role: 'System Administrator',
-    designation: 'IT Administrator',
-    department: 'IT',
-    status: 'active',
-    joinDate: '2018-08-20',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Ravi',
-  },
   // Manager
   {
     id: 'user-002',

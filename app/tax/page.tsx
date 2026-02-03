@@ -20,23 +20,59 @@ export default function TaxPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Load tax records from API when available
-    // For now, use empty array - API endpoint will be added later
-    setIsLoading(false);
+    loadTaxRecords();
   }, []);
+
+  const loadTaxRecords = async () => {
+    try {
+      setIsLoading(true);
+      const response = await apiService.getTaxDeclarations();
+      if (response.success && response.data) {
+        setTaxRecords(Array.isArray(response.data) ? response.data : []);
+      }
+    } catch (error) {
+      console.error('Failed to load tax records', error);
+      toast.error('Failed to load tax records');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   if (!isAuthenticated) {
     redirect('/login');
   }
 
-  const handleDownload = async (docName: string) => {
-    // TODO: Implement API call to download tax document
-    toast.info('Document download will be available once API is implemented.');
+  const handleDownload = async (declarationId: string, docUrl: string) => {
+    if (!docUrl) {
+      toast.error('Document URL not available');
+      return;
+    }
+    try {
+      // Create a temporary link and trigger download
+      const link = document.createElement('a');
+      link.href = docUrl;
+      link.download = `tax-document-${declarationId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('Document download started');
+    } catch (error: any) {
+      toast.error('Failed to download document');
+      console.error('Download error:', error);
+    }
   };
 
-  const handleViewDocument = async (docName: string) => {
-    // TODO: Implement API call to view tax document
-    toast.info('Document preview will be available once API is implemented.');
+  const handleViewDocument = async (docUrl: string) => {
+    if (!docUrl) {
+      toast.error('Document URL not available');
+      return;
+    }
+    try {
+      setSelectedDocument({ url: docUrl });
+    } catch (error: any) {
+      toast.error('Failed to load document');
+      console.error('View document error:', error);
+    }
   };
 
   return (
@@ -49,103 +85,133 @@ export default function TaxPage() {
         </div>
 
         {/* Tax Records */}
-        {taxRecords.map((tax) => (
-          <Card key={tax.id} className="border-0 shadow-sm">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-lg">FY {tax.financialYear}</CardTitle>
-                  <CardDescription>Income Tax Assessment</CardDescription>
-                </div>
-                <Badge className={tax.status === 'Filed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}>
-                  {tax.status}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                {/* Income Section */}
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-sm mb-3">Income Details</h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Gross Income</span>
-                      <span className="font-medium">₹{tax.grossIncome.toLocaleString()}</span>
+        {isLoading ? (
+          <div className="text-center py-8 text-muted-foreground">Loading tax records...</div>
+        ) : taxRecords.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">No tax records found</div>
+        ) : (
+          taxRecords.map((tax) => {
+            const taxId = tax._id || tax.id;
+            // Calculate totals from declarations array
+            const totalDeclarations = tax.declarations?.reduce((sum: number, dec: any) => sum + (dec.amount || 0), 0) || 0;
+            const approvedDeclarations = tax.declarations?.filter((dec: any) => dec.status === 'Approved').reduce((sum: number, dec: any) => sum + (dec.amount || 0), 0) || 0;
+            
+            return (
+              <Card key={taxId} className="border-0 shadow-sm">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg">FY {tax.financialYear}</CardTitle>
+                      <CardDescription>
+                        {tax.employeeId ? `${tax.employeeId.firstName} ${tax.employeeId.lastName}` : 'Income Tax Assessment'}
+                      </CardDescription>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Standard Deduction</span>
-                      <span className="font-medium">₹{tax.standardDeduction.toLocaleString()}</span>
+                    <Badge className={tax.status === 'Verified' ? 'bg-green-100 text-green-700' : tax.status === 'Submitted' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'}>
+                      {tax.status}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                    {/* Declarations Section */}
+                    <div className="space-y-4">
+                      <h3 className="font-semibold text-sm mb-3">Tax Declarations</h3>
+                      <div className="space-y-3">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Regime</span>
+                          <span className="font-medium">{tax.regime || 'New'}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Total Declarations</span>
+                          <span className="font-medium">₹{totalDeclarations.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Approved Amount</span>
+                          <span className="font-medium">₹{approvedDeclarations.toLocaleString()}</span>
+                        </div>
+                        {tax.declarations && tax.declarations.length > 0 && (
+                          <div className="mt-3 pt-3 border-t">
+                            <p className="text-xs font-semibold mb-2">Breakdown:</p>
+                            {tax.declarations.map((dec: any, idx: number) => (
+                              <div key={idx} className="flex justify-between text-xs mb-1">
+                                <span className="text-muted-foreground">{dec.section}:</span>
+                                <span className="font-medium">₹{dec.amount?.toLocaleString() || '0'} ({dec.status || 'Pending'})</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Ch. VI-A Deductions</span>
-                      <span className="font-medium">₹{tax.chapter6aDeductions.toLocaleString()}</span>
+
+                    {/* Status Section */}
+                    <div className="space-y-4">
+                      <h3 className="font-semibold text-sm mb-3">Status Information</h3>
+                      <div className="space-y-3">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Submission Date</span>
+                          <span className="font-medium">{tax.submissionDate ? new Date(tax.submissionDate).toLocaleDateString() : 'Not submitted'}</span>
+                        </div>
+                        {tax.verifiedBy && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Verified By</span>
+                            <span className="font-medium">{tax.verifiedBy?.name || 'N/A'}</span>
+                          </div>
+                        )}
+                        {tax.verifiedDate && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Verified Date</span>
+                            <span className="font-medium">{new Date(tax.verifiedDate).toLocaleDateString()}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Other Deductions</span>
-                      <span className="font-medium">₹{tax.otherDeductions.toLocaleString()}</span>
+
+                    {/* Actions Section */}
+                    <div className="space-y-4 bg-primary/5 p-4 rounded-lg">
+                      <h3 className="font-semibold text-sm mb-3">Actions</h3>
+                      <div className="space-y-2">
+                        {tax.declarations && tax.declarations.some((dec: any) => dec.proofUrl) && (
+                          <Button variant="outline" className="w-full gap-2" size="sm" onClick={() => {
+                            const docUrl = tax.declarations.find((dec: any) => dec.proofUrl)?.proofUrl;
+                            if (docUrl) handleViewDocument(docUrl);
+                          }}>
+                            <Eye className="w-4 h-4" />
+                            View Documents
+                          </Button>
+                        )}
+                        {hasPermission('process_payroll') && tax.status === 'Verified' && (
+                          <Button variant="outline" className="w-full gap-2" size="sm" onClick={() => handleDownload(taxId, 'form16')}>
+                            <Download className="w-4 h-4" />
+                            Download Form 16
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-
-                {/* Tax Calculation Section */}
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-sm mb-3">Tax Calculation</h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Taxable Income</span>
-                      <span className="font-medium">₹{tax.taxableIncome.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Tax Calculated</span>
-                      <span className="font-medium">₹{tax.taxCalculated.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Education Cess (4%)</span>
-                      <span className="font-medium">₹{tax.educationCess.toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Summary Section */}
-                <div className="space-y-4 bg-primary/5 p-4 rounded-lg">
-                  <h3 className="font-semibold text-sm mb-3">Tax Summary</h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-sm font-semibold border-b pb-3">
-                      <span>Total Tax Liability</span>
-                      <span className="text-lg text-primary">₹{tax.totalTax.toLocaleString()}</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      <p>This amount is payable before the due date of ITR filing.</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-2 pt-4 border-t">
-                <Button variant="outline" className="gap-2 bg-transparent" size="sm" onClick={() => handleViewDocument('Form 16')}>
-                  <Eye className="w-4 h-4" />
-                  View ITR
-                </Button>
-                {hasPermission('process_payroll') && (
-                  <>
-                    <Button variant="outline" className="gap-2 bg-transparent" size="sm" onClick={() => handleDownload('Form 16')}>
-                      <Download className="w-4 h-4" />
-                      Download Certificate
-                    </Button>
-                    <Button variant="outline" className="gap-2 bg-transparent" size="sm" onClick={() => handleDownload('Deduction')}>
-                      <Download className="w-4 h-4" />
-                      Download Deduction Summary
-                    </Button>
-                  </>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                </CardContent>
+              </Card>
+            );
+          })
+        )}
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer" asChild>
+            <Link href="/tax/declarations">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
+                    <FileText className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">Tax Declarations</p>
+                    <p className="text-xs text-muted-foreground">Submit investments</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Link>
+          </Card>
+
           <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer" asChild>
             <Link href="/tax/regime-comparison">
               <CardContent className="p-6">

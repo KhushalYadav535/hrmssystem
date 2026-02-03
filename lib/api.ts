@@ -62,6 +62,16 @@ class ApiService {
     }
   }
 
+  // ==================== REPORTS ====================
+
+  async getDashboardStats() {
+    return this.request('/reports/dashboard-stats');
+  }
+
+  async getComprehensiveReports() {
+    return this.request('/reports/comprehensive');
+  }
+
   // ==================== AUTHENTICATION ====================
 
   async login(email: string, password: string, tenantId?: string) {
@@ -109,14 +119,41 @@ class ApiService {
     });
   }
 
+  // ==================== USERS ====================
+
+  async getUsers(params?: { search?: string; status?: string; role?: string }) {
+    const query = new URLSearchParams();
+    if (params?.search) query.append('search', params.search);
+    if (params?.status) query.append('status', params.status);
+    if (params?.role) query.append('role', params.role);
+
+    return this.request(`/users?${query.toString()}`);
+  }
+
+  async getUser(id: string) {
+    return this.request(`/users/${id}`);
+  }
+
+  async updateUser(id: string, data: any) {
+    return this.request(`/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteUser(id: string) {
+    return this.request(`/users/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   // ==================== EMPLOYEES ====================
 
-  async getEmployees(params?: { search?: string; status?: string; department?: string; reportingManager?: string }) {
+  async getEmployees(params?: { search?: string; status?: string; department?: string }) {
     const query = new URLSearchParams();
     if (params?.search) query.append('search', params.search);
     if (params?.status) query.append('status', params.status);
     if (params?.department) query.append('department', params.department);
-    if (params?.reportingManager) query.append('reportingManager', params.reportingManager);
 
     return this.request(`/employees?${query.toString()}`);
   }
@@ -221,6 +258,10 @@ class ApiService {
     return this.request(`/leaves/${id}`, {
       method: 'DELETE',
     });
+  }
+
+  async getLeaveBalance(employeeId: string) {
+    return this.request(`/leaves/balance/${employeeId}`);
   }
 
   // ==================== EXPENSES ====================
@@ -371,73 +412,294 @@ class ApiService {
     });
   }
 
-  // ==================== ATTENDANCE ====================
+  // ==================== DESIGNATIONS ====================
 
-  async getAttendance(params?: { startDate?: string; endDate?: string; month?: number; year?: number; employeeId?: string }) {
-    const query = new URLSearchParams();
-    if (params?.startDate) query.append('startDate', params.startDate);
-    if (params?.endDate) query.append('endDate', params.endDate);
-    if (params?.month) query.append('month', params.month.toString());
-    if (params?.year) query.append('year', params.year.toString());
-    if (params?.employeeId) query.append('employeeId', params.employeeId);
-
-    return this.request(`/attendance?${query.toString()}`);
-  }
-
-  async checkIn(data: { date: string; time?: string; location?: string }) {
-    return this.request('/attendance/check-in', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async checkOut(data: { date: string; time?: string }) {
-    return this.request('/attendance/check-out', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  // ==================== GOALS ====================
-
-  async getGoals(params?: { status?: string; employeeId?: string }) {
+  async getDesignations(params?: { status?: string }) {
     const query = new URLSearchParams();
     if (params?.status) query.append('status', params.status);
-    if (params?.employeeId) query.append('employeeId', params.employeeId);
 
-    return this.request(`/goals?${query.toString()}`);
+    return this.request(`/designations?${query.toString()}`);
   }
 
-  async createGoal(data: any) {
-    return this.request('/goals', {
+  async getDesignation(id: string) {
+    return this.request(`/designations/${id}`);
+  }
+
+  async createDesignation(data: any) {
+    return this.request('/designations', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
-  async updateGoal(id: string, data: any) {
-    return this.request(`/goals/${id}`, {
+  async updateDesignation(id: string, data: any) {
+    return this.request(`/designations/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
   }
 
-  async deleteGoal(id: string) {
-    return this.request(`/goals/${id}`, {
+  async deleteDesignation(id: string) {
+    return this.request(`/designations/${id}`, {
       method: 'DELETE',
     });
   }
 
-  async submitGoal(id: string) {
-    return this.request(`/goals/${id}/submit`, {
-      method: 'PUT',
+  // ==================== LEAVE POLICIES ====================
+
+  async getLeavePolicies(params?: { status?: string }) {
+    const query = new URLSearchParams();
+    if (params?.status) query.append('status', params.status);
+
+    return this.request(`/leave-policies?${query.toString()}`);
+  }
+
+  async getLeavePolicy(id: string) {
+    return this.request(`/leave-policies/${id}`);
+  }
+
+  async createLeavePolicy(data: any) {
+    return this.request('/leave-policies', {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
   }
 
-  async updateGoalStatus(id: string, status: string, comments?: string) {
-    return this.request(`/goals/${id}/status`, {
+  async updateLeavePolicy(id: string, data: any) {
+    return this.request(`/leave-policies/${id}`, {
       method: 'PUT',
-      body: JSON.stringify({ status, comments }),
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteLeavePolicy(id: string) {
+    return this.request(`/leave-policies/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== ROLE PERMISSIONS ====================
+
+  async getRolePermissions() {
+    return this.request('/role-permissions');
+  }
+
+  async getRolePermission(role: string) {
+    return this.request(`/role-permissions/${role}`);
+  }
+
+  async updateRolePermissions(role: string, data: { permissions: string[] }) {
+    return this.request(`/role-permissions/${role}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getAvailablePermissions() {
+    return this.request('/role-permissions/available/list');
+  }
+
+  // ==================== AUDIT LOGS ====================
+
+  async getAuditLogs(params?: { module?: string; action?: string; status?: string; dateFrom?: string; dateTo?: string; userId?: string; search?: string }) {
+    const query = new URLSearchParams();
+    if (params?.module) query.append('module', params.module);
+    if (params?.action) query.append('action', params.action);
+    if (params?.status) query.append('status', params.status);
+    if (params?.dateFrom) query.append('dateFrom', params.dateFrom);
+    if (params?.dateTo) query.append('dateTo', params.dateTo);
+    if (params?.userId) query.append('userId', params.userId);
+    if (params?.search) query.append('search', params.search);
+
+    return this.request(`/audit-logs?${query.toString()}`);
+  }
+
+  async getAuditLog(id: string) {
+    return this.request(`/audit-logs/${id}`);
+  }
+
+  async exportAuditLogs(params?: { module?: string; action?: string; status?: string; dateFrom?: string; dateTo?: string }) {
+    const query = new URLSearchParams();
+    if (params?.module) query.append('module', params.module);
+    if (params?.action) query.append('action', params.action);
+    if (params?.status) query.append('status', params.status);
+    if (params?.dateFrom) query.append('dateFrom', params.dateFrom);
+    if (params?.dateTo) query.append('dateTo', params.dateTo);
+
+    return this.request(`/audit-logs/export?${query.toString()}`);
+  }
+
+  // ==================== TENANT SETTINGS ====================
+
+  async getCurrentTenant() {
+    return this.request('/tenants/current');
+  }
+
+  async updateTenantSettings(settings: any) {
+    return this.request('/tenants/current/settings', {
+      method: 'PUT',
+      body: JSON.stringify({ settings }),
+    });
+  }
+
+  async updateTenant(tenantId: string, data: any) {
+    return this.request(`/tenants/${tenantId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // ==================== SYSTEM ====================
+
+  async getSystemStatus() {
+    return this.request('/system/status');
+  }
+
+  // ==================== TAX DECLARATIONS ====================
+
+  async getTaxDeclarations(params?: { financialYear?: string; status?: string }) {
+    const query = new URLSearchParams();
+    if (params?.financialYear) query.append('financialYear', params.financialYear);
+    if (params?.status) query.append('status', params.status);
+
+    return this.request(`/tax-declarations?${query.toString()}`);
+  }
+
+  async getTaxDeclaration(id: string) {
+    return this.request(`/tax-declarations/${id}`);
+  }
+
+  async createTaxDeclaration(data: any) {
+    return this.request('/tax-declarations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateTaxDeclarationStatus(id: string, data: any) {
+    return this.request(`/tax-declarations/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // ==================== PERFORMANCE ====================
+
+  async getPerformances(params?: { employeeId?: string; period?: string; status?: string }) {
+    const query = new URLSearchParams();
+    if (params?.employeeId) query.append('employeeId', params.employeeId);
+    if (params?.period) query.append('period', params.period);
+    if (params?.status) query.append('status', params.status);
+
+    return this.request(`/performance?${query.toString()}`);
+  }
+
+  async getPerformance(id: string) {
+    return this.request(`/performance/${id}`);
+  }
+
+  async createPerformance(data: any) {
+    return this.request('/performance', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updatePerformance(id: string, data: any) {
+    return this.request(`/performance/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deletePerformance(id: string) {
+    return this.request(`/performance/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== ATTENDANCE ====================
+
+  async getAttendances(params?: { employeeId?: string; startDate?: string; endDate?: string; status?: string }) {
+    const query = new URLSearchParams();
+    if (params?.employeeId) query.append('employeeId', params.employeeId);
+    if (params?.startDate) query.append('startDate', params.startDate);
+    if (params?.endDate) query.append('endDate', params.endDate);
+    if (params?.status) query.append('status', params.status);
+
+    return this.request(`/attendance?${query.toString()}`);
+  }
+
+  async getAttendance(id: string) {
+    return this.request(`/attendance/${id}`);
+  }
+
+  async getAttendanceSummary(employeeId: string, params?: { startDate?: string; endDate?: string }) {
+    const query = new URLSearchParams();
+    if (params?.startDate) query.append('startDate', params.startDate);
+    if (params?.endDate) query.append('endDate', params.endDate);
+
+    return this.request(`/attendance/summary/${employeeId}?${query.toString()}`);
+  }
+
+  async createAttendance(data: any) {
+    return this.request('/attendance', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateAttendance(id: string, data: any) {
+    return this.request(`/attendance/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteAttendance(id: string) {
+    return this.request(`/attendance/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== ONBOARDING ====================
+
+  async getOnboardings(params?: { status?: string; department?: string }) {
+    const query = new URLSearchParams();
+    if (params?.status) query.append('status', params.status);
+    if (params?.department) query.append('department', params.department);
+
+    return this.request(`/onboarding?${query.toString()}`);
+  }
+
+  async getOnboarding(id: string) {
+    return this.request(`/onboarding/${id}`);
+  }
+
+  async createOnboarding(data: any) {
+    return this.request('/onboarding', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateOnboarding(id: string, data: any) {
+    return this.request(`/onboarding/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateOnboardingTask(id: string, taskId: string, data: any) {
+    return this.request(`/onboarding/${id}/task/${taskId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteOnboarding(id: string) {
+    return this.request(`/onboarding/${id}`, {
+      method: 'DELETE',
     });
   }
 }
