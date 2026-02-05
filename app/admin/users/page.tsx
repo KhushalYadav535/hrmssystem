@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Plus, Edit, Trash2, Search, UserPlus, Save, X } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, UserPlus, Save, X, Key, UserCheck, UserX, Loader2 } from 'lucide-react';
 import apiService from '@/lib/api';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -37,6 +37,7 @@ export default function UsersPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isActionLoading, setIsActionLoading] = useState<string | null>(null);
   const [userFormData, setUserFormData] = useState({
     name: '',
     email: '',
@@ -309,6 +310,51 @@ export default function UsersPage() {
                           <Edit className="w-4 h-4" />
                           Edit
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-2"
+                          onClick={() => handleResetPassword(userId)}
+                          disabled={isActionLoading === userId}
+                          title="Reset Password"
+                        >
+                          {isActionLoading === userId ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Key className="w-4 h-4" />
+                          )}
+                        </Button>
+                        {(user.status === 'inactive' || user.status === 'Inactive' || user.status === 'Deactivated') ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-2 text-green-600 hover:text-green-700"
+                            onClick={() => handleActivate(userId)}
+                            disabled={isActionLoading === userId}
+                            title="Activate User"
+                          >
+                            {isActionLoading === userId ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <UserCheck className="w-4 h-4" />
+                            )}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-2 text-orange-600 hover:text-orange-700"
+                            onClick={() => handleDeactivate(userId)}
+                            disabled={isActionLoading === userId}
+                            title="Deactivate User"
+                          >
+                            {isActionLoading === userId ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <UserX className="w-4 h-4" />
+                            )}
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="destructive"

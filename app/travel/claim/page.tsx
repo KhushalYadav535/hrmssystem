@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { redirect } from 'next/navigation';
+import { redirect, useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,8 +12,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Upload, CheckCircle2, Clock, AlertCircle, X, DollarSign, FileText } from 'lucide-react';
+import { Plus, Upload, CheckCircle2, Clock, AlertCircle, X, DollarSign, FileText, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import apiService from '@/lib/api';
 
 interface ExpenseItem {
   id: string;
@@ -27,7 +28,12 @@ interface ExpenseItem {
 }
 
 export default function TravelClaimPage() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [travelRequests, setTravelRequests] = useState<any[]>([]);
+  const [selectedTravelRequest, setSelectedTravelRequest] = useState<string>('');
+  const [claimType, setClaimType] = useState<'Regular Travel' | 'LTA' | 'Mileage' | 'Other Allowance'>('Regular Travel');
   const [expenseItems, setExpenseItems] = useState<ExpenseItem[]>([]);
   const [currentItem, setCurrentItem] = useState<Partial<ExpenseItem>>({
     category: '',
@@ -35,6 +41,21 @@ export default function TravelClaimPage() {
     amount: '',
     description: '',
   });
+
+  useEffect(() => {
+    loadApprovedTravelRequests();
+  }, []);
+
+  const loadApprovedTravelRequests = async () => {
+    try {
+      const response = await apiService.getTravelRequests({ status: 'Approved' });
+      if (response.success && response.data) {
+        setTravelRequests(Array.isArray(response.data) ? response.data : []);
+      }
+    } catch (error) {
+      console.error('Failed to load travel requests', error);
+    }
+  };
 
   if (!isAuthenticated) {
     redirect('/login');
@@ -66,6 +87,67 @@ export default function TravelClaimPage() {
     setExpenseItems(expenseItems.filter(item => item.id !== id));
   };
 
+  const handleSubmitClaim = async () => {
+    if (!selectedTravelRequest) {
+      toast.error('Please select a travel request');
+      return;
+    }
+
+    if (expenseItems.length === 0) {
+      toast.error('Please add at least one expense item');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      // Transform expense items to match backend structure
+      const travelExpenses = expenseItems
+        .filter(item => item.category === 'travel')
+        .map(item => ({
+          date: new Date(item.date),
+          mode: 'Other', // TODO: Get from form
+          from: '',
+          to: '',
+          amount: parseFloat(item.amount || '0'),
+          bookingCharges: 0,
+          bills: [],
+        }));
+
+      const payload = {
+        travelRequestId: selectedTravelRequest,
+        claimType,
+        travelExpenses,
+        accommodation: [],
+        dailyAllowance: [],
+        localConveyance: [],
+        incidentalExpenses: expenseItems
+          .filter(item => item.category === 'other')
+          .map(item => ({
+            category: item.category,
+            date: new Date(item.date),
+            description: item.description,
+            amount: parseFloat(item.amount || '0'),
+            bills: [],
+          })),
+        remarks: '',
+      };
+
+      const response = await apiService.createTravelClaim(payload);
+
+      if (response.success) {
+        toast.success('Travel claim created successfully!');
+        router.push('/travel');
+      } else {
+        toast.error(response.message || 'Failed to create travel claim');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'An error occurred');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const totalAmount = expenseItems.reduce((sum, item) => sum + parseFloat(item.amount || '0'), 0);
 
   return (
@@ -75,6 +157,52 @@ export default function TravelClaimPage() {
           <h1 className="text-3xl font-bold text-foreground">Submit Travel Claim</h1>
           <p className="text-muted-foreground mt-2">Submit your travel expenses for reimbursement</p>
         </div>
+
+        {/* Travel Request Selection */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Select Travel Request</CardTitle>
+            <CardDescription>Link this claim to an approved travel request</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Label htmlFor="travelRequest">Travel Request <span className="text-red-500">*</span></Label>
+              <Select value={selectedTravelRequest} onValueChange={setSelectedTravelRequest}>
+                <SelectTrigger id="travelRequest">
+                  <SelectValue placeholder="Select travel request" />
+                </SelectTrigger>
+                <SelectContent>
+                  {travelRequests.length > 0 ? (
+                    travelRequests.map((request) => {
+                      const requestId = request._id || request.id;
+                      return (
+                        <SelectItem key={requestId} value={requestId}>
+                          {request.origin} → {request.destination} ({request.departureDate ? new Date(request.departureDate).toLocaleDateString() : ''})
+                        </SelectItem>
+                      );
+                    })
+                  ) : (
+                    <SelectItem value="" disabled>No approved travel requests found</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="mt-4 space-y-2">
+              <Label htmlFor="claimType">Claim Type</Label>
+              <Select value={claimType} onValueChange={(value: any) => setClaimType(value)}>
+                <SelectTrigger id="claimType">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Regular Travel">Regular Travel</SelectItem>
+                  <SelectItem value="LTA">LTA (Leave Travel Allowance)</SelectItem>
+                  <SelectItem value="Mileage">Mileage</SelectItem>
+                  <SelectItem value="Other Allowance">Other Allowance</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
 
         <Tabs defaultValue="expenses" className="w-full">
           <TabsList>
@@ -229,8 +357,15 @@ export default function TravelClaimPage() {
                   </ol>
                 </div>
 
-                <Button className="w-full" size="lg">
-                  Submit Claim for Approval
+                <Button className="w-full" size="lg" onClick={handleSubmitClaim} disabled={isSubmitting || !selectedTravelRequest || expenseItems.length === 0}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    'Submit Claim for Approval'
+                  )}
                 </Button>
               </CardContent>
             </Card>

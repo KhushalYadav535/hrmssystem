@@ -6,8 +6,8 @@ import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar as CalendarIcon, Printer, Download, ChevronLeft, ChevronRight, FileSpreadsheet, FileText } from 'lucide-react';
-import { useState } from 'react';
+import { Calendar as CalendarIcon, Printer, Download, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,22 +15,59 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
+import apiService from '@/lib/api';
 
 export default function LeaveCalendarPage() {
   const { isAuthenticated } = useAuth();
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 1, 1)); // Feb 2026
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [leaves, setLeaves] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   if (!isAuthenticated) redirect('/login');
 
-  // Mock leaves
-  const leaves = [
-    { id: 1, name: 'Amit Verma', date: '2026-02-05', type: 'Sick Leave', status: 'Approved' },
-    { id: 2, name: 'Sarah Jones', date: '2026-02-12', type: 'Casual Leave', status: 'Approved' },
-    { id: 3, name: 'Raj Patel', date: '2026-02-12', type: 'Privilege Leave', status: 'Approved' },
-    { id: 4, name: 'Priya Singh', date: '2026-02-20', type: 'Casual Leave', status: 'Pending' },
-    { id: 5, name: 'Mike Brown', date: '2026-02-25', type: 'Sick Leave', status: 'Approved' },
-    { id: 6, name: 'Deepak Kumar', date: '2026-02-26', type: 'Casual Leave', status: 'Approved' },
-  ];
+  useEffect(() => {
+    loadTeamCalendar();
+  }, [currentDate]);
+
+  const loadTeamCalendar = async () => {
+    try {
+      setIsLoading(true);
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      const startDate = new Date(year, month, 1).toISOString();
+      const endDate = new Date(year, month + 1, 0).toISOString();
+
+      const response = await apiService.getTeamCalendar({ startDate, endDate });
+      if (response.success && response.data) {
+        // Transform leaves data for calendar display
+        const transformedLeaves: any[] = [];
+        response.data.forEach((leave: any) => {
+          const start = new Date(leave.startDate);
+          const end = new Date(leave.endDate);
+          const employeeName = leave.employeeId 
+            ? `${leave.employeeId.firstName || ''} ${leave.employeeId.lastName || ''}`.trim()
+            : 'Unknown';
+          
+          // Add entry for each day in the leave range
+          for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            transformedLeaves.push({
+              id: `${leave._id}-${d.toISOString()}`,
+              name: employeeName,
+              date: d.toISOString().split('T')[0],
+              type: leave.leaveType,
+              status: leave.status,
+            });
+          }
+        });
+        setLeaves(transformedLeaves);
+      }
+    } catch (error) {
+      console.error('Failed to load team calendar', error);
+      toast.error('Failed to load leave calendar');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
   const getFirstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
@@ -135,18 +172,24 @@ export default function LeaveCalendarPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-7 gap-px bg-muted rounded-lg overflow-hidden border border-border">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                <div key={day} className="bg-card p-2 text-center text-sm font-semibold py-4">
-                  {day}
-                </div>
-              ))}
-              
-              {days.map((day, idx) => {
-                if (!day) return <div key={idx} className="bg-card/50 min-h-[120px]" />;
-                
-                const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                const dayLeaves = leaves.filter(l => l.date === dateStr);
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-7 gap-px bg-muted rounded-lg overflow-hidden border border-border">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                    <div key={day} className="bg-card p-2 text-center text-sm font-semibold py-4">
+                      {day}
+                    </div>
+                  ))}
+                  
+                  {days.map((day, idx) => {
+                    if (!day) return <div key={idx} className="bg-card/50 min-h-[120px]" />;
+                    
+                    const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    const dayLeaves = leaves.filter(l => l.date === dateStr);
 
                 return (
                   <div key={idx} className="bg-card p-2 min-h-[120px] border-t border-l border-border/50 relative group hover:bg-secondary/10 transition-colors">
@@ -187,6 +230,8 @@ export default function LeaveCalendarPage() {
                 <span>Privilege Leave</span>
               </div>
             </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

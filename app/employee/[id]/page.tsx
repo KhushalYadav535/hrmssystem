@@ -37,7 +37,7 @@ interface Employee {
 }
 
 export default function EmployeeDetailPage() {
-  const { isAuthenticated, hasPermission } = useAuth();
+  const { isAuthenticated, hasPermission, currentUser } = useAuth();
   const router = useRouter();
   const params = useParams();
   const [employee, setEmployee] = useState<Employee | null>(null);
@@ -94,9 +94,37 @@ export default function EmployeeDetailPage() {
     }
   };
 
-  if (!isAuthenticated || !hasPermission('manage_employees')) {
-    redirect('/dashboard');
-  }
+  // Check permissions: Allow Tenant Admin, HR Admin, Manager, and users with manage_employees permission
+  // Also allow users with view_profile or view_employee_data permissions
+  // Wait for auth to be ready before checking
+  useEffect(() => {
+    // Don't check if auth is still loading or user is not authenticated
+    if (!isAuthenticated || !currentUser) {
+      // Only redirect if we're sure user is not authenticated (not just loading)
+      if (isAuthenticated === false) {
+        router.push('/dashboard');
+      }
+      return;
+    }
+
+    // Allow Tenant Admin, HR Administrator, Manager, and users with appropriate permissions
+    const allowedRoles = ['Tenant Admin', 'HR Administrator', 'Manager'];
+    const hasRoleAccess = currentUser && allowedRoles.includes(currentUser.role);
+    const hasPermissionAccess = hasPermission('manage_employees') || hasPermission('view_profile') || hasPermission('view_employee_data');
+    
+    // Only redirect if user definitely doesn't have access
+    if (!hasRoleAccess && !hasPermissionAccess) {
+      console.log('Access denied - redirecting to dashboard', {
+        role: currentUser.role,
+        hasRoleAccess,
+        hasPermissionAccess,
+        hasManageEmployees: hasPermission('manage_employees'),
+        hasViewProfile: hasPermission('view_profile'),
+        hasViewEmployeeData: hasPermission('view_employee_data'),
+      });
+      router.push('/dashboard');
+    }
+  }, [isAuthenticated, currentUser, hasPermission, router]);
 
   if (isLoading) {
     return (

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { redirect } from 'next/navigation';
+import { redirect, useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,8 +11,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Target, Trash2, Save, CheckCircle2 } from 'lucide-react';
+import { Plus, Target, Trash2, Save, CheckCircle2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import apiService from '@/lib/api';
 
 interface Goal {
   id: string;
@@ -26,19 +27,12 @@ interface Goal {
 }
 
 export default function GoalsPage() {
-  const { isAuthenticated } = useAuth();
-  const [goals, setGoals] = useState<Goal[]>([
-    {
-      id: '1',
-      description: 'Increase customer satisfaction score',
-      kpi: 'Customer Satisfaction Index',
-      target: '4.5/5',
-      weightage: 30,
-      timeline: 'Q4 2026',
-      category: 'Customer Service',
-      status: 'approved',
-    },
-  ]);
+  const { isAuthenticated, user } = useAuth();
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeCycle, setActiveCycle] = useState<any>(null);
+  const [goals, setGoals] = useState<any[]>([]);
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [newGoal, setNewGoal] = useState<Partial<Goal>>({
     description: '',
@@ -50,15 +44,50 @@ export default function GoalsPage() {
     status: 'draft',
   });
 
+  useEffect(() => {
+    loadActiveCycleAndGoals();
+  }, []);
+
+  const loadActiveCycleAndGoals = async () => {
+    try {
+      setIsLoading(true);
+      const [cycleRes, goalsRes] = await Promise.all([
+        apiService.getActiveAppraisalCycle(),
+        apiService.getGoals({ status: 'Draft' }),
+      ]);
+
+      if (cycleRes.success && cycleRes.data) {
+        setActiveCycle(cycleRes.data);
+        // Load goals for this cycle
+        const cycleGoalsRes = await apiService.getGoals({ appraisalCycleId: cycleRes.data._id });
+        if (cycleGoalsRes.success && cycleGoalsRes.data) {
+          setGoals(Array.isArray(cycleGoalsRes.data) ? cycleGoalsRes.data : []);
+        }
+      } else if (goalsRes.success && goalsRes.data) {
+        setGoals(Array.isArray(goalsRes.data) ? goalsRes.data : []);
+      }
+    } catch (error) {
+      console.error('Failed to load goals', error);
+      toast.error('Failed to load goals');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (!isAuthenticated) {
     redirect('/login');
   }
 
-  const totalWeightage = goals.reduce((sum, goal) => sum + goal.weightage, 0);
+  const totalWeightage = goals.reduce((sum, goal) => sum + (goal.weightage || 0), 0);
 
-  const handleAddGoal = () => {
-    if (!newGoal.description || !newGoal.kpi || !newGoal.target || !newGoal.weightage) {
+  const handleAddGoal = async () => {
+    if (!newGoal.description || !newGoal.kpi || !newGoal.target || !newGoal.weightage || !newGoal.timeline) {
       toast.error('Please fill all required fields');
+      return;
+    }
+
+    if (!activeCycle) {
+      toast.error('No active appraisal cycle found');
       return;
     }
 
@@ -67,37 +96,69 @@ export default function GoalsPage() {
       return;
     }
 
-    const goal: Goal = {
-      id: Date.now().toString(),
-      description: newGoal.description || '',
-      kpi: newGoal.kpi || '',
-      target: newGoal.target || '',
-      weightage: newGoal.weightage || 0,
-      timeline: newGoal.timeline || '',
-      category: newGoal.category || '',
-      status: 'draft',
-    };
+    try {
+      setIsSubmitting(true);
 
-    setGoals([...goals, goal]);
-    setNewGoal({
-      description: '',
-      kpi: '',
-      target: '',
-      weightage: 0,
-      timeline: '',
-      category: '',
-      status: 'draft',
-    });
-    setShowAddGoal(false);
-    toast.success('Goal added successfully');
+      // Get current employee
+      const empResponse = await apiService.getEmployees({ email: user?.email });
+      if (!empResponse.success || !empResponse.data || !Array.isArray(empResponse.data) || empResponse.data.length === 0) {
+        toast.error('Employee record not found');
+        return;
+      }
+
+      const employee = empResponse.data[0];
+      const employeeId = employee._id || employee.id;
+
+      const payload = {
+        appraisalCycleId: activeCycle._id || activeCycle.id,
+        employeeId,
+        description: newGoal.description,
+        kpi: newGoal.kpi,
+        target: newGoal.target,
+        weightage: newGoal.weightage,
+        timeline: newGoal.timeline,
+        category: newGoal.category || 'Operational',
+        goalLevel: 'Individual',
+        status: 'Draft',
+      };
+
+      const response = await apiService.createGoal(payload);
+
+      if (response.success) {
+        toast.success('Goal added successfully');
+        setNewGoal({
+          description: '',
+          kpi: '',
+          target: '',
+          weightage: 0,
+          timeline: '',
+          category: '',
+          status: 'draft',
+        });
+        setShowAddGoal(false);
+        loadActiveCycleAndGoals();
+      } else {
+        toast.error(response.message || 'Failed to add goal');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'An error occurred');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDeleteGoal = (id: string) => {
-    setGoals(goals.filter(g => g.id !== id));
-    toast.success('Goal deleted');
+  const handleDeleteGoal = async (id: string) => {
+    try {
+      // Note: Backend doesn't have delete endpoint, so we'll just remove from UI
+      // In production, you'd call delete API
+      setGoals(goals.filter(g => (g._id || g.id) !== id));
+      toast.success('Goal removed');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete goal');
+    }
   };
 
-  const handleSubmitGoals = () => {
+  const handleSubmitGoals = async () => {
     if (goals.length < 5) {
       toast.error('Minimum 5 goals required');
       return;
@@ -106,7 +167,22 @@ export default function GoalsPage() {
       toast.error('Total weightage must be exactly 100%');
       return;
     }
-    toast.success('Goals submitted for manager approval');
+
+    try {
+      setIsSubmitting(true);
+      // Submit each goal for approval
+      for (const goal of goals) {
+        if (goal.status === 'Draft' || goal.status === 'draft') {
+          await apiService.updateGoal(goal._id || goal.id, { status: 'Submitted' });
+        }
+      }
+      toast.success('Goals submitted for manager approval');
+      loadActiveCycleAndGoals();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to submit goals');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -257,57 +333,81 @@ export default function GoalsPage() {
         )}
 
         {/* Goals List */}
-        <div className="space-y-4">
-          {goals.map((goal) => (
-            <Card key={goal.id} className={goal.status === 'approved' ? 'border-green-500' : ''}>
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 space-y-3">
-                    <div className="flex items-center gap-3">
-                      <Target className="w-5 h-5 text-primary" />
-                      <div className="flex-1">
-                        <p className="font-semibold">{goal.description}</p>
-                        <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                          <span>KPI: {goal.kpi}</span>
-                          <span>Target: {goal.target}</span>
-                          <span>Timeline: {goal.timeline}</span>
-                          {goal.category && (
-                            <Badge variant="outline">{goal.category}</Badge>
+        {isLoading ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+            Loading goals...
+          </div>
+        ) : goals.length === 0 ? (
+          <Card>
+            <CardContent className="p-8 text-center text-muted-foreground">
+              <Target className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>No goals found. Add your first goal to get started.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {goals.map((goal) => {
+              const goalId = goal._id || goal.id;
+              const status = goal.status || 'Draft';
+              return (
+                <Card key={goalId} className={status === 'Approved' ? 'border-green-500' : ''}>
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 space-y-3">
+                        <div className="flex items-center gap-3">
+                          <Target className="w-5 h-5 text-primary" />
+                          <div className="flex-1">
+                            <p className="font-semibold">{goal.description}</p>
+                            <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                              <span>KPI: {goal.kpi}</span>
+                              <span>Target: {goal.target}</span>
+                              <span>Timeline: {goal.timeline}</span>
+                              {goal.category && (
+                                <Badge variant="outline">{goal.category}</Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Weightage</p>
+                            <p className="font-semibold">{goal.weightage}%</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Status</p>
+                            <Badge className={
+                              status === 'Approved' ? 'bg-green-600' :
+                              status === 'Submitted' ? 'bg-blue-600' : 'bg-gray-600'
+                            }>
+                              {status}
+                            </Badge>
+                          </div>
+                          {goal.progress !== undefined && (
+                            <div>
+                              <p className="text-xs text-muted-foreground">Progress</p>
+                              <p className="font-semibold">{goal.progress}%</p>
+                            </div>
                           )}
                         </div>
                       </div>
+                      {(status === 'Draft' || status === 'draft') && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteGoal(goalId)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Weightage</p>
-                        <p className="font-semibold">{goal.weightage}%</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Status</p>
-                        <Badge className={
-                          goal.status === 'approved' ? 'bg-green-600' :
-                          goal.status === 'submitted' ? 'bg-blue-600' : 'bg-gray-600'
-                        }>
-                          {goal.status.charAt(0).toUpperCase() + goal.status.slice(1)}
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-                  {goal.status === 'draft' && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteGoal(goal.id)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
 
         {/* Submit Button */}
         {goals.length > 0 && (
@@ -322,11 +422,20 @@ export default function GoalsPage() {
                 </div>
                 <Button
                   onClick={handleSubmitGoals}
-                  disabled={goals.length < 5 || totalWeightage !== 100}
+                  disabled={goals.length < 5 || totalWeightage !== 100 || isSubmitting}
                   className="gap-2"
                 >
-                  <CheckCircle2 className="w-4 h-4" />
-                  Submit for Approval
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      Submit for Approval
+                    </>
+                  )}
                 </Button>
               </div>
             </CardContent>

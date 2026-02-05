@@ -18,12 +18,18 @@ export default function LeaveApprovalsPage() {
   const fetchLeaveRequests = async () => {
     setIsLoading(true);
     try {
-      const response = await apiService.getLeaves(filterStatus === 'all' ? {} : { status: filterStatus });
+      // For HR Admin and Tenant Admin, fetch all pending leaves (no employeeId filter)
+      // Backend will automatically filter by tenantId
+      const params = filterStatus === 'all' ? {} : { status: filterStatus };
+      const response = await apiService.getLeaves(params);
       if (response.success && response.data) {
         setLeaveRequests(Array.isArray(response.data) ? response.data : []);
+      } else {
+        toast.error(response.message || 'Failed to load leave requests');
       }
-    } catch (error) {
-      toast.error('Failed to load leave requests');
+    } catch (error: any) {
+      console.error('Failed to load leave requests:', error);
+      toast.error(error.message || 'Failed to load leave requests');
     } finally {
       setIsLoading(false);
     }
@@ -34,16 +40,22 @@ export default function LeaveApprovalsPage() {
   }, [filterStatus]);
 
   const handleAction = async (id: string, status: 'Approved' | 'Rejected') => {
+    if (!id) {
+      toast.error('Invalid leave request ID');
+      return;
+    }
+
     try {
       const response = await apiService.approveLeave(id, status);
       if (response.success) {
-        toast.success(`Leave request ${status.toLowerCase()}`);
-        fetchLeaveRequests();
+        toast.success(`Leave request ${status.toLowerCase()} successfully`);
+        fetchLeaveRequests(); // Reload the list
       } else {
         toast.error(response.message || 'Failed to update leave request');
       }
-    } catch (error) {
-      toast.error('An error occurred');
+    } catch (error: any) {
+      console.error('Approve/Reject leave error:', error);
+      toast.error(error.message || 'An error occurred while processing the request');
     }
   };
 

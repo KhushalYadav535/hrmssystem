@@ -15,53 +15,66 @@ import { toast } from 'sonner';
 
 export default function TravelPage() {
   const { isAuthenticated, hasPermission, currentUser } = useAuth();
-  const [expenses, setExpenses] = useState<any[]>([]);
+  const [travelRequests, setTravelRequests] = useState<any[]>([]);
+  const [travelAdvances, setTravelAdvances] = useState<any[]>([]);
+  const [travelClaims, setTravelClaims] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    loadExpenses();
+    loadTravelData();
   }, []);
 
-  const loadExpenses = async () => {
+  const loadTravelData = async () => {
     try {
       setIsLoading(true);
-      const response = await apiService.getExpenses();
-      if (response.success && response.data) {
-        setExpenses(Array.isArray(response.data) ? response.data : []);
+      const [requestsRes, advancesRes, claimsRes] = await Promise.all([
+        apiService.getTravelRequests(),
+        apiService.getTravelAdvances(),
+        apiService.getTravelClaims(),
+      ]);
+
+      if (requestsRes.success && requestsRes.data) {
+        setTravelRequests(Array.isArray(requestsRes.data) ? requestsRes.data : []);
+      }
+      if (advancesRes.success && advancesRes.data) {
+        setTravelAdvances(Array.isArray(advancesRes.data) ? advancesRes.data : []);
+      }
+      if (claimsRes.success && claimsRes.data) {
+        setTravelClaims(Array.isArray(claimsRes.data) ? claimsRes.data : []);
       }
     } catch (error) {
-      console.error('Failed to load expenses', error);
-      toast.error('Failed to load expense data');
+      console.error('Failed to load travel data', error);
+      toast.error('Failed to load travel data');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleApproveExpense = async (id: string) => {
+  const handleApproveTravelRequest = async (id: string) => {
     try {
-      const response = await apiService.approveExpense(id, 'Approved');
+      const response = await apiService.approveTravelRequest(id, 'Approved');
       if (response.success) {
-        toast.success('Expense approved successfully');
-        loadExpenses();
+        toast.success('Travel request approved successfully');
+        loadTravelData();
       } else {
-        toast.error(response.message || 'Failed to approve expense');
+        toast.error(response.message || 'Failed to approve travel request');
       }
     } catch (error: any) {
-      toast.error(error.message || 'Failed to approve expense');
+      toast.error(error.message || 'Failed to approve travel request');
     }
   };
 
-  const handleRejectExpense = async (id: string) => {
+  const handleRejectTravelRequest = async (id: string) => {
     try {
-      const response = await apiService.approveExpense(id, 'Rejected');
+      const response = await apiService.approveTravelRequest(id, 'Rejected');
       if (response.success) {
-        toast.success('Expense rejected');
-        loadExpenses();
+        toast.success('Travel request rejected');
+        loadTravelData();
       } else {
-        toast.error(response.message || 'Failed to reject expense');
+        toast.error(response.message || 'Failed to reject travel request');
       }
     } catch (error: any) {
-      toast.error(error.message || 'Failed to reject expense');
+      toast.error(error.message || 'Failed to reject travel request');
     }
   };
 
@@ -102,10 +115,10 @@ export default function TravelPage() {
           <div>
             <h1 className="text-3xl font-bold text-foreground">Travel & Expense Management</h1>
             <p className="text-muted-foreground mt-2">
-              {isTenantAdmin ? 'Review and approve travel expenses' : 'Submit and track your travel expenses'}
+              {isTenantAdmin ? 'Review and approve travel requests and claims' : 'Submit and track your travel requests, advances, and claims'}
             </p>
           </div>
-          {canSubmitExpense && (
+          {canSubmitTravel && (
             <div className="flex gap-2">
               <Button variant="outline" className="gap-2" asChild>
                 <Link href="/travel/request">
@@ -114,16 +127,16 @@ export default function TravelPage() {
                 </Link>
               </Button>
               <Button className="gap-2" asChild>
-                <Link href="/travel/advance">
+                <Link href="/travel/claim">
                   <Plus className="w-4 h-4" />
-                  Request Advance
+                  Submit Claim
                 </Link>
               </Button>
             </div>
           )}
           {isTenantAdmin && (
             <Button variant="outline" className="gap-2" asChild>
-              <Link href="/approvals/expense">
+              <Link href="/approvals/travel">
                 <CheckCircle2 className="w-4 h-4" />
                 View All Approvals
               </Link>
@@ -131,14 +144,14 @@ export default function TravelPage() {
           )}
         </div>
 
-        {/* Expense Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Travel Summary */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="border-0 shadow-sm">
             <CardContent className="p-6">
               <div>
-                <p className="text-sm text-muted-foreground">{isTenantAdmin ? 'Total Claims' : 'Total Submitted'}</p>
-                <p className="text-2xl font-bold">₹{expenses.reduce((sum, e) => sum + (e.amount || 0), 0).toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground mt-1">{expenses.length} claims</p>
+                <p className="text-sm text-muted-foreground">Travel Requests</p>
+                <p className="text-2xl font-bold">{travelRequests.length}</p>
+                <p className="text-xs text-muted-foreground mt-1">{pendingRequests.length} pending</p>
               </div>
             </CardContent>
           </Card>
@@ -146,9 +159,9 @@ export default function TravelPage() {
           <Card className="border-0 shadow-sm">
             <CardContent className="p-6">
               <div>
-                <p className="text-sm text-muted-foreground">Pending Approval</p>
-                <p className="text-2xl font-bold text-yellow-600">₹{pendingExpenses.reduce((sum, e) => sum + (e.amount || 0), 0).toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground mt-1">{pendingExpenses.length} claims</p>
+                <p className="text-sm text-muted-foreground">Travel Advances</p>
+                <p className="text-2xl font-bold text-blue-600">₹{totalAdvanceAmount.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground mt-1">{pendingAdvances.length} pending</p>
               </div>
             </CardContent>
           </Card>
@@ -156,9 +169,19 @@ export default function TravelPage() {
           <Card className="border-0 shadow-sm">
             <CardContent className="p-6">
               <div>
-                <p className="text-sm text-muted-foreground">Approved & Paid</p>
-                <p className="text-2xl font-bold text-green-600">₹{approvedExpenses.reduce((sum, e) => sum + (e.amount || 0), 0).toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground mt-1">{approvedExpenses.length} claims</p>
+                <p className="text-sm text-muted-foreground">Pending Claims</p>
+                <p className="text-2xl font-bold text-yellow-600">₹{totalPendingAmount.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground mt-1">{pendingClaims.length} claims</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-6">
+              <div>
+                <p className="text-sm text-muted-foreground">Total Claims</p>
+                <p className="text-2xl font-bold text-green-600">₹{travelClaims.filter(c => c.status === 'Settled' || c.status === 'Paid').reduce((sum, c) => sum + (c.totalClaimAmount || 0), 0).toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground mt-1">{travelClaims.filter(c => c.status === 'Settled' || c.status === 'Paid').length} settled</p>
               </div>
             </CardContent>
           </Card>
@@ -217,62 +240,63 @@ export default function TravelPage() {
           </div>
         )}
 
-        {/* Expense Claims */}
+        {/* Travel Requests, Advances, and Claims */}
         <Card className="border-0 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-lg">Expense Claims</CardTitle>
+            <CardTitle className="text-lg">Travel Requests & Claims</CardTitle>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="all" className="w-full">
+            <Tabs defaultValue="requests" className="w-full">
               <TabsList className="mb-6">
-                <TabsTrigger value="all">All ({expenses.length})</TabsTrigger>
-                <TabsTrigger value="pending">Pending ({pendingExpenses.length})</TabsTrigger>
-                <TabsTrigger value="approved">Approved ({approvedExpenses.length})</TabsTrigger>
+                <TabsTrigger value="requests">Requests ({travelRequests.length})</TabsTrigger>
+                <TabsTrigger value="advances">Advances ({travelAdvances.length})</TabsTrigger>
+                <TabsTrigger value="claims">Claims ({travelClaims.length})</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="all" className="space-y-3">
+              <TabsContent value="requests" className="space-y-3">
                 {isLoading ? (
-                  <div className="text-center py-8 text-muted-foreground">Loading expenses...</div>
-                ) : expenses.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">No expense claims found</div>
+                  <div className="text-center py-8 text-muted-foreground">Loading travel requests...</div>
+                ) : travelRequests.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">No travel requests found</div>
                 ) : (
-                  expenses.map((expense) => {
-                    const expenseId = expense._id || expense.id;
+                  travelRequests.map((request) => {
+                    const requestId = request._id || request.id;
                     return (
-                      <div key={expenseId} className="p-4 border border-border rounded-lg hover:bg-secondary/50 transition-colors">
+                      <div key={requestId} className="p-4 border border-border rounded-lg hover:bg-secondary/50 transition-colors">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-2">
                               <Plane className="w-4 h-4 text-muted-foreground" />
-                              <p className="font-semibold text-sm">{expense.category}</p>
-                              <Badge className={getStatusColor(expense.status)}>{expense.status}</Badge>
+                              <p className="font-semibold text-sm">{request.travelType}</p>
+                              <Badge className={getStatusColor(request.status)}>{request.status}</Badge>
                             </div>
-                            {expense.employeeId && (
+                            {request.employeeId && (
                               <p className="text-xs text-muted-foreground mb-1">
-                                Employee: {expense.employeeId.firstName} {expense.employeeId.lastName} ({expense.employeeId.employeeCode})
+                                {request.employeeId.firstName} {request.employeeId.lastName} ({request.employeeId.employeeCode})
                               </p>
                             )}
-                            <p className="text-sm text-muted-foreground mb-1">{expense.description}</p>
+                            <p className="text-sm text-muted-foreground mb-1">{request.purpose}</p>
                             <div className="flex gap-4 text-xs text-muted-foreground">
-                              <span>Date: {expense.date ? new Date(expense.date).toLocaleDateString() : 'N/A'}</span>
-                              <span>Amount: ₹{expense.amount?.toLocaleString() || '0'}</span>
+                              <span><MapPin className="w-3 h-3 inline mr-1" />{request.origin} → {request.destination}</span>
+                              <span><Calendar className="w-3 h-3 inline mr-1" />{request.departureDate ? new Date(request.departureDate).toLocaleDateString() : 'N/A'} - {request.returnDate ? new Date(request.returnDate).toLocaleDateString() : 'N/A'}</span>
+                              <span>₹{request.estimatedAmount?.toLocaleString() || '0'}</span>
                             </div>
                           </div>
                           <div className="flex gap-2 ml-4 flex-shrink-0">
-                            {isTenantAdmin && (expense.status === 'Pending' || expense.status === 'Submitted') && (
+                            {isTenantAdmin && request.status === 'Submitted' && (
                               <>
-                                <Button size="sm" variant="outline" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleApproveExpense(expenseId)}>
+                                <Button size="sm" variant="outline" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleApproveTravelRequest(requestId)}>
                                   <CheckCircle2 className="w-4 h-4 mr-1" />
                                   Approve
                                 </Button>
-                                <Button size="sm" variant="outline" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => handleRejectExpense(expenseId)}>
+                                <Button size="sm" variant="outline" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => handleRejectTravelRequest(requestId)}>
                                   <XCircle className="w-4 h-4 mr-1" />
                                   Reject
                                 </Button>
                               </>
                             )}
-                            <Button size="sm" variant="outline">
-                              View
+                            <Button size="sm" variant="outline" asChild>
+                              <Link href={`/travel/request?id=${requestId}`}>View</Link>
                             </Button>
                           </div>
                         </div>
@@ -282,71 +306,72 @@ export default function TravelPage() {
                 )}
               </TabsContent>
 
-              <TabsContent value="pending" className="space-y-3">
+              <TabsContent value="advances" className="space-y-3">
                 {isLoading ? (
                   <div className="text-center py-8 text-muted-foreground">Loading...</div>
-                ) : pendingExpenses.length > 0 ? (
-                  pendingExpenses.map((expense) => {
-                    const expenseId = expense._id || expense.id;
+                ) : travelAdvances.length > 0 ? (
+                  travelAdvances.map((advance) => {
+                    const advanceId = advance._id || advance.id;
                     return (
-                      <div key={expenseId} className="p-4 border border-yellow-200 bg-yellow-50 dark:bg-yellow-900/10 rounded-lg">
+                      <div key={advanceId} className="p-4 border border-border rounded-lg">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
-                            <p className="font-semibold text-sm mb-1">{expense.category}</p>
-                            {expense.employeeId && (
+                            <div className="flex items-center gap-2 mb-2">
+                              <DollarSign className="w-4 h-4 text-muted-foreground" />
+                              <p className="font-semibold text-sm">Travel Advance</p>
+                              <Badge className={getStatusColor(advance.status)}>{advance.status}</Badge>
+                            </div>
+                            {advance.employeeId && (
                               <p className="text-xs text-muted-foreground mb-1">
-                                {expense.employeeId.firstName} {expense.employeeId.lastName}
+                                {advance.employeeId.firstName} {advance.employeeId.lastName}
                               </p>
                             )}
-                            <p className="text-sm text-muted-foreground mb-2">₹{expense.amount?.toLocaleString() || '0'}</p>
-                            <p className="text-xs text-muted-foreground">{expense.description}</p>
+                            <p className="text-sm font-semibold mb-1">₹{advance.advanceAmount?.toLocaleString() || '0'}</p>
+                            <p className="text-xs text-muted-foreground">Requested: {advance.requestedDate ? new Date(advance.requestedDate).toLocaleDateString() : 'N/A'}</p>
                           </div>
-                          {isTenantAdmin && (
-                            <div className="flex gap-2 ml-4">
-                              <Button size="sm" variant="outline" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleApproveExpense(expenseId)}>
-                                <CheckCircle2 className="w-4 h-4 mr-1" />
-                                Approve
-                              </Button>
-                              <Button size="sm" variant="outline" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => handleRejectExpense(expenseId)}>
-                                <XCircle className="w-4 h-4 mr-1" />
-                                Reject
-                              </Button>
-                            </div>
-                          )}
                         </div>
                       </div>
                     );
                   })
                 ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <p>No pending expense claims</p>
-                  </div>
+                  <div className="text-center py-8 text-muted-foreground">No travel advances found</div>
                 )}
               </TabsContent>
 
-              <TabsContent value="approved" className="space-y-3">
+              <TabsContent value="claims" className="space-y-3">
                 {isLoading ? (
                   <div className="text-center py-8 text-muted-foreground">Loading...</div>
-                ) : approvedExpenses.length > 0 ? (
-                  approvedExpenses.map((expense) => {
-                    const expenseId = expense._id || expense.id;
+                ) : travelClaims.length > 0 ? (
+                  travelClaims.map((claim) => {
+                    const claimId = claim._id || claim.id;
                     return (
-                      <div key={expenseId} className="p-4 border border-green-200 bg-green-50 dark:bg-green-900/10 rounded-lg">
-                        <p className="font-semibold text-sm mb-1">{expense.category}</p>
-                        {expense.employeeId && (
-                          <p className="text-xs text-muted-foreground mb-1">
-                            {expense.employeeId.firstName} {expense.employeeId.lastName}
-                          </p>
-                        )}
-                        <p className="text-sm text-muted-foreground mb-2">₹{expense.amount?.toLocaleString() || '0'}</p>
-                        <p className="text-xs text-muted-foreground">{expense.description}</p>
+                      <div key={claimId} className="p-4 border border-border rounded-lg">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <FileText className="w-4 h-4 text-muted-foreground" />
+                              <p className="font-semibold text-sm">{claim.claimType}</p>
+                              <Badge className={getStatusColor(claim.status)}>{claim.status}</Badge>
+                            </div>
+                            {claim.employeeId && (
+                              <p className="text-xs text-muted-foreground mb-1">
+                                {claim.employeeId.firstName} {claim.employeeId.lastName}
+                              </p>
+                            )}
+                            <p className="text-sm font-semibold mb-1">Total: ₹{claim.totalClaimAmount?.toLocaleString() || '0'}</p>
+                            {claim.netPayable > 0 && (
+                              <p className="text-xs text-green-600">Payable: ₹{claim.netPayable.toLocaleString()}</p>
+                            )}
+                            {claim.netRecoverable > 0 && (
+                              <p className="text-xs text-red-600">Recoverable: ₹{claim.netRecoverable.toLocaleString()}</p>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     );
                   })
                 ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <p>No approved expense claims</p>
-                  </div>
+                  <div className="text-center py-8 text-muted-foreground">No travel claims found</div>
                 )}
               </TabsContent>
             </Tabs>

@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Calendar as CalendarIcon, Check, X, Loader2 } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, Check, X, Loader2, AlertCircle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -49,7 +49,10 @@ export default function LeavePage() {
     startDate: undefined as Date | undefined,
     endDate: undefined as Date | undefined,
     reason: '',
+    medicalCertificate: null as File | null,
+    attachments: [] as File[],
   });
+  const [sandwichLeaveWarning, setSandwichLeaveWarning] = useState<string | null>(null);
 
   if (!isAuthenticated) {
     redirect('/login');
@@ -59,9 +62,11 @@ export default function LeavePage() {
   const [isLoadingLeaves, setIsLoadingLeaves] = useState(true);
   const [leaveBalances, setLeaveBalances] = useState<any[]>([]);
   const [currentEmployee, setCurrentEmployee] = useState<any>(null);
+  const [availableLeaveTypes, setAvailableLeaveTypes] = useState<any[]>([]);
 
   useEffect(() => {
     loadCurrentEmployee();
+    loadLeavePolicies();
   }, []);
 
   useEffect(() => {
@@ -70,6 +75,17 @@ export default function LeavePage() {
       loadLeaveBalances();
     }
   }, [currentEmployee]);
+
+  const loadLeavePolicies = async () => {
+    try {
+      const response = await apiService.getLeavePolicies({ status: 'Active' });
+      if (response.success && response.data) {
+        setAvailableLeaveTypes(Array.isArray(response.data) ? response.data : []);
+      }
+    } catch (error) {
+      console.error('Failed to load leave policies', error);
+    }
+  };
 
   const loadCurrentEmployee = async () => {
     try {
@@ -126,6 +142,45 @@ export default function LeavePage() {
     }
   };
 
+  // Check for sandwich leave when dates change
+  useEffect(() => {
+    const checkSandwichLeave = async () => {
+      if (!formData.startDate || !formData.endDate) {
+        setSandwichLeaveWarning(null);
+        return;
+      }
+
+      try {
+        const dayBefore = new Date(formData.startDate);
+        dayBefore.setDate(dayBefore.getDate() - 1);
+        const dayAfter = new Date(formData.endDate);
+        dayAfter.setDate(dayAfter.getDate() + 1);
+
+        const dayBeforeDay = dayBefore.getDay();
+        const dayAfterDay = dayAfter.getDay();
+        const isDayBeforeWeekend = dayBeforeDay === 0 || dayBeforeDay === 6;
+        const isDayAfterWeekend = dayAfterDay === 0 || dayAfterDay === 6;
+
+        // Check for holidays
+        const holidayBefore = await apiService.checkHoliday(dayBefore.toISOString().split('T')[0]);
+        const holidayAfter = await apiService.checkHoliday(dayAfter.toISOString().split('T')[0]);
+
+        if ((isDayBeforeWeekend || holidayBefore.success && holidayBefore.isHoliday) && 
+            (isDayAfterWeekend || holidayAfter.success && holidayAfter.isHoliday)) {
+          setSandwichLeaveWarning(
+            'This leave appears to be between holidays/weekends. Please ensure this is intentional.'
+          );
+        } else {
+          setSandwichLeaveWarning(null);
+        }
+      } catch (error) {
+        // Ignore errors in sandwich leave check
+      }
+    };
+
+    checkSandwichLeave();
+  }, [formData.startDate, formData.endDate]);
+
   const handleApplyLeave = async () => {
     try {
       if (!formData.leaveType || !formData.startDate || !formData.endDate || !formData.reason) {
@@ -137,15 +192,38 @@ export default function LeavePage() {
         return;
       }
 
+      // Check medical certificate requirement
+      const days = Math.ceil((formData.endDate.getTime() - formData.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      if (formData.leaveType.toLowerCase().includes('sick') && days > 3 && !formData.medicalCertificate) {
+        toast({
+          title: "Error",
+          description: "Medical certificate is required for sick leave exceeding 3 days",
+          variant: "destructive",
+        });
+        return;
+      }
+
       setIsSubmitting(true);
 
-      const payload = {
-        leaveType: formData.leaveType,
+      // Extract just the leave type name (remove any extra text like " (X days/year)")
+      const leaveTypeName = formData.leaveType.split(' (')[0].trim();
+      
+      const payload: any = {
+        leaveType: leaveTypeName,
         startDate: formData.startDate.toISOString(),
         endDate: formData.endDate.toISOString(),
-        reason: formData.reason,
-        employeeId: user?.id,
+        reason: formData.reason.trim(),
       };
+
+      // Add medical certificate if provided
+      if (formData.medicalCertificate) {
+        // In production, upload file first and get URL
+        // For now, we'll add a placeholder
+        payload.medicalCertificate = {
+          name: formData.medicalCertificate.name,
+          url: '', // Will be set after file upload
+        };
+      }
 
       const response = await apiService.createLeave(payload);
 
@@ -160,7 +238,10 @@ export default function LeavePage() {
           startDate: undefined,
           endDate: undefined,
           reason: '',
+          medicalCertificate: null,
+          attachments: [],
         });
+        setSandwichLeaveWarning(null);
         loadLeaves(); // Reload leaves after successful submission
       } else {
         toast({
@@ -215,11 +296,21 @@ export default function LeavePage() {
                         <SelectValue placeholder="Select leave type" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Casual Leave">Casual Leave</SelectItem>
-                        <SelectItem value="Sick Leave">Sick Leave</SelectItem>
-                        <SelectItem value="Earned Leave">Earned Leave</SelectItem>
-                        <SelectItem value="Maternity Leave">Maternity Leave</SelectItem>
-                        <SelectItem value="Paternity Leave">Paternity Leave</SelectItem>
+                        {availableLeaveTypes.length > 0 ? (
+                          availableLeaveTypes.map((policy) => (
+                            <SelectItem key={policy._id || policy.id} value={policy.leaveType}>
+                              {policy.leaveType} ({policy.daysPerYear} days/year)
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <>
+                            <SelectItem value="Casual Leave">Casual Leave</SelectItem>
+                            <SelectItem value="Sick Leave">Sick Leave</SelectItem>
+                            <SelectItem value="Earned Leave">Earned Leave</SelectItem>
+                            <SelectItem value="Maternity Leave">Maternity Leave</SelectItem>
+                            <SelectItem value="Paternity Leave">Paternity Leave</SelectItem>
+                          </>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -379,17 +470,119 @@ export default function LeavePage() {
                           {leave.approvedBy && (
                             <p className="text-xs text-muted-foreground">Approved by: {leave.approvedBy}</p>
                           )}
+                          {leave.isSandwichLeave && (
+                            <Badge variant="outline" className="mt-1 text-xs">
+                              Sandwich Leave
+                            </Badge>
+                          )}
+                          {leave.medicalCertificate && (
+                            <Badge variant="outline" className="mt-1 text-xs">
+                              Medical Certificate Attached
+                            </Badge>
+                          )}
                         </div>
+                        <div className="flex gap-2 ml-4 flex-shrink-0">
+                          {(leave.status === 'Pending' || leave.status === 'Approved') && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={async () => {
+                            try {
+                              const leaveId = leave._id || leave.id;
+                              const response = await apiService.cancelLeave(leaveId);
+                              if (response.success) {
+                                toast({
+                                  title: "Success",
+                                  description: "Leave request cancelled",
+                                });
+                                loadLeaves();
+                              } else {
+                                toast({
+                                  title: "Error",
+                                  description: response.message || "Failed to cancel leave",
+                                  variant: "destructive",
+                                });
+                              }
+                            } catch (error: any) {
+                              toast({
+                                title: "Error",
+                                description: error.message || "An error occurred",
+                                variant: "destructive",
+                              });
+                            }
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      )}
                     {hasPermission('approve_leave') && leave.status === 'Pending' && (
                       <div className="flex gap-2 ml-4 flex-shrink-0">
-                        <Button size="sm" className="bg-green-600 hover:bg-green-700">
+                        <Button 
+                          size="sm" 
+                          className="bg-green-600 hover:bg-green-700"
+                          onClick={async () => {
+                            try {
+                              const leaveId = leave._id || leave.id;
+                              const response = await apiService.approveLeave(leaveId, 'Approved');
+                              if (response.success) {
+                                toast({
+                                  title: "Success",
+                                  description: "Leave request approved",
+                                });
+                                loadLeaves();
+                              } else {
+                                toast({
+                                  title: "Error",
+                                  description: response.message || "Failed to approve leave",
+                                  variant: "destructive",
+                                });
+                              }
+                            } catch (error: any) {
+                              toast({
+                                title: "Error",
+                                description: error.message || "An error occurred",
+                                variant: "destructive",
+                              });
+                            }
+                          }}
+                        >
                           <Check className="w-4 h-4" />
                         </Button>
-                        <Button size="sm" variant="outline" className="text-red-600 bg-transparent">
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    )}
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="text-red-600 bg-transparent hover:bg-red-50"
+                          onClick={async () => {
+                            try {
+                              const leaveId = leave._id || leave.id;
+                              const response = await apiService.approveLeave(leaveId, 'Rejected');
+                              if (response.success) {
+                                toast({
+                                  title: "Success",
+                                  description: "Leave request rejected",
+                                });
+                                loadLeaves();
+                              } else {
+                                toast({
+                                  title: "Error",
+                                  description: response.message || "Failed to reject leave",
+                                  variant: "destructive",
+                                });
+                              }
+                            } catch (error: any) {
+                              toast({
+                                title: "Error",
+                                description: error.message || "An error occurred",
+                                variant: "destructive",
+                              });
+                            }
+                          }}
+                        >
+                              <X className="w-4 h-4" />
+                            </Button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
                   })

@@ -20,6 +20,8 @@ import {
   X
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import apiService from '@/lib/api';
+import { toast } from 'sonner';
 import {
   DndContext, 
   closestCenter,
@@ -153,35 +155,51 @@ export default function SalaryStructurePage() {
   const { isAuthenticated } = useAuth();
   
   // --- State ---
-  const [structures, setStructures] = useState<SalaryStructure[]>([
-    { 
-      id: 1, 
-      name: 'Senior Manager', 
-      baseSalary: 150000, 
-      active: true,
-      components: [
-        { id: 'c1', name: 'Basic Salary', type: 'earning', calculationType: 'percentage', value: 40, isFixed: true },
-        { id: 'c2', name: 'HRA', type: 'earning', calculationType: 'percentage', value: 20 },
-        { id: 'c3', name: 'Special Allowance', type: 'earning', calculationType: 'percentage', value: 30 },
-        { id: 'c4', name: 'PF', type: 'deduction', calculationType: 'percentage', value: 12 },
-      ] 
-    },
-    { 
-      id: 2, 
-      name: 'Executive', 
-      baseSalary: 60000, 
-      active: true,
-      components: [
-        { id: 'c1', name: 'Basic Salary', type: 'earning', calculationType: 'percentage', value: 50, isFixed: true },
-        { id: 'c2', name: 'HRA', type: 'earning', calculationType: 'percentage', value: 25 },
-        { id: 'c3', name: 'Conveyance', type: 'earning', calculationType: 'fixed', value: 5000 },
-        { id: 'c4', name: 'PF', type: 'deduction', calculationType: 'percentage', value: 12 },
-      ] 
-    },
-  ]);
-
+  const [structures, setStructures] = useState<SalaryStructure[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [currentStructure, setCurrentStructure] = useState<SalaryStructure | null>(null);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadStructures();
+    }
+  }, [isAuthenticated]);
+
+  const loadStructures = async () => {
+    try {
+      setIsLoading(true);
+      const response = await apiService.getSalaryStructures({ status: 'Active' });
+      if (response.success && response.data) {
+        const loadedStructures = Array.isArray(response.data) ? response.data : [];
+        setStructures(loadedStructures.map((s: any) => ({
+          _id: s._id,
+          id: s._id,
+          name: s.name,
+          grade: s.grade,
+          location: s.location,
+          version: s.version,
+          effectiveFrom: s.effectiveFrom,
+          effectiveTo: s.effectiveTo,
+          status: s.status,
+          baseSalary: s.baseSalary || 50000,
+          active: s.status === 'Active',
+          components: (s.components || []).map((c: any, idx: number) => ({
+            id: c._id || `comp-${idx}`,
+            name: c.name,
+            type: c.type,
+            calculationType: c.calculationType,
+            value: c.value,
+            isFixed: c.name?.toLowerCase().includes('basic'),
+          })),
+        })));
+      }
+    } catch (error: any) {
+      toast.error('Failed to load salary structures');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // --- DnD Sensors ---
   const sensors = useSensors(
@@ -210,10 +228,11 @@ export default function SalaryStructurePage() {
 
   const handleCreateNew = () => {
     setCurrentStructure({
-      id: Date.now(),
       name: 'New Structure',
+      grade: '',
       baseSalary: 50000,
       active: true,
+      status: 'Active',
       components: [
         { id: 'basic', name: 'Basic Salary', type: 'earning', calculationType: 'percentage', value: 40, isFixed: true },
         { id: 'hra', name: 'HRA', type: 'earning', calculationType: 'percentage', value: 20 },
@@ -228,18 +247,54 @@ export default function SalaryStructurePage() {
     setIsEditing(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!currentStructure) return;
     
-    setStructures(prev => {
-      const exists = prev.find(s => s.id === currentStructure.id);
-      if (exists) {
-        return prev.map(s => s.id === currentStructure.id ? currentStructure : s);
+    try {
+      const structureData = {
+        name: currentStructure.name,
+        grade: currentStructure.grade || 'General',
+        location: currentStructure.location || '',
+        effectiveFrom: currentStructure.effectiveFrom || new Date().toISOString().split('T')[0],
+        status: currentStructure.status || 'Active',
+        components: currentStructure.components.map((c, idx) => ({
+          name: c.name,
+          type: c.type,
+          calculationType: c.calculationType,
+          base: c.calculationType === 'percentage' ? 'Basic' : undefined,
+          value: c.value,
+          isFixed: c.isFixed || false,
+          applicable: true,
+          order: idx,
+        })),
+      };
+
+      if (currentStructure._id) {
+        // Update existing
+        const response = await apiService.updateSalaryStructure(currentStructure._id, structureData);
+        if (response.success) {
+          toast.success('Salary structure updated successfully');
+          loadStructures();
+          setIsEditing(false);
+          setCurrentStructure(null);
+        } else {
+          toast.error(response.message || 'Failed to update structure');
+        }
+      } else {
+        // Create new
+        const response = await apiService.createSalaryStructure(structureData);
+        if (response.success) {
+          toast.success('Salary structure created successfully');
+          loadStructures();
+          setIsEditing(false);
+          setCurrentStructure(null);
+        } else {
+          toast.error(response.message || 'Failed to create structure');
+        }
       }
-      return [...prev, currentStructure];
-    });
-    setIsEditing(false);
-    setCurrentStructure(null);
+    } catch (error: any) {
+      toast.error(error.message || 'An error occurred');
+    }
   };
 
   const addComponent = (type: 'earning' | 'deduction') => {
@@ -332,10 +387,38 @@ export default function SalaryStructurePage() {
                 <CardContent>
                   <div className="grid grid-cols-2 gap-4 mb-6">
                     <div>
-                      <Label>Structure Name</Label>
+                      <Label>Structure Name *</Label>
                       <Input 
                         value={currentStructure.name} 
                         onChange={(e) => setCurrentStructure({...currentStructure, name: e.target.value})}
+                        className="mt-1"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label>Grade/Level</Label>
+                      <Input 
+                        value={currentStructure.grade || ''} 
+                        onChange={(e) => setCurrentStructure({...currentStructure, grade: e.target.value})}
+                        className="mt-1"
+                        placeholder="e.g., Manager, Executive"
+                      />
+                    </div>
+                    <div>
+                      <Label>Location</Label>
+                      <Input 
+                        value={currentStructure.location || ''} 
+                        onChange={(e) => setCurrentStructure({...currentStructure, location: e.target.value})}
+                        className="mt-1"
+                        placeholder="e.g., Metro, Non-Metro"
+                      />
+                    </div>
+                    <div>
+                      <Label>Effective From</Label>
+                      <Input 
+                        type="date"
+                        value={currentStructure.effectiveFrom || new Date().toISOString().split('T')[0]} 
+                        onChange={(e) => setCurrentStructure({...currentStructure, effectiveFrom: e.target.value})}
                         className="mt-1"
                       />
                     </div>
@@ -343,7 +426,7 @@ export default function SalaryStructurePage() {
                       <Label>Reference Base Salary (for simulation)</Label>
                       <Input 
                         type="number" 
-                        value={currentStructure.baseSalary} 
+                        value={currentStructure.baseSalary || 50000} 
                         onChange={(e) => setCurrentStructure({...currentStructure, baseSalary: parseFloat(e.target.value) || 0})}
                         className="mt-1"
                       />
@@ -426,45 +509,69 @@ export default function SalaryStructurePage() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {structures.map((structure) => {
-              const { net } = calculateTotals(structure);
-              return (
-                <Card key={structure.id} className="group hover:border-primary/50 transition-all duration-300 hover:shadow-lg cursor-pointer" onClick={() => handleEdit(structure)}>
-                  <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start">
-                      <CardTitle className="text-lg">{structure.name}</CardTitle>
-                      <Badge variant={structure.active ? 'default' : 'secondary'}>
-                        {structure.active ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </div>
-                    <CardDescription>{structure.components.length} components</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2 mb-4">
-                      {structure.components.slice(0, 3).map((comp, idx) => (
-                        <div key={idx} className="flex justify-between text-sm text-muted-foreground">
-                          <span>{comp.name}</span>
-                          <span>
-                            {comp.calculationType === 'percentage' ? `${comp.value}%` : `₹${comp.value}`}
-                          </span>
+          <>
+            {isLoading ? (
+              <Card>
+                <CardContent className="p-12 text-center">
+                  <p className="text-muted-foreground">Loading salary structures...</p>
+                </CardContent>
+              </Card>
+            ) : structures.length === 0 ? (
+              <Card>
+                <CardContent className="p-12 text-center">
+                  <p className="text-muted-foreground mb-4">No salary structures found</p>
+                  <Button onClick={handleCreateNew} className="gap-2">
+                    <Plus className="w-4 h-4" /> Create First Structure
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {structures.map((structure) => {
+                  const { net } = calculateTotals(structure);
+                  const id = structure._id || structure.id;
+                  return (
+                    <Card key={id} className="group hover:border-primary/50 transition-all duration-300 hover:shadow-lg cursor-pointer" onClick={() => handleEdit(structure)}>
+                      <CardHeader className="pb-3">
+                        <div className="flex justify-between items-start">
+                          <CardTitle className="text-lg">{structure.name}</CardTitle>
+                          <Badge variant={structure.active || structure.status === 'Active' ? 'default' : 'secondary'}>
+                            {structure.active || structure.status === 'Active' ? 'Active' : 'Inactive'}
+                          </Badge>
                         </div>
-                      ))}
-                      {structure.components.length > 3 && (
-                        <p className="text-xs text-muted-foreground text-center pt-1">+ {structure.components.length - 3} more</p>
-                      )}
-                    </div>
-                    <div className="pt-3 border-t border-border">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium">Est. Net Pay</span>
-                        <span className="text-lg font-bold text-primary">₹{net.toLocaleString()}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                        <CardDescription>
+                          {structure.components.length} components
+                          {structure.grade && ` • ${structure.grade}`}
+                          {structure.version && ` • v${structure.version}`}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2 mb-4">
+                          {structure.components.slice(0, 3).map((comp, idx) => (
+                            <div key={idx} className="flex justify-between text-sm text-muted-foreground">
+                              <span>{comp.name}</span>
+                              <span>
+                                {comp.calculationType === 'percentage' ? `${comp.value}%` : `₹${comp.value}`}
+                              </span>
+                            </div>
+                          ))}
+                          {structure.components.length > 3 && (
+                            <p className="text-xs text-muted-foreground text-center pt-1">+ {structure.components.length - 3} more</p>
+                          )}
+                        </div>
+                        <div className="pt-3 border-t border-border">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium">Est. Net Pay</span>
+                            <span className="text-lg font-bold text-primary">₹{net.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
       </div>
     </DashboardLayout>

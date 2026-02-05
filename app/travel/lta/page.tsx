@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
@@ -13,40 +13,70 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Plane, Users, MapPin, AlertCircle, Plus, FileText, Download } from 'lucide-react';
+import { CalendarIcon, Plane, Users, MapPin, AlertCircle, Plus, FileText, Download, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import apiService from '@/lib/api';
 
 export default function LTAPage() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [activeTab, setActiveTab] = useState('balance');
   const [journeyDate, setJourneyDate] = useState<Date>();
+  const [ltaBalance, setLtaBalance] = useState<any>(null);
+  const [ltas, setLtas] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentEmployee, setCurrentEmployee] = useState<any>(null);
+
+  useEffect(() => {
+    loadCurrentEmployee();
+  }, []);
+
+  useEffect(() => {
+    if (currentEmployee) {
+      loadLTAData();
+    }
+  }, [currentEmployee]);
+
+  const loadCurrentEmployee = async () => {
+    try {
+      const empResponse = await apiService.getEmployees({ email: user?.email });
+      if (empResponse.success && empResponse.data && Array.isArray(empResponse.data) && empResponse.data.length > 0) {
+        setCurrentEmployee(empResponse.data[0]);
+      }
+    } catch (error) {
+      console.error('Failed to load current employee', error);
+    }
+  };
+
+  const loadLTAData = async () => {
+    if (!currentEmployee?._id && !currentEmployee?.id) return;
+    try {
+      setIsLoading(true);
+      const employeeId = currentEmployee._id || currentEmployee.id;
+      
+      const [balanceRes, ltasRes] = await Promise.all([
+        apiService.getLTABalance(employeeId),
+        apiService.getLTAs({ employeeId }),
+      ]);
+
+      if (balanceRes.success && balanceRes.data) {
+        setLtaBalance(balanceRes.data);
+      }
+      if (ltasRes.success && ltasRes.data) {
+        setLtas(Array.isArray(ltasRes.data) ? ltasRes.data : []);
+      }
+    } catch (error) {
+      console.error('Failed to load LTA data', error);
+      toast.error('Failed to load LTA data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   if (!isAuthenticated) {
     redirect('/login');
   }
-
-  // Mock LTA data
-  const ltaData = {
-    currentBlock: '2022-2025',
-    blockStartDate: '2022-04-01',
-    blockEndDate: '2025-03-31',
-    totalJourneys: 2,
-    journeysUsed: 1,
-    journeysRemaining: 1,
-    journeys: [
-      {
-        id: 'LTA-001',
-        date: '2023-06-15',
-        destination: 'Goa',
-        amount: 25000,
-        familyMembers: ['Self', 'Spouse', 'Child 1'],
-        status: 'Approved',
-        claimStatus: 'Settled',
-      },
-    ],
-  };
 
   const handleNewLTA = () => {
     toast.success('LTA claim form opened');
@@ -67,49 +97,57 @@ export default function LTAPage() {
         </div>
 
         {/* LTA Balance Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-6">
-              <div>
-                <p className="text-sm text-muted-foreground">Current Block</p>
-                <p className="text-2xl font-bold">{ltaData.currentBlock}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {format(new Date(ltaData.blockStartDate), 'MMM dd, yyyy')} - {format(new Date(ltaData.blockEndDate), 'MMM dd, yyyy')}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="p-6">
+                <div>
+                  <p className="text-sm text-muted-foreground">Current Block</p>
+                  <p className="text-2xl font-bold">{ltaBalance?.blockYear || 'N/A'}</p>
+                  {ltaBalance?.blockStartDate && ltaBalance?.blockEndDate && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {format(new Date(ltaBalance.blockStartDate), 'MMM dd, yyyy')} - {format(new Date(ltaBalance.blockEndDate), 'MMM dd, yyyy')}
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardContent className="p-6">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Journeys</p>
-                <p className="text-2xl font-bold">{ltaData.totalJourneys}</p>
-                <p className="text-xs text-muted-foreground mt-1">Available per block</p>
-              </div>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardContent className="p-6">
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Journeys</p>
+                  <p className="text-2xl font-bold">{ltaBalance?.totalJourneys || 0}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Available per block</p>
+                </div>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardContent className="p-6">
-              <div>
-                <p className="text-sm text-muted-foreground">Journeys Used</p>
-                <p className="text-2xl font-bold text-yellow-600">{ltaData.journeysUsed}</p>
-                <p className="text-xs text-muted-foreground mt-1">Out of {ltaData.totalJourneys}</p>
-              </div>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardContent className="p-6">
+                <div>
+                  <p className="text-sm text-muted-foreground">Journeys Used</p>
+                  <p className="text-2xl font-bold text-yellow-600">{ltaBalance?.journeysUtilized || 0}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Out of {ltaBalance?.totalJourneys || 0}</p>
+                </div>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardContent className="p-6">
-              <div>
-                <p className="text-sm text-muted-foreground">Remaining</p>
-                <p className="text-2xl font-bold text-green-600">{ltaData.journeysRemaining}</p>
-                <p className="text-xs text-muted-foreground mt-1">Journeys available</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            <Card>
+              <CardContent className="p-6">
+                <div>
+                  <p className="text-sm text-muted-foreground">Remaining</p>
+                  <p className="text-2xl font-bold text-green-600">{ltaData.journeysRemaining}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Journeys available</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Info Card */}
         <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">

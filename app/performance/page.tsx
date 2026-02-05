@@ -22,9 +22,9 @@ export default function PerformancePage() {
   const loadPerformances = async () => {
     try {
       setIsLoading(true);
-      // For Tenant Admin, load all employees' performance
-      // For others, load their own performance
-      const response = await apiService.getPerformances();
+      
+      // Load manager appraisals (completed appraisals)
+      const response = await apiService.getManagerAppraisals({ status: 'Approved' });
       if (response.success && response.data) {
         setAppraisals(Array.isArray(response.data) ? response.data : []);
       }
@@ -66,11 +66,12 @@ export default function PerformancePage() {
           appraisals.map((appraisal) => {
             const appraisalId = appraisal._id || appraisal.id;
             const employeeName = appraisal.employeeId ? `${appraisal.employeeId.firstName} ${appraisal.employeeId.lastName}` : 'Employee';
+            const competencyRatings = appraisal.competencyRatings || {};
             const radarData = {
-              communication: appraisal.communicationRating || 0,
-              teamwork: appraisal.teamworkRating || 0,
-              leadership: appraisal.leadershipRating || 0,
-              technical: appraisal.technicalSkillsRating || 0,
+              communication: competencyRatings.communication || 0,
+              teamwork: competencyRatings.teamwork || 0,
+              leadership: competencyRatings.leadership || 0,
+              problemSolving: competencyRatings.problemSolving || 0,
               overall: appraisal.overallRating || 0,
             };
             
@@ -79,9 +80,9 @@ export default function PerformancePage() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle className="text-lg">{appraisal.period || 'Performance Review'} Appraisal</CardTitle>
+                      <CardTitle className="text-lg">{appraisal.appraisalCycleId?.cycleName || 'Performance Review'} Appraisal</CardTitle>
                       <CardDescription>
-                        {hasPermission('manage_employees') ? `Employee: ${employeeName}` : ''} • Rated by: {appraisal.raterName || 'Manager'}
+                        {hasPermission('manage_employees') ? `Employee: ${employeeName}` : ''} • Rated by: {appraisal.managerId?.name || 'Manager'}
                       </CardDescription>
                     </div>
                     <div className="text-right">
@@ -96,19 +97,14 @@ export default function PerformancePage() {
                     {/* Ratings Grid */}
                     <div className="space-y-4">
                       <div className="space-y-3">
-                        {[
-                          { label: 'Communication', rating: appraisal.communicationRating || 0 },
-                          { label: 'Teamwork', rating: appraisal.teamworkRating || 0 },
-                          { label: 'Leadership', rating: appraisal.leadershipRating || 0 },
-                          { label: 'Technical Skills', rating: appraisal.technicalSkillsRating || 0 },
-                        ].map((item) => (
-                          <div key={item.label}>
+                        {Object.entries(competencyRatings).map(([key, rating]: [string, any]) => (
+                          <div key={key}>
                             <div className="flex justify-between items-center mb-2">
-                              <p className="text-sm font-medium">{item.label}</p>
-                              <span className="text-sm font-semibold text-primary">{item.rating}/5</span>
+                              <p className="text-sm font-medium capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
+                              <span className="text-sm font-semibold text-primary">{rating}/5</span>
                             </div>
                             <div className="w-full bg-secondary rounded-full h-2">
-                              <div className="bg-primary h-2 rounded-full" style={{ width: `${(item.rating / 5) * 100}%` }} />
+                              <div className="bg-primary h-2 rounded-full" style={{ width: `${(rating / 5) * 100}%` }} />
                             </div>
                           </div>
                         ))}
@@ -130,21 +126,21 @@ export default function PerformancePage() {
 
                   {/* Comments */}
                   <div className="mt-6 p-4 bg-secondary/50 rounded-lg border border-border">
-                    <p className="text-sm font-semibold mb-2">Feedback</p>
-                    <p className="text-sm text-muted-foreground">{appraisal.feedback || 'No feedback provided'}</p>
+                    <p className="text-sm font-semibold mb-2">Overall Comments</p>
+                    <p className="text-sm text-muted-foreground">{appraisal.overallComments || 'No comments provided'}</p>
                   </div>
 
-                  {/* Goals */}
-                  {appraisal.goals && appraisal.goals.length > 0 && (
+                  {/* Recommendations */}
+                  {(appraisal.promotionRecommended !== undefined || appraisal.incrementPercentage) && (
                     <div className="mt-4 p-4 bg-secondary/50 rounded-lg border border-border">
-                      <p className="text-sm font-semibold mb-2">Goals</p>
-                      <div className="space-y-2">
-                        {appraisal.goals.map((goal: any, idx: number) => (
-                          <div key={idx} className="flex items-center justify-between text-sm">
-                            <span>{goal.title}</span>
-                            <Badge variant={goal.status === 'Completed' ? 'default' : 'secondary'}>{goal.status || 'Not Started'}</Badge>
-                          </div>
-                        ))}
+                      <p className="text-sm font-semibold mb-2">Recommendations</p>
+                      <div className="space-y-1 text-sm">
+                        {appraisal.promotionRecommended && (
+                          <p className="text-green-600">✓ Promotion Recommended</p>
+                        )}
+                        {appraisal.incrementPercentage > 0 && (
+                          <p>Increment: {appraisal.incrementPercentage}%</p>
+                        )}
                       </div>
                     </div>
                   )}

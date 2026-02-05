@@ -38,7 +38,7 @@ interface NavItem {
   href: string;
   icon: React.ReactNode;
   roles?: string[];
-  subItems?: { label: string; href: string }[];
+  subItems?: { label: string; href: string; roles?: string[] }[];
 }
 
 const navigationItems: NavItem[] = [
@@ -52,13 +52,18 @@ const navigationItems: NavItem[] = [
     label: 'Personnel',
     href: '/personnel',
     icon: <Users className="w-5 h-5" />,
-    roles: ['Super Admin', 'Tenant Admin', 'Employee', 'Manager', 'HR Administrator', 'Auditor'],
+    roles: ['Super Admin', 'Tenant Admin', 'Manager', 'HR Administrator', 'Auditor'],
+    // Employee role removed - they should only see own profile via dashboard or dedicated profile page
   },
   {
     label: 'Payroll',
     href: '/payroll',
     icon: <DollarSign className="w-5 h-5" />,
-    roles: ['Super Admin', 'Tenant Admin', 'Employee', 'Payroll Administrator', 'HR Administrator', 'Finance Administrator', 'Auditor'],
+    roles: ['Super Admin', 'Tenant Admin', 'Employee', 'Payroll Administrator', 'HR Administrator', 'Finance Administrator', 'Auditor', 'Manager'],
+    subItems: [
+      { label: 'My Payslips', href: '/payroll', roles: ['Employee', 'Manager'] },
+      { label: 'Admin Dashboard', href: '/payroll/admin', roles: ['Super Admin', 'Tenant Admin', 'Payroll Administrator', 'HR Administrator', 'Finance Administrator', 'Auditor'] },
+    ],
   },
   {
     label: 'Leave Management',
@@ -139,6 +144,9 @@ const navigationItems: NavItem[] = [
     roles: ['Super Admin', 'Tenant Admin', 'HR Administrator'],
     subItems: [
       { label: 'Users', href: '/admin/users' },
+      { label: 'Role & Permissions', href: '/admin/users/role-permissions' },
+      { label: 'Access Certification', href: '/admin/access-certification' },
+      { label: 'LDAP Config', href: '/admin/ldap-config' },
       { label: 'Departments', href: '/settings/departments' },
       { label: 'Designations', href: '/settings/designations' },
       { label: 'Permissions', href: '/settings/permissions' },
@@ -264,7 +272,13 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                   </button>
                   {isExpanded && (
                     <div className="ml-4 space-y-1 border-l-2 border-sidebar-border pl-2">
-                      {item.subItems?.map((subItem) => (
+                      {item.subItems?.filter((subItem) => {
+                        // Filter sub-items based on roles if specified
+                        if (subItem.roles && subItem.roles.length > 0) {
+                          return subItem.roles.includes(currentUser?.role || '');
+                        }
+                        return true;
+                      }).map((subItem) => (
                         <Link
                           key={subItem.href}
                           href={subItem.href}

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { redirect } from 'next/navigation';
+import { redirect, useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,14 +13,17 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Plane, MapPin, Clock, FileText, Save, X } from 'lucide-react';
+import { CalendarIcon, Plane, MapPin, Clock, FileText, Save, X, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import apiService from '@/lib/api';
 
 export default function TravelRequestPage() {
   const { isAuthenticated, hasPermission } = useAuth();
-  const [travelType, setTravelType] = useState<'domestic' | 'international' | 'local'>('domestic');
+  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [travelType, setTravelType] = useState<'Domestic' | 'International' | 'Local Conveyance'>('Domestic');
   const [departureDate, setDepartureDate] = useState<Date>();
   const [returnDate, setReturnDate] = useState<Date>();
   const [mode, setMode] = useState<string>('');
@@ -40,8 +43,8 @@ export default function TravelRequestPage() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = () => {
-    if (!departureDate || !returnDate || !mode || !formData.purpose || !formData.origin || !formData.destination) {
+  const handleSubmit = async () => {
+    if (!departureDate || !returnDate || !mode || !formData.purpose || !formData.origin || !formData.destination || !formData.estimatedAmount) {
       toast.error('Please fill all required fields');
       return;
     }
@@ -51,8 +54,45 @@ export default function TravelRequestPage() {
       return;
     }
 
-    toast.success('Travel request submitted successfully!');
-    // In production, this would call an API
+    try {
+      setIsSubmitting(true);
+
+      // Map mode values to match backend enum
+      const modeMap: { [key: string]: string } = {
+        'flight': 'Air',
+        'train': 'Train',
+        'bus': 'Bus',
+        'car': 'Car',
+        'taxi': 'Car',
+        'metro': 'Other',
+        'auto': 'Other',
+      };
+
+      const payload = {
+        travelType,
+        purpose: formData.purpose,
+        departureDate: departureDate.toISOString(),
+        returnDate: returnDate.toISOString(),
+        origin: formData.origin,
+        destination: formData.destination,
+        mode: modeMap[mode] || 'Other',
+        estimatedAmount: parseFloat(formData.estimatedAmount),
+        remarks: formData.remarks || '',
+      };
+
+      const response = await apiService.createTravelRequest(payload);
+
+      if (response.success) {
+        toast.success('Travel request created successfully!');
+        router.push('/travel');
+      } else {
+        toast.error(response.message || 'Failed to create travel request');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'An error occurred');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -74,15 +114,15 @@ export default function TravelRequestPage() {
               <Label>Travel Type <span className="text-red-500">*</span></Label>
               <RadioGroup value={travelType} onValueChange={(value: any) => setTravelType(value)} className="flex gap-6">
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="domestic" id="domestic" />
+                  <RadioGroupItem value="Domestic" id="domestic" />
                   <Label htmlFor="domestic" className="cursor-pointer">Domestic</Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="international" id="international" />
+                  <RadioGroupItem value="International" id="international" />
                   <Label htmlFor="international" className="cursor-pointer">International</Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="local" id="local" />
+                  <RadioGroupItem value="Local Conveyance" id="local" />
                   <Label htmlFor="local" className="cursor-pointer">Local Conveyance</Label>
                 </div>
               </RadioGroup>
@@ -243,11 +283,20 @@ export default function TravelRequestPage() {
 
             {/* Actions */}
             <div className="flex gap-3 pt-4 border-t">
-              <Button onClick={handleSubmit} className="gap-2">
-                <Save className="w-4 h-4" />
-                Submit Request
+              <Button onClick={handleSubmit} className="gap-2" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    Submit Request
+                  </>
+                )}
               </Button>
-              <Button variant="outline" onClick={() => window.history.back()}>
+              <Button variant="outline" onClick={() => router.push('/travel')} disabled={isSubmitting}>
                 <X className="w-4 h-4 mr-2" />
                 Cancel
               </Button>

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { redirect } from 'next/navigation';
+import { redirect, useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,10 +13,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, DollarSign, AlertCircle, Save, X, Info } from 'lucide-react';
+import { CalendarIcon, DollarSign, AlertCircle, Save, X, Info, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import apiService from '@/lib/api';
 
 export default function TravelAdvancePage() {
   const { isAuthenticated } = useAuth();
@@ -91,17 +92,39 @@ export default function TravelAdvancePage() {
           <CardContent className="space-y-6">
             {/* Travel Request Link */}
             <div className="space-y-2">
-              <Label htmlFor="travelRequestId">Linked Travel Request (Optional)</Label>
-              <Select value={formData.travelRequestId} onValueChange={(value) => handleInputChange('travelRequestId', value)}>
+              <Label htmlFor="travelRequestId">Linked Travel Request <span className="text-red-500">*</span></Label>
+              <Select value={formData.travelRequestId} onValueChange={(value) => {
+                handleInputChange('travelRequestId', value);
+                // Auto-fill from selected travel request
+                const selectedRequest = travelRequests.find(r => (r._id || r.id) === value);
+                if (selectedRequest) {
+                  setFormData(prev => ({
+                    ...prev,
+                    travelRequestId: value,
+                    estimatedExpense: selectedRequest.estimatedAmount?.toString() || '',
+                    advanceAmount: (selectedRequest.estimatedAmount * 0.8).toFixed(2),
+                  }));
+                }
+              }}>
                 <SelectTrigger id="travelRequestId">
-                  <SelectValue placeholder="Select travel request" />
+                  <SelectValue placeholder="Select approved travel request" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="TR-001">TR-001: Mumbai Business Trip (Jan 15-18)</SelectItem>
-                  <SelectItem value="TR-002">TR-002: Delhi Conference (Feb 5-7)</SelectItem>
-                  <SelectItem value="none">None - Standalone Advance</SelectItem>
+                  {travelRequests.length > 0 ? (
+                    travelRequests.map((request) => {
+                      const requestId = request._id || request.id;
+                      return (
+                        <SelectItem key={requestId} value={requestId}>
+                          {request.origin} → {request.destination} ({request.departureDate ? new Date(request.departureDate).toLocaleDateString() : ''}) - ₹{request.estimatedAmount}
+                        </SelectItem>
+                      );
+                    })
+                  ) : (
+                    <SelectItem value="" disabled>No approved travel requests found</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">Select an approved travel request to link this advance</p>
             </div>
 
             {/* Travel Date */}

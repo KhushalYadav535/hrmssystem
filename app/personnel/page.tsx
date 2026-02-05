@@ -37,6 +37,13 @@ export default function PersonnelPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Redirect Employee role to dashboard - they should not access Personnel page
+  useEffect(() => {
+    if (isAuthenticated && currentUser?.role === 'Employee') {
+      router.push('/dashboard');
+    }
+  }, [isAuthenticated, currentUser, router]);
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);

@@ -29,6 +29,15 @@ export default function HRAdminDashboard() {
     loadDashboardStats();
   }, [employees]);
 
+  // Also reload stats when component mounts or when user navigates back
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadDashboardStats();
+    }, 30000); // Refresh every 30 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
   const loadDashboardStats = async () => {
     try {
       setIsLoadingStats(true);
@@ -53,8 +62,14 @@ export default function HRAdminDashboard() {
 
         // Fetch pending leave approvals
         const leavesResponse = await apiService.getLeaves({ status: 'Pending' });
+        console.log('HR Admin Dashboard - Pending leaves API response:', {
+          success: leavesResponse.success,
+          dataLength: leavesResponse.data ? (Array.isArray(leavesResponse.data) ? leavesResponse.data.length : 'not array') : 'no data',
+          data: leavesResponse.data,
+          message: leavesResponse.message
+        });
         const pendingLeaveApprovals = leavesResponse.success && leavesResponse.data 
-          ? leavesResponse.data.length 
+          ? (Array.isArray(leavesResponse.data) ? leavesResponse.data.length : 0)
           : 0;
 
         // Fetch pending expense approvals
@@ -76,15 +91,19 @@ export default function HRAdminDashboard() {
         // If no employees, still fetch other stats
         const onboardingResponse = await apiService.getOnboardings({ status: 'pending' });
         const leavesResponse = await apiService.getLeaves({ status: 'Pending' });
+        console.log('HR Admin Dashboard (no employees) - Pending leaves response:', {
+          success: leavesResponse.success,
+          dataLength: leavesResponse.data ? (Array.isArray(leavesResponse.data) ? leavesResponse.data.length : 'not array') : 'no data',
+        });
         const expensesResponse = await apiService.getExpenses({ status: 'Pending' });
         
         setDashboardStats({
           totalEmployees: 0,
           activeEmployees: 0,
           onLeaveToday: 0,
-          pendingOnboarding: onboardingResponse.success && onboardingResponse.data ? onboardingResponse.data.length : 0,
-          pendingLeaveApprovals: leavesResponse.success && leavesResponse.data ? leavesResponse.data.length : 0,
-          pendingExpenseApprovals: expensesResponse.success && expensesResponse.data ? expensesResponse.data.length : 0,
+          pendingOnboarding: onboardingResponse.success && onboardingResponse.data ? (Array.isArray(onboardingResponse.data) ? onboardingResponse.data.length : 0) : 0,
+          pendingLeaveApprovals: leavesResponse.success && leavesResponse.data ? (Array.isArray(leavesResponse.data) ? leavesResponse.data.length : 0) : 0,
+          pendingExpenseApprovals: expensesResponse.success && expensesResponse.data ? (Array.isArray(expensesResponse.data) ? expensesResponse.data.length : 0) : 0,
           attritionRate: 0,
         });
       }
@@ -353,6 +372,44 @@ export default function HRAdminDashboard() {
         </Card>
       </div>
 
+      {/* Pending Approvals */}
+      <Card className="border-0 shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-lg">Pending Approvals</CardTitle>
+          <CardDescription>Requires your attention</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <Button 
+              variant="outline" 
+              className={`h-auto py-4 flex flex-col items-center justify-center bg-transparent ${dashboardStats.pendingLeaveApprovals > 0 ? 'border-yellow-500' : ''}`} 
+              asChild
+            >
+              <Link href="/approvals/leave">
+                <AlertCircle className={`w-6 h-6 mb-2 ${dashboardStats.pendingLeaveApprovals > 0 ? 'text-yellow-600' : 'text-muted-foreground'}`} />
+                <span className="text-sm font-medium">Leave Approvals</span>
+                <span className={`text-xs mt-1 ${dashboardStats.pendingLeaveApprovals > 0 ? 'text-yellow-600 font-semibold' : 'text-muted-foreground'}`}>
+                  {isLoadingStats ? '...' : dashboardStats.pendingLeaveApprovals} pending
+                </span>
+              </Link>
+            </Button>
+            <Button 
+              variant="outline" 
+              className={`h-auto py-4 flex flex-col items-center justify-center bg-transparent ${dashboardStats.pendingExpenseApprovals > 0 ? 'border-yellow-500' : ''}`} 
+              asChild
+            >
+              <Link href="/approvals/expense">
+                <AlertCircle className={`w-6 h-6 mb-2 ${dashboardStats.pendingExpenseApprovals > 0 ? 'text-yellow-600' : 'text-muted-foreground'}`} />
+                <span className="text-sm font-medium">Expense Approvals</span>
+                <span className={`text-xs mt-1 ${dashboardStats.pendingExpenseApprovals > 0 ? 'text-yellow-600 font-semibold' : 'text-muted-foreground'}`}>
+                  {isLoadingStats ? '...' : dashboardStats.pendingExpenseApprovals} pending
+                </span>
+              </Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Quick Actions */}
       <Card className="border-0 shadow-sm">
         <CardHeader>
@@ -360,21 +417,29 @@ export default function HRAdminDashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Button variant="outline" className="h-24 flex flex-col items-center justify-center bg-transparent">
-              <Users className="w-6 h-6 mb-2" />
-              <span className="text-xs">Manage Employees</span>
+            <Button variant="outline" className="h-24 flex flex-col items-center justify-center bg-transparent" asChild>
+              <Link href="/personnel">
+                <Users className="w-6 h-6 mb-2" />
+                <span className="text-xs">Manage Employees</span>
+              </Link>
             </Button>
-            <Button variant="outline" className="h-24 flex flex-col items-center justify-center bg-transparent">
-              <Briefcase className="w-6 h-6 mb-2" />
-              <span className="text-xs">Manage Jobs</span>
+            <Button variant="outline" className="h-24 flex flex-col items-center justify-center bg-transparent" asChild>
+              <Link href="/recruitment">
+                <Briefcase className="w-6 h-6 mb-2" />
+                <span className="text-xs">Manage Jobs</span>
+              </Link>
             </Button>
-            <Button variant="outline" className="h-24 flex flex-col items-center justify-center bg-transparent">
-              <BarChart3 className="w-6 h-6 mb-2" />
-              <span className="text-xs">View Reports</span>
+            <Button variant="outline" className="h-24 flex flex-col items-center justify-center bg-transparent" asChild>
+              <Link href="/reports">
+                <BarChart3 className="w-6 h-6 mb-2" />
+                <span className="text-xs">View Reports</span>
+              </Link>
             </Button>
-            <Button variant="outline" className="h-24 flex flex-col items-center justify-center bg-transparent">
-              <AlertCircle className="w-6 h-6 mb-2" />
-              <span className="text-xs">System Alerts</span>
+            <Button variant="outline" className="h-24 flex flex-col items-center justify-center bg-transparent" asChild>
+              <Link href="/onboarding">
+                <AlertCircle className="w-6 h-6 mb-2" />
+                <span className="text-xs">Onboarding</span>
+              </Link>
             </Button>
           </div>
         </CardContent>

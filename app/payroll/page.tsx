@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/lib/auth-context';
-import { redirect } from 'next/navigation';
+import { redirect, useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,14 +14,25 @@ import { toast } from 'sonner';
 
 export default function PayrollPage() {
   const { isAuthenticated, hasPermission, currentUser } = useAuth();
+  const router = useRouter();
   const [selectedMonth, setSelectedMonth] = useState('January');
   const [selectedYear, setSelectedYear] = useState('2026');
   const [payrolls, setPayrolls] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // BRD Access Control:
+    // - Payroll Admin, HR Admin, Tenant Admin, Finance Admin, Auditor → Admin Dashboard
+    // - Employee → This page (own payslip)
+    // - Manager → This page (team payslips)
+    
+    const adminRoles = ['Payroll Administrator', 'HR Administrator', 'Tenant Admin', 'Finance Administrator', 'Auditor', 'Super Admin'];
+    if (isAuthenticated && adminRoles.includes(currentUser?.role || '')) {
+      router.push('/payroll/admin');
+      return;
+    }
     loadPayrolls();
-  }, [selectedMonth, selectedYear]);
+  }, [selectedMonth, selectedYear, isAuthenticated, currentUser, router]);
 
   const loadPayrolls = async () => {
     try {
@@ -42,14 +53,22 @@ export default function PayrollPage() {
     redirect('/login');
   }
 
-  // Allow access for: employees (view own payslip), payroll admins, HR admins, and auditors (view reports)
-  if (!hasPermission('view_payslip') && !hasPermission('process_payroll') && !hasPermission('view_payroll_reports')) {
-    redirect('/dashboard');
+  // BRD Access Control for /payroll page:
+  // - Employee: View own payslip only
+  // - Manager: View team payslips
+  // - Others: Redirected to admin dashboard
+  
+  const isEmployee = currentUser?.role === 'Employee';
+  const isManager = currentUser?.role === 'Manager';
+  
+  if (!isEmployee && !isManager) {
+    // Non-employee/manager roles should use admin dashboard
+    redirect('/payroll/admin');
   }
 
-  // Split View based on Role
-  const isEmployee = currentUser?.role === 'Employee';
-  const isAdminOrPayroll = hasPermission('process_payroll') || hasPermission('view_payroll_reports');
+  if (!hasPermission('view_payslip')) {
+    redirect('/dashboard');
+  }
 
   // Filter payroll data - API already filters by month/year and employee (if Employee role)
   const filteredPayroll = payrolls;

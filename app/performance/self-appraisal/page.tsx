@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { redirect } from 'next/navigation';
+import { redirect, useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,8 +12,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
-import { FileText, Save, Upload, CheckCircle2, Target } from 'lucide-react';
+import { FileText, Save, Upload, CheckCircle2, Target, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import apiService from '@/lib/api';
 
 interface GoalAppraisal {
   goalId: string;
@@ -25,29 +26,101 @@ interface GoalAppraisal {
 }
 
 export default function SelfAppraisalPage() {
-  const { isAuthenticated } = useAuth();
-  const [appraisalPeriod] = useState('FY 2025-26');
-  const [goals, setGoals] = useState<GoalAppraisal[]>([
-    {
-      goalId: '1',
-      goalDescription: 'Increase customer satisfaction score',
-      selfRating: 4,
-      achievement: '',
-      evidence: '',
-      challenges: '',
-    },
-    {
-      goalId: '2',
-      goalDescription: 'Complete process automation project',
-      selfRating: 5,
-      achievement: '',
-      evidence: '',
-      challenges: '',
-    },
-  ]);
+  const { isAuthenticated, user } = useAuth();
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeCycle, setActiveCycle] = useState<any>(null);
+  const [employee, setEmployee] = useState<any>(null);
+  const [goals, setGoals] = useState<GoalAppraisal[]>([]);
   const [overallRating, setOverallRating] = useState(4);
   const [trainingNeeds, setTrainingNeeds] = useState('');
   const [careerAspirations, setCareerAspirations] = useState('');
+  const [keyAccomplishments, setKeyAccomplishments] = useState('');
+  const [challengesFaced, setChallengesFaced] = useState('');
+  const [supportNeeded, setSupportNeeded] = useState('');
+  const [developmentNeeds, setDevelopmentNeeds] = useState('');
+  const [selfAppraisal, setSelfAppraisal] = useState<any>(null);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Get active cycle
+      const cycleRes = await apiService.getActiveAppraisalCycle();
+      if (cycleRes.success && cycleRes.data) {
+        setActiveCycle(cycleRes.data);
+      }
+
+      // Get current employee
+      const empRes = await apiService.getEmployees({ email: user?.email });
+      if (empRes.success && empRes.data && Array.isArray(empRes.data) && empRes.data.length > 0) {
+        const emp = empRes.data[0];
+        setEmployee(emp);
+        const employeeId = emp._id || emp.id;
+
+        // Load goals for this cycle
+        if (cycleRes.success && cycleRes.data) {
+          const goalsRes = await apiService.getGoals({ 
+            employeeId, 
+            appraisalCycleId: cycleRes.data._id || cycleRes.data.id,
+            status: 'Approved' 
+          });
+          
+          if (goalsRes.success && goalsRes.data) {
+            const approvedGoals = Array.isArray(goalsRes.data) ? goalsRes.data : [];
+            setGoals(approvedGoals.map((g: any) => ({
+              goalId: g._id || g.id,
+              goalDescription: g.description,
+              selfRating: 3,
+              achievement: '',
+              evidence: '',
+              challenges: '',
+            })));
+          }
+
+          // Load existing self-appraisal if any
+          const selfAppRes = await apiService.getSelfAppraisals({ 
+            employeeId, 
+            appraisalCycleId: cycleRes.data._id || cycleRes.data.id 
+          });
+          
+          if (selfAppRes.success && selfAppRes.data && Array.isArray(selfAppRes.data) && selfAppRes.data.length > 0) {
+            const existing = selfAppRes.data[0];
+            setSelfAppraisal(existing);
+            
+            if (existing.goalAchievements) {
+              setGoals(existing.goalAchievements.map((ga: any) => ({
+                goalId: ga.goalId?._id || ga.goalId?.id || ga.goalId,
+                goalDescription: ga.goalId?.description || '',
+                selfRating: ga.selfRating || 3,
+                achievement: ga.achievementDescription || '',
+                evidence: ga.quantifiableAchievements || '',
+                challenges: ga.challengesFaced || '',
+              })));
+            }
+            
+            setOverallRating(existing.overallSelfRating || 4);
+            setTrainingNeeds(existing.trainingNeeds || '');
+            setCareerAspirations(existing.careerAspirations || '');
+            setKeyAccomplishments(existing.keyAccomplishments || '');
+            setChallengesFaced(existing.challengesFaced || '');
+            setSupportNeeded(existing.supportNeeded || '');
+            setDevelopmentNeeds(existing.developmentNeeds || '');
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load data', error);
+      toast.error('Failed to load appraisal data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   if (!isAuthenticated) {
     redirect('/login');
@@ -59,17 +132,88 @@ export default function SelfAppraisalPage() {
     ));
   };
 
-  const handleSubmit = () => {
-    const incompleteGoals = goals.filter(g => !g.achievement || !g.evidence);
+  const handleSaveDraft = async () => {
+    if (!activeCycle || !employee) {
+      toast.error('Appraisal cycle or employee data not found');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      const employeeId = employee._id || employee.id;
+      const cycleId = activeCycle._id || activeCycle.id;
+
+      const goalAchievements = goals.map(g => ({
+        goalId: g.goalId,
+        selfRating: g.selfRating,
+        achievementDescription: g.achievement,
+        quantifiableAchievements: g.evidence,
+        challengesFaced: g.challenges,
+        evidence: [],
+      }));
+
+      const payload = {
+        appraisalCycleId: cycleId,
+        goalAchievements,
+        overallSelfRating: overallRating,
+        keyAccomplishments,
+        challengesFaced,
+        supportNeeded,
+        trainingNeeds,
+        developmentNeeds,
+        careerAspirations,
+        status: 'Draft',
+      };
+
+      const response = await apiService.createOrUpdateSelfAppraisal(payload);
+
+      if (response.success) {
+        toast.success('Draft saved successfully');
+        setSelfAppraisal(response.data);
+      } else {
+        toast.error(response.message || 'Failed to save draft');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'An error occurred');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!activeCycle || !employee) {
+      toast.error('Appraisal cycle or employee data not found');
+      return;
+    }
+
+    const incompleteGoals = goals.filter(g => !g.achievement);
     if (incompleteGoals.length > 0) {
       toast.error('Please complete all goal appraisals');
       return;
     }
-    toast.success('Self-appraisal submitted successfully!');
-  };
 
-  const handleSaveDraft = () => {
-    toast.success('Draft saved successfully');
+    if (!selfAppraisal) {
+      toast.error('Please save draft first');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      const response = await apiService.submitSelfAppraisal(selfAppraisal._id || selfAppraisal.id);
+
+      if (response.success) {
+        toast.success('Self-appraisal submitted successfully!');
+        router.push('/performance');
+      } else {
+        toast.error(response.message || 'Failed to submit self-appraisal');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'An error occurred');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -78,18 +222,43 @@ export default function SelfAppraisalPage() {
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Self-Appraisal</h1>
-            <p className="text-muted-foreground mt-2">Appraisal Period: {appraisalPeriod}</p>
+            <p className="text-muted-foreground mt-2">
+              Appraisal Period: {activeCycle?.cycleName || 'Loading...'}
+              {selfAppraisal?.status === 'Locked' && (
+                <Badge className="ml-2 bg-red-600">Locked</Badge>
+              )}
+            </p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleSaveDraft} className="gap-2">
-              <Save className="w-4 h-4" />
-              Save Draft
-            </Button>
-            <Button onClick={handleSubmit} className="gap-2">
-              <CheckCircle2 className="w-4 h-4" />
-              Submit Appraisal
-            </Button>
-          </div>
+          {selfAppraisal?.status !== 'Locked' && (
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleSaveDraft} className="gap-2" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    Save Draft
+                  </>
+                )}
+              </Button>
+              <Button onClick={handleSubmit} className="gap-2" disabled={isSubmitting || !selfAppraisal}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    Submit Appraisal
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Info Card */}
@@ -110,8 +279,21 @@ export default function SelfAppraisalPage() {
         </Card>
 
         {/* Goals Appraisal */}
-        <div className="space-y-4">
-          {goals.map((goal) => (
+        {isLoading ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+            Loading goals...
+          </div>
+        ) : goals.length === 0 ? (
+          <Card>
+            <CardContent className="p-8 text-center text-muted-foreground">
+              <Target className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>No approved goals found. Please set and get your goals approved first.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {goals.map((goal) => (
             <Card key={goal.goalId}>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
@@ -186,8 +368,9 @@ export default function SelfAppraisalPage() {
                 </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* Overall Rating */}
         <Card>
