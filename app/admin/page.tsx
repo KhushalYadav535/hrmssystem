@@ -28,6 +28,9 @@ interface LeavePolicy {
   _id?: string;
   leaveType: string;
   daysPerYear: number;
+  accrualFrequency?: string;
+  accrualRate?: number;
+  accrualDate?: number;
   carryForward: boolean;
   maxCarryForward?: number;
   requiresApproval: boolean;
@@ -196,7 +199,15 @@ export default function AdminPage() {
     try {
       const response = await apiService.getLeavePolicies();
       if (response.success && response.data) {
-        setLeavePolicies(Array.isArray(response.data) ? response.data : []);
+        const policies = Array.isArray(response.data) ? response.data : [];
+        // Ensure all policies have accrual fields with defaults
+        const policiesWithDefaults = policies.map((policy: LeavePolicy) => ({
+          ...policy,
+          accrualFrequency: policy.accrualFrequency || 'Monthly',
+          accrualRate: policy.accrualRate ?? (policy.daysPerYear ? policy.daysPerYear / 12 : 1),
+          accrualDate: policy.accrualDate || 1,
+        }));
+        setLeavePolicies(policiesWithDefaults);
       }
     } catch (error: any) {
       console.error('Load leave policies error:', error);
@@ -266,6 +277,9 @@ export default function AdminPage() {
     setLeavePolicyForm({
       leaveType: policy.leaveType,
       daysPerYear: policy.daysPerYear,
+      accrualFrequency: policy.accrualFrequency || 'Monthly',
+      accrualRate: policy.accrualRate || 1,
+      accrualDate: policy.accrualDate || 1,
       carryForward: policy.carryForward,
       maxCarryForward: policy.maxCarryForward || 0,
       requiresApproval: policy.requiresApproval,
@@ -778,6 +792,69 @@ export default function AdminPage() {
                   placeholder="12"
                 />
               </div>
+              
+              {/* Accrual Settings */}
+              <div className="space-y-3 p-4 border border-border rounded-lg bg-muted/30">
+                <Label className="text-base font-semibold">Accrual Settings</Label>
+                
+                <div>
+                  <Label htmlFor="accrualFrequency">Accrual Frequency *</Label>
+                  <Select
+                    value={leavePolicyForm.accrualFrequency || 'Monthly'}
+                    onValueChange={(value) => setLeavePolicyForm({ ...leavePolicyForm, accrualFrequency: value })}
+                  >
+                    <SelectTrigger id="accrualFrequency">
+                      <SelectValue placeholder="Select frequency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Monthly">Monthly</SelectItem>
+                      <SelectItem value="Quarterly">Quarterly</SelectItem>
+                      <SelectItem value="Yearly">Yearly</SelectItem>
+                      <SelectItem value="None">None (No Accrual)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {leavePolicyForm.accrualFrequency && leavePolicyForm.accrualFrequency !== 'None' && (
+                  <>
+                    <div>
+                      <Label htmlFor="accrualRate">
+                        Accrual Rate (Days per {leavePolicyForm.accrualFrequency?.toLowerCase()?.slice(0, -2) || 'period'}) *
+                      </Label>
+                      <Input
+                        id="accrualRate"
+                        type="number"
+                        step="0.1"
+                        value={leavePolicyForm.accrualRate || 0}
+                        onChange={(e) => setLeavePolicyForm({ ...leavePolicyForm, accrualRate: parseFloat(e.target.value) || 0 })}
+                        placeholder={leavePolicyForm.accrualFrequency === 'Monthly' ? 'e.g., 1 (1 day per month)' : leavePolicyForm.accrualFrequency === 'Quarterly' ? 'e.g., 3 (3 days per quarter)' : 'e.g., 12 (12 days per year)'}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Example: {leavePolicyForm.accrualFrequency === 'Monthly' ? '1 day per month = 12 days/year' : leavePolicyForm.accrualFrequency === 'Quarterly' ? '3 days per quarter = 12 days/year' : '12 days per year'}
+                      </p>
+                    </div>
+                    
+                    {leavePolicyForm.accrualFrequency === 'Monthly' && (
+                      <div>
+                        <Label htmlFor="accrualDate">Accrual Date (Day of Month) *</Label>
+                        <Input
+                          id="accrualDate"
+                          type="number"
+                          min="1"
+                          max="31"
+                          value={leavePolicyForm.accrualDate || 1}
+                          onChange={(e) => setLeavePolicyForm({ ...leavePolicyForm, accrualDate: parseInt(e.target.value) || 1 })}
+                          placeholder="1"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Leave will be accrued on this day each month (e.g., 1 = 1st of every month)
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="carryForward"

@@ -9,8 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { CheckCircle2, XCircle, Clock, Filter } from 'lucide-react';
 import { apiService } from '@/lib/api';
 import { toast } from 'sonner';
+import { useAuth } from '@/lib/auth-context';
 
 export default function LeaveApprovalsPage() {
+  const { currentUser } = useAuth();
   const [filterStatus, setFilterStatus] = useState('all');
   const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -42,6 +44,13 @@ export default function LeaveApprovalsPage() {
   const handleAction = async (id: string, status: 'Approved' | 'Rejected') => {
     if (!id) {
       toast.error('Invalid leave request ID');
+      return;
+    }
+
+    // Find the leave request to check self-approval
+    const leaveRequest = leaveRequests.find(l => (l._id || l.id) === id);
+    if (leaveRequest && currentUser?.email === leaveRequest.employeeId?.email) {
+      toast.error('You cannot approve your own leave request.');
       return;
     }
 
@@ -141,6 +150,9 @@ export default function LeaveApprovalsPage() {
                           {request.employeeId?.firstName} {request.employeeId?.lastName}
                         </p>
                         <p className="text-xs text-muted-foreground">{request.employeeId?.employeeCode}</p>
+                        {request.employeeId?.email && (
+                          <p className="text-xs text-muted-foreground">{request.employeeId.email}</p>
+                        )}
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">Leave Type</p>
@@ -162,25 +174,40 @@ export default function LeaveApprovalsPage() {
                       <div>
                         <p className="text-sm text-muted-foreground">Status</p>
                         {getStatusBadge(request.status)}
+                        {request.approverName && request.status !== 'Pending' && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Approved by: {request.approverName}
+                          </p>
+                        )}
                       </div>
                     </div>
 
                     {request.status === 'Pending' && (
                       <div className="flex gap-2 pt-4 border-t border-border">
-                        <Button 
-                          className="flex-1 bg-green-600 hover:bg-green-700 gap-2"
-                          onClick={() => handleAction(request._id || request.id, 'Approved')}
-                        >
-                          <CheckCircle2 className="w-4 h-4" />
-                          Approve
-                        </Button>
-                        <Button 
-                          className="flex-1 bg-red-600 hover:bg-red-700 gap-2"
-                          onClick={() => handleAction(request._id || request.id, 'Rejected')}
-                        >
-                          <XCircle className="w-4 h-4" />
-                          Reject
-                        </Button>
+                        {/* Prevent self-approval: No one can approve their own leave */}
+                        {currentUser?.email === request.employeeId?.email ? (
+                          <div className="flex-1 text-sm text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded border border-yellow-200">
+                            ⚠️ You cannot approve your own leave request.
+                            {currentUser?.role === 'HR Administrator' && ' Please contact Tenant Admin for approval.'}
+                          </div>
+                        ) : (
+                          <>
+                            <Button 
+                              className="flex-1 bg-green-600 hover:bg-green-700 gap-2"
+                              onClick={() => handleAction(request._id || request.id, 'Approved')}
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                              Approve
+                            </Button>
+                            <Button 
+                              className="flex-1 bg-red-600 hover:bg-red-700 gap-2"
+                              onClick={() => handleAction(request._id || request.id, 'Rejected')}
+                            >
+                              <XCircle className="w-4 h-4" />
+                              Reject
+                            </Button>
+                          </>
+                        )}
                       </div>
                     )}
                   </CardContent>

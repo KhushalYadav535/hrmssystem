@@ -928,6 +928,39 @@ class ApiService {
     });
   }
 
+  // ==================== SALARY STRUCTURES ====================
+
+  async getSalaryStructures(params?: { status?: string }) {
+    const query = new URLSearchParams();
+    if (params?.status) query.append('status', params.status);
+
+    return this.request(`/salary-structures?${query.toString()}`);
+  }
+
+  async getSalaryStructure(id: string) {
+    return this.request(`/salary-structures/${id}`);
+  }
+
+  async createSalaryStructure(data: any) {
+    return this.request('/salary-structures', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateSalaryStructure(id: string, data: any) {
+    return this.request(`/salary-structures/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteSalaryStructure(id: string) {
+    return this.request(`/salary-structures/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   // ==================== LEAVE POLICIES ====================
 
   async getLeavePolicies(params?: { status?: string }) {
@@ -1291,6 +1324,24 @@ class ApiService {
     if (params?.endDate) query.append('endDate', params.endDate);
 
     return this.request(`/attendance/summary/${employeeId}?${query.toString()}`);
+  }
+
+  async getTodayAttendance() {
+    return this.request('/attendance/today');
+  }
+
+  async checkIn(location?: string, remarks?: string) {
+    return this.request('/attendance/checkin', {
+      method: 'POST',
+      body: JSON.stringify({ location, remarks }),
+    });
+  }
+
+  async checkOut(remarks?: string) {
+    return this.request('/attendance/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ remarks }),
+    });
   }
 
   async createAttendance(data: any) {

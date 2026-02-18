@@ -289,7 +289,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'manage_employees', 'configure_system', 'view_all_reports', 'manage_policies', 
           'manage_onboarding', 'manage_recruitment', 'approve_leave', 'approve_expense',
           'view_team', 'manage_departments', 'manage_designations', 'view_audit_logs',
-          'manage_users', 'manage_roles'
+          'manage_users', 'manage_roles',
+          // HR Admin is also an employee, so they can apply for their own leave
+          'apply_leave', 'submit_expense', 'view_profile', 'view_payslip', 'view_tax', 
+          'view_attendance', 'submit_appraisal', 'view_own_data'
         ],
         'Payroll Administrator': [
           'process_payroll', 'manage_compliance', 'view_payroll_reports', 'view_payslip',

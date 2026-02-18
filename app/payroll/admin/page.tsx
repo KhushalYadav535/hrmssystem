@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Download, 
@@ -26,7 +27,9 @@ import {
   Building2,
   FileCheck,
   BarChart3,
-  Settings
+  Settings,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { apiService } from '@/lib/api';
@@ -48,6 +51,12 @@ export default function PayrollAdminDashboard() {
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [designationFilter, setDesignationFilter] = useState<string>('all');
   const [designations, setDesignations] = useState<string[]>([]);
+  const [selectedPayrolls, setSelectedPayrolls] = useState<Set<string>>(new Set());
+  const [selectedPayrollsForApproval, setSelectedPayrollsForApproval] = useState<Set<string>>(new Set());
+  const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
+  const [submitComments, setSubmitComments] = useState('');
+  const [approveDialogOpen, setApproveDialogOpen] = useState(false);
+  const [approveComments, setApproveComments] = useState('');
 
   useEffect(() => {
     loadPayrollData();
@@ -98,21 +107,50 @@ export default function PayrollAdminDashboard() {
       const response = await apiService.processPayroll(selectedMonth, parseInt(selectedYear));
       
       if (response.success) {
+        const processed = response.data?.processed || 0;
+        const errors = response.errors || 0;
+        const totalEmployees = response.totalEmployees || 0;
         const summary = response.data?.summaryByDesignation;
-        let message = `Payroll processed successfully! ${response.data?.processed || 0} records created.`;
-        if (summary) {
+        
+        let message = `Payroll processed successfully! ${processed} records created.`;
+        if (errors > 0) {
+          message += ` ${errors} employees skipped (check errors below).`;
+        }
+        if (summary && Object.keys(summary).length > 0) {
           const designationSummary = Object.entries(summary)
             .map(([desig, data]: [string, any]) => `${desig}: ${data.count}`)
             .join(', ');
           message += `\nBy Designation: ${designationSummary}`;
         }
-        toast.success(message);
+        
+        if (processed === 0) {
+          toast.warning(
+            `No payroll records created. ${errors > 0 ? `${errors} employees had errors.` : 'Please check if employees have salary assigned and payroll doesn\'t already exist for this period.'}`,
+            { duration: 5000 }
+          );
+          
+          // Show errors if any
+          if (response.data?.errors && response.data.errors.length > 0) {
+            const errorMessages = response.data.errors.slice(0, 5).map((e: any) => 
+              `${e.employeeCode || e.employeeName}: ${e.error}`
+            ).join('\n');
+            console.error('Payroll Processing Errors:', response.data.errors);
+            toast.error(`Errors:\n${errorMessages}`, { duration: 8000 });
+          }
+        } else {
+          toast.success(message);
+        }
+        
         setProcessDialogOpen(false);
         loadPayrollData();
       } else {
         toast.error(response.message || 'Failed to process payroll');
+        if (response.data?.errors && response.data.errors.length > 0) {
+          console.error('Payroll Processing Errors:', response.data.errors);
+        }
       }
     } catch (error: any) {
+      console.error('Payroll processing error:', error);
       toast.error(error.message || 'Failed to process payroll');
     } finally {
       setIsProcessing(false);
@@ -130,6 +168,9 @@ export default function PayrollAdminDashboard() {
       if (response.success) {
         toast.success('Payroll submitted for approval');
         loadPayrollData();
+        setSelectedPayrolls(new Set());
+        setSubmitDialogOpen(false);
+        setSubmitComments('');
       } else {
         toast.error(response.message || 'Failed to submit payroll');
       }
@@ -138,18 +179,131 @@ export default function PayrollAdminDashboard() {
     }
   };
 
+  const handleBulkSubmitPayroll = async () => {
+    if (selectedPayrolls.size === 0) {
+      toast.error('Please select at least one payroll to submit');
+      return;
+    }
+
+    try {
+      const promises = Array.from(selectedPayrolls).map(id => 
+        apiService.submitPayroll(id, submitComments || 'Bulk submitted for approval')
+      );
+      const results = await Promise.allSettled(promises);
+      
+      const successCount = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+      const failCount = results.length - successCount;
+
+      if (successCount > 0) {
+        toast.success(`${successCount} payroll(s) submitted for approval${failCount > 0 ? ` (${failCount} failed)` : ''}`);
+        loadPayrollData();
+        setSelectedPayrolls(new Set());
+        setSubmitDialogOpen(false);
+        setSubmitComments('');
+      } else {
+        toast.error('Failed to submit payrolls');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to submit payrolls');
+    }
+  };
+
+  const togglePayrollSelection = (payrollId: string) => {
+    const newSelected = new Set(selectedPayrolls);
+    if (newSelected.has(payrollId)) {
+      newSelected.delete(payrollId);
+    } else {
+      newSelected.add(payrollId);
+    }
+    setSelectedPayrolls(newSelected);
+  };
+
+  const selectAllDraftPayrolls = () => {
+    const draftPayrolls = payrolls.filter((p: any) => p.status === 'Draft');
+    setSelectedPayrolls(new Set(draftPayrolls.map((p: any) => p._id || p.id)));
+  };
+
+  const clearSelection = () => {
+    setSelectedPayrolls(new Set());
+  };
+
   const handleApprovePayroll = async (payrollId: string, comments?: string) => {
     try {
       const response = await apiService.approvePayroll(payrollId, comments);
       if (response.success) {
         toast.success('Payroll approved successfully');
         loadPayrollData();
+        // Remove from selected list
+        const newSelected = new Set(selectedPayrollsForApproval);
+        newSelected.delete(payrollId);
+        setSelectedPayrollsForApproval(newSelected);
       } else {
         toast.error(response.message || 'Failed to approve payroll');
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to approve payroll');
     }
+  };
+
+  const handleBulkApprovePayroll = async () => {
+    if (selectedPayrollsForApproval.size === 0) {
+      toast.error('Please select at least one payroll to approve');
+      return;
+    }
+
+    try {
+      setIsProcessing(true);
+      const promises = Array.from(selectedPayrollsForApproval).map(id => 
+        apiService.approvePayroll(id, approveComments || 'Bulk approved by checker')
+      );
+
+      const results = await Promise.allSettled(promises);
+      const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+      const failed = results.length - successful;
+
+      if (successful > 0) {
+        toast.success(`${successful} payroll(s) approved successfully`);
+      }
+      if (failed > 0) {
+        toast.error(`${failed} payroll(s) failed to approve`);
+      }
+
+      setApproveDialogOpen(false);
+      setApproveComments('');
+      setSelectedPayrollsForApproval(new Set());
+      loadPayrollData();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to approve payrolls');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const togglePayrollSelectionForApproval = (payrollId: string) => {
+    const newSelected = new Set(selectedPayrollsForApproval);
+    if (newSelected.has(payrollId)) {
+      newSelected.delete(payrollId);
+    } else {
+      newSelected.add(payrollId);
+    }
+    setSelectedPayrollsForApproval(newSelected);
+  };
+
+  const selectAllApprovablePayrolls = () => {
+    const currentUserId = currentUser?.id || currentUser?._id;
+    const approvablePayrolls = payrolls.filter((p: any) => {
+      const payrollId = p._id || p.id;
+      const isMaker = p.makerId && currentUserId && p.makerId.toString() === currentUserId.toString();
+      const isPayrollAdmin = currentUser?.role === 'Payroll Administrator' || currentUser?.role === 'Finance Administrator' || currentUser?.role === 'Super Admin';
+      const canApproveDraft = p.status === 'Draft' && isPayrollAdmin && (!p.makerId || !isMaker);
+      const canApproveSubmitted = p.status === 'Submitted' && !isMaker && isPayrollAdmin;
+      return canApproveDraft || canApproveSubmitted;
+    });
+    setSelectedPayrollsForApproval(new Set(approvablePayrolls.map((p: any) => p._id || p.id)));
+  };
+
+  const clearApprovalSelection = () => {
+    setSelectedPayrollsForApproval(new Set());
   };
 
   const handleRejectPayroll = async (payrollId: string, reason: string) => {
@@ -186,14 +340,14 @@ export default function PayrollAdminDashboard() {
 
   // BRD Access Control:
   // - Payroll Administrator: Full access (process + view)
-  // - HR Administrator: View access (cannot process)
+  // - HR Administrator: NOT ALLOWED (cannot process payroll or modify salary structures per BRD)
   // - Tenant Admin: View access (all reports)
   // - Finance Administrator: View access (financial reports)
   // - Auditor: Read-only access (view reports)
   // - Employee: Should use /payroll page (own payslip only)
   // - Manager: Should use /payroll page (team payslips)
   
-  const allowedRoles = ['Payroll Administrator', 'HR Administrator', 'Tenant Admin', 'Finance Administrator', 'Auditor', 'Super Admin'];
+  const allowedRoles = ['Payroll Administrator', 'Tenant Admin', 'Finance Administrator', 'Auditor', 'Super Admin'];
   const canProcessPayroll = hasPermission('process_payroll') || currentUser?.role === 'Payroll Administrator' || currentUser?.role === 'Super Admin';
   const canViewPayroll = hasPermission('view_payroll_reports') || hasPermission('process_payroll') || allowedRoles.includes(currentUser?.role || '');
 
@@ -353,27 +507,95 @@ export default function PayrollAdminDashboard() {
         {payrolls.length > 0 && (
           <Card className="border-0 shadow-sm">
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                Employee Salary Summary - {selectedMonth} {selectedYear}
-              </CardTitle>
-              <CardDescription>
-                {payrolls.filter((p: any) => ['Processed', 'Paid'].includes(p.status)).length} employees processed out of {payrolls.length} total
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Users className="w-5 h-5" />
+                    Employee Salary Summary - {selectedMonth} {selectedYear}
+                  </CardTitle>
+                  <CardDescription>
+                    {payrolls.filter((p: any) => ['Processed', 'Paid'].includes(p.status)).length} employees processed out of {payrolls.length} total
+                  </CardDescription>
+                </div>
+                {/* Bulk Approval Buttons */}
+                {payrolls.some((p: any) => {
+                  const currentUserId = currentUser?.id || currentUser?._id;
+                  const isMaker = p.makerId && currentUserId && p.makerId.toString() === currentUserId.toString();
+                  const isPayrollAdmin = currentUser?.role === 'Payroll Administrator' || currentUser?.role === 'Finance Administrator' || currentUser?.role === 'Super Admin';
+                  const canApproveDraft = p.status === 'Draft' && isPayrollAdmin && (!p.makerId || !isMaker);
+                  const canApproveSubmitted = p.status === 'Submitted' && !isMaker && isPayrollAdmin;
+                  return canApproveDraft || canApproveSubmitted;
+                }) && (
+                  <div className="flex gap-2">
+                    {selectedPayrollsForApproval.size > 0 && (
+                      <>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="text-green-600 border-green-600 hover:bg-green-50"
+                          onClick={() => {
+                            setApproveDialogOpen(true);
+                          }}
+                        >
+                          <CheckCircle2 className="w-4 h-4 mr-2" />
+                          Approve Selected ({selectedPayrollsForApproval.size})
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={clearApprovalSelection}>
+                          Clear
+                        </Button>
+                      </>
+                    )}
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="text-green-600 border-green-600 hover:bg-green-50"
+                      onClick={selectAllApprovablePayrolls}
+                    >
+                      <CheckSquare className="w-4 h-4 mr-2" />
+                      Select All Approvable
+                    </Button>
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
                 {payrolls.map((payroll: any) => {
                   const employee = payroll.employeeId;
                   const isProcessed = ['Processed', 'Paid'].includes(payroll.status);
+                  const payrollId = payroll._id || payroll.id;
+                  const currentUserId = currentUser?.id || currentUser?._id;
+                  const isMaker = payroll.makerId && currentUserId && payroll.makerId.toString() === currentUserId.toString();
+                  const isPayrollAdmin = currentUser?.role === 'Payroll Administrator' || currentUser?.role === 'Finance Administrator' || currentUser?.role === 'Super Admin';
+                  const canApproveDraft = payroll.status === 'Draft' && isPayrollAdmin && (!payroll.makerId || !isMaker);
+                  const canApproveSubmitted = payroll.status === 'Submitted' && !isMaker && isPayrollAdmin;
+                  const canApprove = canApproveDraft || canApproveSubmitted;
+                  const isSelectedForApproval = selectedPayrollsForApproval.has(payrollId);
+                  
                   return (
-                    <Card key={payroll._id || payroll.id} className={`border-2 ${isProcessed ? 'border-green-200 bg-green-50/50 dark:bg-green-900/10' : 'border-yellow-200 bg-yellow-50/50 dark:bg-yellow-900/10'}`}>
+                    <Card key={payrollId} className={`border-2 ${isProcessed ? 'border-green-200 bg-green-50/50 dark:bg-green-900/10' : isSelectedForApproval ? 'border-green-400 bg-green-100/50 dark:bg-green-900/20' : 'border-yellow-200 bg-yellow-50/50 dark:bg-yellow-900/10'}`}>
                       <CardContent className="p-4">
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-semibold text-sm">{employee?.firstName || ''} {employee?.lastName || ''}</p>
-                              <p className="text-xs text-muted-foreground">{employee?.employeeCode || ''} • {employee?.designation || ''}</p>
+                            <div className="flex items-center gap-2 flex-1">
+                              {/* Checkbox for bulk approval */}
+                              {canApprove && (
+                                <button
+                                  onClick={() => togglePayrollSelectionForApproval(payrollId)}
+                                  className="cursor-pointer"
+                                  title={isSelectedForApproval ? 'Deselect for approval' : 'Select for approval'}
+                                >
+                                  {isSelectedForApproval ? (
+                                    <CheckSquare className="w-4 h-4 text-green-600" />
+                                  ) : (
+                                    <Square className="w-4 h-4 text-muted-foreground" />
+                                  )}
+                                </button>
+                              )}
+                              <div className="flex-1">
+                                <p className="font-semibold text-sm">{employee?.firstName || ''} {employee?.lastName || ''}</p>
+                                <p className="text-xs text-muted-foreground">{employee?.employeeCode || ''} • {employee?.designation || ''}</p>
+                              </div>
                             </div>
                             <Badge className={isProcessed ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}>
                               {payroll.status || 'Draft'}
@@ -393,6 +615,21 @@ export default function PayrollAdminDashboard() {
                               <span className="text-green-600">₹{payroll.netSalary?.toLocaleString() || '0'}</span>
                             </div>
                           </div>
+                          {/* Approve button for Draft/Submitted payrolls */}
+                          {(payroll.status === 'Draft' || payroll.status === 'Submitted') && canApprove && (
+                            <div className="pt-2 border-t">
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="w-full text-green-600 hover:text-green-700 hover:bg-green-50"
+                                onClick={() => handleApprovePayroll(payrollId)}
+                                title={`Approve Payroll (${payroll.status})`}
+                              >
+                                <CheckCircle2 className="w-4 h-4 mr-2" />
+                                Approve
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -444,7 +681,7 @@ export default function PayrollAdminDashboard() {
                       </div>
                       <div className="flex justify-between text-sm border-t pt-3">
                         <span>Gross Salary</span>
-                        <span className="font-semibold">₹{(stats?.totalGrossSalary || 0).toLocaleString()}</span>
+                        <span className="font-semibold">₹{((stats?.totalGrossSalary || 0) || ((stats?.totalBasicSalary || 0) + (stats?.totalDA || 0) + (stats?.totalHRA || 0) + (stats?.totalAllowances || 0))).toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between text-sm text-red-600">
                         <span>Total Deductions</span>
@@ -604,14 +841,51 @@ export default function PayrollAdminDashboard() {
             {/* Payroll Table */}
             <Card className="border-0 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-lg">Payroll Records</CardTitle>
-                <CardDescription>{payrolls.length} employees</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">Payroll Records</CardTitle>
+                    <CardDescription>{payrolls.length} employees</CardDescription>
+                  </div>
+                  {canProcessPayroll && payrolls.filter((p: any) => p.status === 'Draft').length > 0 && (
+                    <div className="flex gap-2">
+                      {selectedPayrolls.size > 0 && (
+                        <>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              setSubmitDialogOpen(true);
+                            }}
+                          >
+                            <Send className="w-4 h-4 mr-2" />
+                            Submit Selected ({selectedPayrolls.size})
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={clearSelection}>
+                            Clear
+                          </Button>
+                        </>
+                      )}
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={selectAllDraftPayrolls}
+                      >
+                        Select All Draft
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                   <tr className="border-b border-border">
+                    {canProcessPayroll && (
+                      <th className="text-left p-3 font-semibold w-12">
+                        <CheckSquare className="w-4 h-4" />
+                      </th>
+                    )}
                     <th className="text-left p-3 font-semibold">Designation / Employee</th>
                     <th className="text-left p-3 font-semibold">Department</th>
                     <th className="text-right p-3 font-semibold">Basic</th>
@@ -619,6 +893,7 @@ export default function PayrollAdminDashboard() {
                     <th className="text-right p-3 font-semibold">Deductions</th>
                     <th className="text-right p-3 font-semibold">Net Salary</th>
                     <th className="text-center p-3 font-semibold">Status</th>
+                    <th className="text-left p-3 font-semibold">Maker/Checker</th>
                     <th className="text-left p-3 font-semibold">Actions</th>
                   </tr>
                     </thead>
@@ -651,7 +926,14 @@ export default function PayrollAdminDashboard() {
                         if (filteredPayrolls.length === 0) {
                           return (
                             <tr>
-                              <td colSpan={8} className="text-center p-6 text-muted-foreground">
+                              <td colSpan={(canProcessPayroll ? 1 : 0) + (payrolls.some((p: any) => {
+                                const currentUserId = currentUser?.id || currentUser?._id;
+                                const isMaker = p.makerId && currentUserId && p.makerId.toString() === currentUserId.toString();
+                                const isPayrollAdmin = currentUser?.role === 'Payroll Administrator' || currentUser?.role === 'Finance Administrator' || currentUser?.role === 'Super Admin';
+                                const canApproveDraft = p.status === 'Draft' && isPayrollAdmin && (!p.makerId || !isMaker);
+                                const canApproveSubmitted = p.status === 'Submitted' && !isMaker && isPayrollAdmin;
+                                return canApproveDraft || canApproveSubmitted;
+                              }) ? 1 : 0) + 9} className="text-center p-6 text-muted-foreground">
                                 No payroll records found for this period.
                               </td>
                             </tr>
@@ -662,7 +944,7 @@ export default function PayrollAdminDashboard() {
                         return Object.entries(groupedByDesignation).map(([designation, designationPayrolls]) => [
                           // Designation Header Row
                           <tr key={`header-${designation}`} className="bg-secondary/50">
-                            <td colSpan={8} className="p-3 font-bold text-lg">
+                            <td colSpan={canProcessPayroll ? 10 : 9} className="p-3 font-bold text-lg">
                               <div className="flex items-center justify-between">
                                 <span>{designation}</span>
                                 <Badge variant="outline">
@@ -678,8 +960,55 @@ export default function PayrollAdminDashboard() {
                           const allowances = (payroll.da || 0) + (payroll.hra || 0) + (payroll.allowances || 0);
                           const deductions = (payroll.pfDeduction || 0) + (payroll.esiDeduction || 0) + (payroll.incomeTax || 0) + (payroll.otherDeductions || 0);
                           
+                          const isSelected = selectedPayrolls.has(payrollId);
+                          // Check if current user is the maker
+                          // Note: currentUser uses 'id' field, not '_id'
+                          const currentUserId = currentUser?.id || currentUser?._id;
+                          const isMaker = payroll.makerId && currentUserId && payroll.makerId.toString() === currentUserId.toString();
+                          
+                          // Checker can approve Draft payrolls created by different Maker OR Submitted payrolls
+                          // For Draft: If makerId is set, current user must NOT be the maker. If makerId is not set, allow approval (backward compatibility)
+                          // For Submitted: Current user must NOT be the maker
+                          const isPayrollAdmin = currentUser?.role === 'Payroll Administrator' || currentUser?.role === 'Finance Administrator' || currentUser?.role === 'Super Admin';
+                          
+                          // Draft approval: Allow if makerId is not set (backward compatibility) OR if makerId is set and user is not the maker
+                          const canApproveDraft = payroll.status === 'Draft' && 
+                            isPayrollAdmin && 
+                            (!payroll.makerId || !isMaker); // Allow if no makerId OR if makerId exists and user is not the maker
+                          
+                          // Submitted approval: Only if user is not the maker
+                          const canApproveSubmitted = payroll.status === 'Submitted' && 
+                            !isMaker && 
+                            isPayrollAdmin;
+                          
+                          const canApprove = canApproveDraft || canApproveSubmitted;
+                          const canSubmit = payroll.status === 'Draft' && canProcessPayroll && !isMaker; // Maker can submit their own Draft payrolls
+                          
+                          // Debug logging (remove in production)
+                          if ((payroll.status === 'Draft' || payroll.status === 'Submitted') && isPayrollAdmin) {
+                            console.log(`[Payroll ${payrollId}] Status: ${payroll.status}, MakerId: ${payroll.makerId || 'NOT SET'}, CurrentUserId: ${currentUserId || 'NOT SET'}, IsMaker: ${isMaker}, CanApproveDraft: ${canApproveDraft}, CanApproveSubmitted: ${canApproveSubmitted}, CanApprove: ${canApprove}, Role: ${currentUser?.role}`);
+                          }
+                          
                           return (
                             <tr key={payrollId} className="border-b border-border hover:bg-secondary/50">
+                              {canProcessPayroll && (
+                                <td className="p-3">
+                                  {payroll.status === 'Draft' ? (
+                                    <button
+                                      onClick={() => togglePayrollSelection(payrollId)}
+                                      className="cursor-pointer"
+                                    >
+                                      {isSelected ? (
+                                        <CheckSquare className="w-4 h-4 text-primary" />
+                                      ) : (
+                                        <Square className="w-4 h-4 text-muted-foreground" />
+                                      )}
+                                    </button>
+                                  ) : (
+                                    <span className="text-muted-foreground">-</span>
+                                  )}
+                                </td>
+                              )}
                               <td className="p-3">
                                 <div>
                                   <div className="font-medium">{employee?.firstName || ''} {employee?.lastName || ''}</div>
@@ -699,31 +1028,83 @@ export default function PayrollAdminDashboard() {
                                   className={
                                     payroll.status === 'Paid' ? 'bg-green-100 text-green-700' :
                                     payroll.status === 'Processed' ? 'bg-blue-100 text-blue-700' :
+                                    payroll.status === 'Approved' ? 'bg-purple-100 text-purple-700' :
+                                    payroll.status === 'Submitted' ? 'bg-yellow-100 text-yellow-700' :
                                     payroll.status === 'Draft' ? 'bg-gray-100 text-gray-700' :
-                                    'bg-yellow-100 text-yellow-700'
+                                    'bg-red-100 text-red-700'
                                   }
                                 >
                                   {payroll.status || 'Pending'}
                                 </Badge>
                               </td>
                               <td className="p-3">
+                                <div className="text-xs space-y-1">
+                                  {payroll.makerName && (
+                                    <div>
+                                      <span className="text-muted-foreground">Maker:</span>
+                                      <span className="ml-1 font-medium">{payroll.makerName}</span>
+                                    </div>
+                                  )}
+                                  {payroll.checkerName && (
+                                    <div>
+                                      <span className="text-muted-foreground">Checker:</span>
+                                      <span className="ml-1 font-medium">{payroll.checkerName}</span>
+                                    </div>
+                                  )}
+                                  {!payroll.makerName && !payroll.checkerName && (
+                                    <span className="text-muted-foreground">-</span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-3">
                                 <div className="flex gap-2">
-                                  <Button size="sm" variant="ghost" onClick={() => handleViewPayroll(payroll)}>
+                                  <Button size="sm" variant="ghost" onClick={() => handleViewPayroll(payroll)} title="View Details">
                                     <Eye className="w-4 h-4" />
                                   </Button>
-                                  {canProcessPayroll && (
-                                    <>
-                                      {payroll.status === 'Draft' && (
-                                        <Button size="sm" variant="ghost" onClick={() => handleApprovePayroll(payrollId)}>
-                                          <CheckCircle2 className="w-4 h-4" />
-                                        </Button>
-                                      )}
-                                      {payroll.status === 'Processed' && (
-                                        <Button size="sm" variant="ghost" onClick={() => handleFinalizePayroll(payrollId)}>
-                                          <Send className="w-4 h-4" />
-                                        </Button>
-                                      )}
-                                    </>
+                                  {canSubmit && (
+                                    <Button 
+                                      size="sm" 
+                                      variant="ghost" 
+                                      onClick={() => {
+                                        setSelectedPayroll(payroll);
+                                        setSubmitDialogOpen(true);
+                                      }}
+                                      title="Submit for Approval"
+                                    >
+                                      <Send className="w-4 h-4" />
+                                    </Button>
+                                  )}
+                                  {canApprove && (
+                                    <Button 
+                                      size="sm" 
+                                      variant="ghost" 
+                                      onClick={() => handleApprovePayroll(payrollId)}
+                                      title={`Approve Payroll (${payroll.status})`}
+                                      className="text-green-600 hover:text-green-700"
+                                    >
+                                      <CheckCircle2 className="w-4 h-4" />
+                                    </Button>
+                                  )}
+                                  {/* Debug: Show why approve button is not visible */}
+                                  {(payroll.status === 'Draft' || payroll.status === 'Submitted') && !canApprove && (currentUser?.role === 'Payroll Administrator' || currentUser?.role === 'Finance Administrator' || currentUser?.role === 'Super Admin') && (
+                                    <span className="text-xs text-muted-foreground" title={`Cannot approve: ${isMaker ? 'Own payroll' : !payroll.makerId ? 'No maker set' : 'Unknown reason'}`}>
+                                      {isMaker ? 'Own' : 'N/A'}
+                                    </span>
+                                  )}
+                                  {payroll.status === 'Processed' && canProcessPayroll && (
+                                    <Button 
+                                      size="sm" 
+                                      variant="ghost" 
+                                      onClick={() => handleFinalizePayroll(payrollId)}
+                                      title="Mark as Paid"
+                                    >
+                                      <Send className="w-4 h-4" />
+                                    </Button>
+                                  )}
+                                  {(payroll.status === 'Submitted' || payroll.status === 'Draft') && isMaker && (
+                                    <span className="text-xs text-muted-foreground" title="You cannot approve your own payroll">
+                                      Cannot approve
+                                    </span>
                                   )}
                                 </div>
                               </td>
@@ -1033,7 +1414,7 @@ export default function PayrollAdminDashboard() {
                           })
                       ) : (
                         <tr>
-                          <td colSpan={9} className="text-center p-6 text-muted-foreground">
+                          <td colSpan={canProcessPayroll ? 10 : 9} className="text-center p-6 text-muted-foreground">
                             No payroll records found for {selectedMonth} {selectedYear}
                           </td>
                         </tr>
@@ -1267,6 +1648,62 @@ export default function PayrollAdminDashboard() {
                     <span className="text-green-600">₹{selectedPayroll.netSalary?.toLocaleString()}</span>
                   </div>
                 </div>
+                
+                {/* Maker-Checker Information */}
+                {(selectedPayroll.makerName || selectedPayroll.checkerName) && (
+                  <div className="border-t pt-4 space-y-3">
+                    <h4 className="font-semibold">Approval Workflow</h4>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      {selectedPayroll.makerName && (
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Maker (Created By)</Label>
+                          <p className="font-medium">{selectedPayroll.makerName}</p>
+                          {selectedPayroll.submittedDate && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Submitted: {new Date(selectedPayroll.submittedDate).toLocaleDateString('en-IN')}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {selectedPayroll.checkerName && (
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Checker (Approved By)</Label>
+                          <p className="font-medium">{selectedPayroll.checkerName}</p>
+                          {selectedPayroll.approvedDate && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Approved: {new Date(selectedPayroll.approvedDate).toLocaleDateString('en-IN')}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {selectedPayroll.approvalHistory && selectedPayroll.approvalHistory.length > 0 && (
+                      <div className="mt-3">
+                        <Label className="text-xs text-muted-foreground mb-2 block">Approval History</Label>
+                        <div className="space-y-2">
+                          {selectedPayroll.approvalHistory.map((history: any, idx: number) => (
+                            <div key={idx} className="text-xs bg-secondary/50 p-2 rounded">
+                              <div className="flex justify-between">
+                                <span className="font-medium">{history.action}</span>
+                                <span className="text-muted-foreground">
+                                  {new Date(history.timestamp).toLocaleDateString('en-IN')}
+                                </span>
+                              </div>
+                              <div className="text-muted-foreground mt-1">
+                                {history.userName} ({history.userRole})
+                              </div>
+                              {history.comments && (
+                                <div className="text-muted-foreground mt-1 italic">
+                                  "{history.comments}"
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             <DialogFooter>
@@ -1278,6 +1715,108 @@ export default function PayrollAdminDashboard() {
               }}>
                 <Download className="w-4 h-4 mr-2" />
                 Download Payslip
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Submit Payroll Dialog */}
+        <Dialog open={submitDialogOpen} onOpenChange={setSubmitDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {selectedPayrolls.size > 0 
+                  ? `Submit ${selectedPayrolls.size} Payroll(s) for Approval`
+                  : 'Submit Payroll for Approval'
+                }
+              </DialogTitle>
+              <DialogDescription>
+                {selectedPayrolls.size > 0
+                  ? `Submit ${selectedPayrolls.size} selected payroll record(s) for approval.`
+                  : selectedPayroll 
+                    ? `Submit payroll for ${selectedPayroll.employeeId?.firstName} ${selectedPayroll.employeeId?.lastName} (${selectedPayroll.month} ${selectedPayroll.year}) for approval.`
+                    : 'Submit payroll for approval.'
+                }
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div>
+                <Label htmlFor="submit-comments">Comments (Optional)</Label>
+                <Textarea
+                  id="submit-comments"
+                  placeholder="Add any comments for the checker..."
+                  value={submitComments}
+                  onChange={(e) => setSubmitComments(e.target.value)}
+                  rows={3}
+                  className="mt-2"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => {
+                setSubmitDialogOpen(false);
+                setSubmitComments('');
+                setSelectedPayroll(null);
+              }}>
+                Cancel
+              </Button>
+              <Button onClick={() => {
+                if (selectedPayrolls.size > 0) {
+                  handleBulkSubmitPayroll();
+                } else if (selectedPayroll) {
+                  handleSubmitPayroll(selectedPayroll._id || selectedPayroll.id, submitComments);
+                }
+              }}>
+                <Send className="w-4 h-4 mr-2" />
+                Submit for Approval
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Bulk Approve Dialog */}
+        <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {selectedPayrollsForApproval.size > 0 
+                  ? `Approve ${selectedPayrollsForApproval.size} Payroll(s)`
+                  : 'Approve Payroll'}
+              </DialogTitle>
+              <DialogDescription>
+                {selectedPayrollsForApproval.size > 0
+                  ? `Approve ${selectedPayrollsForApproval.size} selected payroll record(s).`
+                  : 'Approve this payroll record.'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div>
+                <Label htmlFor="approve-comments">Comments (Optional)</Label>
+                <Textarea
+                  id="approve-comments"
+                  placeholder="Add comments for approval..."
+                  value={approveComments}
+                  onChange={(e) => setApproveComments(e.target.value)}
+                  rows={3}
+                  className="mt-2"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => {
+                setApproveDialogOpen(false);
+                setApproveComments('');
+              }}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => {
+                  handleBulkApprovePayroll();
+                }}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+                {isProcessing ? 'Approving...' : 'Approve'}
               </Button>
             </DialogFooter>
           </DialogContent>

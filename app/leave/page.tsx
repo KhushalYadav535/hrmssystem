@@ -78,9 +78,16 @@ export default function LeavePage() {
 
   const loadLeavePolicies = async () => {
     try {
+      // Get only Active leave policies for current tenant (backend filters by tenantId)
       const response = await apiService.getLeavePolicies({ status: 'Active' });
       if (response.success && response.data) {
-        setAvailableLeaveTypes(Array.isArray(response.data) ? response.data : []);
+        const policies = Array.isArray(response.data) ? response.data : [];
+        // Backend already filters by tenantId, so these are tenant-specific policies
+        setAvailableLeaveTypes(policies);
+        console.log(`[LeavePage] Loaded ${policies.length} active leave policies for tenant`);
+        if (policies.length > 0) {
+          console.log(`[LeavePage] Policies:`, policies.map(p => p.leaveType).join(', '));
+        }
       }
     } catch (error) {
       console.error('Failed to load leave policies', error);
@@ -105,7 +112,14 @@ export default function LeavePage() {
       const employeeId = currentEmployee._id || currentEmployee.id;
       const response = await apiService.getLeaveBalance(employeeId);
       if (response.success && response.data) {
-        setLeaveBalances(Array.isArray(response.data) ? response.data : []);
+        const balances = Array.isArray(response.data) ? response.data : [];
+        // Filter to show only balances for active leave policies (tenant-specific)
+        // Backend already filters by tenantId, but we ensure frontend only shows valid balances
+        setLeaveBalances(balances);
+        console.log(`[LeavePage] Loaded ${balances.length} leave balances for employee ${employeeId}`);
+        if (balances.length > 0) {
+          console.log(`[LeavePage] Leave types:`, balances.map(b => b.leaveType).join(', '));
+        }
       }
     } catch (error) {
       console.error('Failed to load leave balances', error);
@@ -192,22 +206,60 @@ export default function LeavePage() {
         return;
       }
 
-      // Check medical certificate requirement
-      const days = Math.ceil((formData.endDate.getTime() - formData.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-      if (formData.leaveType.toLowerCase().includes('sick') && days > 3 && !formData.medicalCertificate) {
-        toast({
-          title: "Error",
-          description: "Medical certificate is required for sick leave exceeding 3 days",
-          variant: "destructive",
-        });
-        return;
+      // Extract just the leave type name (remove any extra text like " (X days/year)")
+      const leaveTypeName = formData.leaveType.split(' (')[0].trim();
+
+      // Check leave balance - skip check for Leave Without Pay (LWP)
+      if (!leaveTypeName.toLowerCase().includes('without pay') && 
+          !leaveTypeName.toLowerCase().includes('lwp')) {
+        const balance = leaveBalances.find(b => b.leaveType === leaveTypeName);
+        const availableBalance = balance?.available || 0;
+        
+        if (availableBalance <= 0) {
+          toast({
+            title: "Error",
+            description: `Leave balance is 0 for ${leaveTypeName}. You cannot apply for this leave type. Please check your leave balance or contact HR.`,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Check medical certificate requirement
+        const days = Math.ceil((formData.endDate.getTime() - formData.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        
+        if (days > availableBalance) {
+          toast({
+            title: "Error",
+            description: `Insufficient leave balance. Available: ${availableBalance} days, Requested: ${days} days`,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        if (leaveTypeName.toLowerCase().includes('sick') && days > 3 && !formData.medicalCertificate) {
+          toast({
+            title: "Error",
+            description: "Medical certificate is required for sick leave exceeding 3 days",
+            variant: "destructive",
+          });
+          return;
+        }
+      } else {
+        // For LWP, still check medical certificate if needed
+        const days = Math.ceil((formData.endDate.getTime() - formData.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        if (leaveTypeName.toLowerCase().includes('sick') && days > 3 && !formData.medicalCertificate) {
+          toast({
+            title: "Error",
+            description: "Medical certificate is required for sick leave exceeding 3 days",
+            variant: "destructive",
+          });
+          return;
+        }
       }
 
       setIsSubmitting(true);
 
-      // Extract just the leave type name (remove any extra text like " (X days/year)")
-      const leaveTypeName = formData.leaveType.split(' (')[0].trim();
-      
+      // leaveTypeName already extracted above
       const payload: any = {
         leaveType: leaveTypeName,
         startDate: formData.startDate.toISOString(),
@@ -297,11 +349,29 @@ export default function LeavePage() {
                       </SelectTrigger>
                       <SelectContent>
                         {availableLeaveTypes.length > 0 ? (
-                          availableLeaveTypes.map((policy) => (
-                            <SelectItem key={policy._id || policy.id} value={policy.leaveType}>
-                              {policy.leaveType} ({policy.daysPerYear} days/year)
-                            </SelectItem>
-                          ))
+                          availableLeaveTypes.map((policy) => {
+                            const balance = leaveBalances.find(b => b.leaveType === policy.leaveType);
+                            const availableBalance = balance?.available || 0;
+                            const isLWP = policy.leaveType.toLowerCase().includes('without pay') || 
+                                         policy.leaveType.toLowerCase().includes('lwp');
+                            const isDisabled = !isLWP && availableBalance <= 0;
+                            
+                            return (
+                              <SelectItem 
+                                key={policy._id || policy.id} 
+                                value={policy.leaveType}
+                                disabled={isDisabled}
+                                className={isDisabled ? "opacity-50 cursor-not-allowed" : ""}
+                              >
+                                {policy.leaveType} ({policy.daysPerYear} days/year)
+                                {!isLWP && (
+                                  <span className="ml-2 text-xs text-muted-foreground">
+                                    {availableBalance > 0 ? `(${availableBalance} available)` : '(Balance: 0)'}
+                                  </span>
+                                )}
+                              </SelectItem>
+                            );
+                          })
                         ) : (
                           <>
                             <SelectItem value="Casual Leave">Casual Leave</SelectItem>
@@ -408,10 +478,21 @@ export default function LeavePage() {
                       <div>
                         <p className="text-2xl font-bold">{balance.available}</p>
                         <p className="text-xs text-muted-foreground">Available</p>
+                        {balance.accrualFrequency && balance.accrualFrequency !== 'None' && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Accrual: {balance.accrualFrequency === 'Monthly' ? 'Monthly' : balance.accrualFrequency === 'Quarterly' ? 'Quarterly' : 'Yearly'} 
+                            {balance.accrualRate && ` (${balance.accrualRate} day${balance.accrualRate !== 1 ? 's' : ''} per ${balance.accrualFrequency === 'Monthly' ? 'month' : balance.accrualFrequency === 'Quarterly' ? 'quarter' : 'year'})`}
+                          </p>
+                        )}
                       </div>
                       <div className="border-l pl-4">
                         <p className="text-2xl font-bold">{balance.used}</p>
                         <p className="text-xs text-muted-foreground">Used</p>
+                        {balance.daysPerYear && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Total: {balance.daysPerYear} days/year
+                          </p>
+                        )}
                       </div>
                     </div>
                     {balance.carryForward && (
@@ -467,8 +548,14 @@ export default function LeavePage() {
                             {startDate} to {endDate} ({days} days)
                           </p>
                           <p className="text-xs text-muted-foreground mt-1">Reason: {leave.reason}</p>
-                          {leave.approvedBy && (
-                            <p className="text-xs text-muted-foreground">Approved by: {leave.approvedBy}</p>
+                          {leave.approverName && leave.status === 'Approved' && (
+                            <p className="text-xs text-green-600 mt-1">✓ Approved by: {leave.approverName}</p>
+                          )}
+                          {leave.approverName && leave.status === 'Rejected' && (
+                            <p className="text-xs text-red-600 mt-1">✗ Rejected by: {leave.approverName}</p>
+                          )}
+                          {leave.comments && (
+                            <p className="text-xs text-muted-foreground mt-1 italic">Comments: {leave.comments}</p>
                           )}
                           {leave.isSandwichLeave && (
                             <Badge variant="outline" className="mt-1 text-xs">

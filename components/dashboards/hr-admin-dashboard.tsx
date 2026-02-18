@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
 import { useEmployees } from '@/lib/hooks/useEmployees';
 import { useJobs } from '@/lib/hooks/useJobs';
-import { Users, BarChart3, TrendingUp, Briefcase, AlertCircle, Plus } from 'lucide-react';
+import { Users, BarChart3, TrendingUp, Briefcase, AlertCircle, Plus, Calendar } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import apiService from '@/lib/api';
@@ -416,7 +416,7 @@ export default function HRAdminDashboard() {
           <CardTitle className="text-lg">Quick Actions</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <Button variant="outline" className="h-24 flex flex-col items-center justify-center bg-transparent" asChild>
               <Link href="/personnel">
                 <Users className="w-6 h-6 mb-2" />
@@ -427,6 +427,12 @@ export default function HRAdminDashboard() {
               <Link href="/recruitment">
                 <Briefcase className="w-6 h-6 mb-2" />
                 <span className="text-xs">Manage Jobs</span>
+              </Link>
+            </Button>
+            <Button variant="outline" className="h-24 flex flex-col items-center justify-center bg-transparent" asChild>
+              <Link href="/leave">
+                <Calendar className="w-6 h-6 mb-2" />
+                <span className="text-xs">Apply Leave</span>
               </Link>
             </Button>
             <Button variant="outline" className="h-24 flex flex-col items-center justify-center bg-transparent" asChild>

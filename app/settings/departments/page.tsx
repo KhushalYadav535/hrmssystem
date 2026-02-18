@@ -122,7 +122,11 @@ export default function DepartmentManagementPage() {
     }
   };
 
-  const handleDelete = async (id: string | number) => {
+  const handleDelete = async (id: string | number | undefined) => {
+    if (!id) {
+      toast.error('Department ID is missing');
+      return;
+    }
     if (confirm('Are you sure you want to delete this department?')) {
       try {
         const response = await apiService.deleteDepartment(id.toString());
@@ -259,34 +263,38 @@ export default function DepartmentManagementPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {departments.map((dept) => (
-                <div key={dept.id} className="p-4 border border-border rounded-lg hover:bg-secondary/30 transition">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-lg">{dept.name}</h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline">Head: {dept.head}</Badge>
-                        <Badge variant="outline">{dept.costCenter}</Badge>
-                        <Badge className="bg-green-600">{dept.status}</Badge>
+              {departments.map((dept) => {
+                const deptId = dept._id || dept.id;
+                if (!deptId) return null;
+                return (
+                  <div key={deptId} className="p-4 border border-border rounded-lg hover:bg-secondary/30 transition">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-lg">{dept.name}</h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline">Head: {dept.head}</Badge>
+                          <Badge variant="outline">{dept.costCenter}</Badge>
+                          <Badge className="bg-green-600">{dept.status}</Badge>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-bold">{dept.employees}</p>
+                        <p className="text-xs text-muted-foreground">employees</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-bold">{dept.employees}</p>
-                      <p className="text-xs text-muted-foreground">employees</p>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="gap-2 bg-transparent" onClick={() => handleEdit(dept)}>
+                        <Edit className="w-4 h-4" />
+                        Edit
+                      </Button>
+                      <Button size="sm" variant="destructive" className="gap-2" onClick={() => handleDelete(deptId)}>
+                        <Trash2 className="w-4 h-4" />
+                        Delete
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" className="gap-2 bg-transparent" onClick={() => handleEdit(dept)}>
-                      <Edit className="w-4 h-4" />
-                      Edit
-                    </Button>
-                    <Button size="sm" variant="destructive" className="gap-2" onClick={() => handleDelete(dept.id)}>
-                      <Trash2 className="w-4 h-4" />
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>

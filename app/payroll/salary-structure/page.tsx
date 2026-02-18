@@ -152,7 +152,7 @@ function SortableComponentItem({
 }
 
 export default function SalaryStructurePage() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, hasPermission, currentUser } = useAuth();
   
   // --- State ---
   const [structures, setStructures] = useState<SalaryStructure[]>([]);
@@ -165,6 +165,21 @@ export default function SalaryStructurePage() {
       loadStructures();
     }
   }, [isAuthenticated]);
+
+  // BRD Access Control: Payroll Administrator can configure salary structures
+  // According to BRD: "Configure salary structures and components" is a Payroll Administrator permission
+  // Allow Payroll Administrator, Tenant Admin, Super Admin, or users with manage_settings permission
+  const allowedRoles = ['Payroll Administrator', 'Tenant Admin', 'Super Admin'];
+  const hasAccess = hasPermission('manage_settings') || 
+                    (currentUser?.role && allowedRoles.includes(currentUser.role));
+
+  if (!isAuthenticated) {
+    redirect('/login');
+  }
+
+  if (!hasAccess) {
+    redirect('/dashboard');
+  }
 
   const loadStructures = async () => {
     try {
@@ -209,7 +224,7 @@ export default function SalaryStructurePage() {
     })
   );
 
-  if (!isAuthenticated) redirect('/login');
+  // Permission check already done above
 
   // --- Handlers ---
   const handleDragEnd = (event: DragEndEvent) => {

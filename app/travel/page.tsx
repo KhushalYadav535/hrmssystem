@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Plane, MapPin, Briefcase, DollarSign, Calendar, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, Plane, MapPin, Briefcase, DollarSign, Calendar, CheckCircle2, XCircle, FileText } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import apiService from '@/lib/api';
@@ -83,16 +83,23 @@ export default function TravelPage() {
   }
 
   // Check if user is Tenant Admin - they should see approval dashboard, not create options
-  const isTenantAdmin = currentUser?.role === 'Tenant Admin';
+  const isTenantAdmin = currentUser?.role === 'Tenant Admin' || currentUser?.role === 'Super Admin';
+  const canSubmitTravel = hasPermission('submit_expense') && !isTenantAdmin;
   const canSubmitExpense = hasPermission('submit_expense') && !isTenantAdmin;
 
-  const pendingExpenses = expenses.filter((e) => e.status === 'Pending' || e.status === 'Submitted');
-  const approvedExpenses = expenses.filter((e) => e.status === 'Approved' || e.status === 'Paid');
+  // Calculate derived data from loaded travel data
+  const pendingRequests = travelRequests.filter((r) => r.status === 'Pending' || r.status === 'Submitted');
+  const pendingAdvances = travelAdvances.filter((a) => a.status === 'Pending' || a.status === 'Submitted');
+  const pendingClaims = travelClaims.filter((c) => c.status === 'Pending' || c.status === 'Submitted');
+  
+  const totalAdvanceAmount = travelAdvances.reduce((sum, a) => sum + (a.advanceAmount || 0), 0);
+  const totalPendingAmount = pendingClaims.reduce((sum, c) => sum + (c.totalClaimAmount || 0), 0);
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Approved':
       case 'Paid':
+      case 'Settled':
         return 'bg-green-100 text-green-700';
       case 'Rejected':
         return 'bg-red-100 text-red-700';
@@ -103,9 +110,6 @@ export default function TravelPage() {
         return 'bg-gray-100 text-gray-700';
     }
   };
-
-  const totalPending = pendingExpenses.reduce((sum, e) => sum + e.amount, 0);
-  const totalApproved = approvedExpenses.reduce((sum, e) => sum + e.amount, 0);
 
   return (
     <DashboardLayout>
