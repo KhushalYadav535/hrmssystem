@@ -216,24 +216,6 @@ export default function LoginPage() {
                     {isLoading ? 'Signing in...' : 'Sign In'}
                   </Button>
                 </form>
-
-                {/* Demo Credentials */}
-                <div className="bg-gradient-to-br from-secondary/40 to-secondary/20 border border-secondary/50 rounded-xl p-4 mt-6 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-accent" />
-                    <p className="font-semibold text-sm text-foreground">Demo Credentials</p>
-                  </div>
-                  <div className="space-y-2 text-xs text-muted-foreground">
-                    <p className="font-medium">🔐 Super Admin: <span className="text-foreground">superadmin@indianbank.com / admin123</span></p>
-                    <p className="font-medium">👑 Tenant Admin (CEO): <span className="text-foreground">ceo@indianbank.com / admin123</span></p>
-                    <p className="font-medium">👨‍💼 HR Administrator: <span className="text-foreground">admin.hr@indianbank.com / password123</span></p>
-                    <p className="font-medium">💰 Payroll Administrator: <span className="text-foreground">payroll@indianbank.com / password123</span></p>
-                    <p className="font-medium">💵 Finance Administrator: <span className="text-foreground">finance@indianbank.com / password123</span></p>
-                    <p className="font-medium">👔 Manager: <span className="text-foreground">priya.sharma@indianbank.com / password123</span></p>
-                    <p className="font-medium">👤 Employee: <span className="text-foreground">rajesh.kumar@indianbank.com / password123</span></p>
-                    <p className="font-medium">🔍 Auditor: <span className="text-foreground">auditor@indianbank.com / password123</span></p>
-                  </div>
-                </div>
               </TabsContent>
 
               {/* User Select Login - Disabled for API integration */}
