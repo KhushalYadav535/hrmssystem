@@ -22,6 +22,7 @@ interface User {
   email: string;
   name: string;
   role: string;
+  payrollSubRole?: 'Maker' | 'Checker' | null;
   designation?: string;
   department?: string;
   status: string;
@@ -42,6 +43,7 @@ export default function UsersPage() {
     name: '',
     email: '',
     role: '',
+    payrollSubRole: '' as '' | 'Maker' | 'Checker',
     designation: '',
     department: '',
     status: 'active',
@@ -99,6 +101,7 @@ export default function UsersPage() {
       name: user.name || '',
       email: user.email || '',
       role: user.role || '',
+      payrollSubRole: (user.role === 'Payroll Administrator' && (user.payrollSubRole === 'Maker' || user.payrollSubRole === 'Checker')) ? user.payrollSubRole : '',
       designation: user.designation || '',
       department: user.department || '',
       status: user.status === 'active' || user.status === 'Active' ? 'active' : 'inactive',
@@ -116,7 +119,8 @@ export default function UsersPage() {
         return;
       }
 
-      const response = await apiService.updateUser(userId.toString(), userFormData);
+      const payload = { ...userFormData, payrollSubRole: userFormData.payrollSubRole || null };
+      const response = await apiService.updateUser(userId.toString(), payload);
       if (response.success) {
         toast.success('User updated successfully');
         setIsEditDialogOpen(false);
@@ -266,7 +270,12 @@ export default function UsersPage() {
                           <div className="flex items-center gap-2 mb-1">
                             <h3 className="font-semibold text-lg">{user.name || 'Unknown User'}</h3>
                             {user.role && (
-                              <Badge className={getRoleBadgeColor(user.role)}>{user.role}</Badge>
+                              <Badge className={getRoleBadgeColor(user.role)}>
+                                {user.role}
+                                {user.role === 'Payroll Administrator' && (user.payrollSubRole === 'Maker' || user.payrollSubRole === 'Checker') && (
+                                  <span className="ml-1 opacity-90">({user.payrollSubRole})</span>
+                                )}
+                              </Badge>
                             )}
                             {user.status && (
                             <Badge
@@ -409,7 +418,7 @@ export default function UsersPage() {
                 <Label htmlFor="edit-role">Role</Label>
                 <Select
                   value={userFormData.role}
-                  onValueChange={(value) => setUserFormData({ ...userFormData, role: value })}
+                  onValueChange={(value) => setUserFormData({ ...userFormData, role: value, payrollSubRole: value === 'Payroll Administrator' ? userFormData.payrollSubRole : '' })}
                 >
                   <SelectTrigger id="edit-role">
                     <SelectValue placeholder="Select role" />
@@ -426,6 +435,25 @@ export default function UsersPage() {
                   </SelectContent>
                 </Select>
               </div>
+              {userFormData.role === 'Payroll Administrator' && (
+                <div className="space-y-2">
+                  <Label htmlFor="edit-payroll-subrole">Payroll Type (BRD Maker-Checker)</Label>
+                  <Select
+                    value={userFormData.payrollSubRole || 'select'}
+                    onValueChange={(value) => setUserFormData({ ...userFormData, payrollSubRole: value === 'Maker' || value === 'Checker' ? value : '' })}
+                  >
+                    <SelectTrigger id="edit-payroll-subrole">
+                      <SelectValue placeholder="Select Maker or Checker" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="select">Select...</SelectItem>
+                      <SelectItem value="Maker">Maker (Create/Edit Payroll)</SelectItem>
+                      <SelectItem value="Checker">Checker (Approve/Reject Only)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Maker: processes payroll. Checker: reviews and approves only.</p>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="edit-designation">Designation</Label>
                 <Input

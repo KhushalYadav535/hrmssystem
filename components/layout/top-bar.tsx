@@ -12,7 +12,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Menu, Bell, User, LogOut, Building2, Moon, Sun, Monitor } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { mockNotifications } from '@/lib/mock-data';
 import { useState } from 'react';
 
@@ -23,13 +22,18 @@ interface TopBarProps {
 export default function TopBar({ onToggleSidebar }: TopBarProps) {
   const { currentUser, currentTenant, logout, switchTenant } = useAuth();
   const { theme, setTheme } = useTheme();
-  const router = useRouter();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const unreadCount = mockNotifications.filter((n) => !n.read).length;
 
-  const handleLogout = () => {
-    logout();
-    router.push('/login');
+  // BR-P0-001 Bug 1: Enhanced logout handler - use full navigation to avoid hydration/transition issues
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      window.location.href = '/login';
+    }
   };
 
   return (
@@ -142,10 +146,11 @@ export default function TopBar({ onToggleSidebar }: TopBarProps) {
               <Button variant="ghost" size="icon" className="w-10 h-10">
                 <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
                   <span className="text-xs font-bold text-primary">
-                    {currentUser?.name
+                    {(currentUser?.name ?? '')
                       .split(' ')
                       .map((n) => n[0])
-                      .join('')}
+                      .filter(Boolean)
+                      .join('') || '?'}
                   </span>
                 </div>
               </Button>

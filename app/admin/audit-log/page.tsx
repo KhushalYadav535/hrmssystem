@@ -44,16 +44,6 @@ export default function AuditLogPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadAuditLogs();
-    }
-  }, [isAuthenticated, selectedModule, selectedAction, selectedStatus, dateFrom, dateTo]);
-
-  if (!isAuthenticated || !hasPermission('view_audit_logs')) {
-    redirect('/dashboard');
-  }
-
   const loadAuditLogs = async () => {
     try {
       setIsLoading(true);
@@ -79,16 +69,23 @@ export default function AuditLogPage() {
   };
 
   useEffect(() => {
+    if (isAuthenticated) {
+      loadAuditLogs();
+    }
+  }, [isAuthenticated, selectedModule, selectedAction, selectedStatus, dateFrom, dateTo]);
+
+  useEffect(() => {
     const timeoutId = setTimeout(() => {
-      if (searchTerm !== '') {
-        loadAuditLogs();
-      } else {
+      if (isAuthenticated) {
         loadAuditLogs();
       }
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [searchTerm]);
+  }, [searchTerm, isAuthenticated]);
+
+  if (!isAuthenticated) redirect('/login');
+  if (!hasPermission('view_audit_logs')) redirect('/dashboard');
 
   const getActionIcon = (action: string) => {
     switch (action.toLowerCase()) {

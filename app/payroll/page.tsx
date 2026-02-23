@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Download, Eye, Send } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { apiService } from '@/lib/api';
+import apiService from '@/lib/api';
 import { toast } from 'sonner';
 
 export default function PayrollPage() {

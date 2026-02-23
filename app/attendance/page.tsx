@@ -283,6 +283,24 @@ export default function AttendancePage() {
                   Request Regularization
                 </Link>
               </Button>
+              <Button 
+                className="w-full bg-transparent" 
+                variant="outline"
+                asChild
+              >
+                <Link href="/attendance/my-shift">
+                  View My Shift
+                </Link>
+              </Button>
+              <Button 
+                className="w-full bg-transparent" 
+                variant="outline"
+                asChild
+              >
+                <Link href="/attendance/overtime">
+                  Overtime Requests
+                </Link>
+              </Button>
               <div className="p-4 bg-secondary/50 rounded-lg">
                 <p className="text-sm text-muted-foreground">Today's Status</p>
                 {todayStatus?.checkedIn ? (

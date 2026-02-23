@@ -24,9 +24,15 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  Package,
+  UserPen,
+  AlertCircle,
+  Globe,
+  Sliders,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import apiService from '@/lib/api';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -38,63 +44,196 @@ interface NavItem {
   href: string;
   icon: React.ReactNode;
   roles?: string[];
-  subItems?: { label: string; href: string; roles?: string[] }[];
+  moduleCode?: string; // BRD: Dynamic Module Management - DM-036
+  subItems?: { label: string; href: string; roles?: string[]; moduleCode?: string; permissionRequired?: string }[];
 }
+
+// BRD: Platform Admin (Super Admin) - Full Platform Control
+const platformAdminNavItems: NavItem[] = [
+  { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
+  {
+    label: 'Tenant Management',
+    href: '/admin/tenants',
+    icon: <Building2 className="w-5 h-5" />,
+    roles: ['Super Admin'],
+  },
+  {
+    label: 'Companies & Modules',
+    href: '/admin/modules',
+    icon: <Package className="w-5 h-5" />,
+    roles: ['Super Admin'],
+  },
+  {
+    label: 'Subscription Packages',
+    href: '/admin/subscription-packages',
+    icon: <Package className="w-5 h-5" />,
+    roles: ['Super Admin'],
+  },
+  {
+    label: 'Module Master',
+    href: '/admin/module-master',
+    icon: <Package className="w-5 h-5" />,
+    roles: ['Super Admin'],
+  },
+  {
+    label: 'Integrations',
+    href: '/admin/integrations',
+    icon: <Globe className="w-5 h-5" />,
+    roles: ['Super Admin'],
+  },
+  {
+    label: 'Platform Settings',
+    href: '/admin/platform-settings',
+    icon: <Sliders className="w-5 h-5" />,
+    roles: ['Super Admin'],
+  },
+  {
+    label: 'Analytics & Usage',
+    href: '/admin/analytics',
+    icon: <BarChart3 className="w-5 h-5" />,
+    roles: ['Super Admin'],
+  },
+  {
+    label: 'Audit Log',
+    href: '/admin/audit-log',
+    icon: <Settings className="w-5 h-5" />,
+    roles: ['Super Admin'],
+  },
+];
 
 const navigationItems: NavItem[] = [
   {
     label: 'Dashboard',
     href: '/dashboard',
     icon: <LayoutDashboard className="w-5 h-5" />,
-    // All roles can see dashboard
+    // All roles can see dashboard - Core module, no moduleCode
   },
   {
     label: 'Personnel',
     href: '/personnel',
     icon: <Users className="w-5 h-5" />,
-    roles: ['Super Admin', 'Tenant Admin', 'Manager', 'HR Administrator', 'Auditor'],
+    roles: ['Tenant Admin', 'Manager', 'HR Administrator', 'Auditor'],
+    moduleCode: 'PIS', // BRD: Dynamic Module Management - matches seed script
     // Employee role removed - they should only see own profile via dashboard or dedicated profile page
   },
   {
     label: 'Payroll',
     href: '/payroll',
     icon: <DollarSign className="w-5 h-5" />,
-    roles: ['Super Admin', 'Tenant Admin', 'Employee', 'Payroll Administrator', 'Finance Administrator', 'Auditor', 'Manager'],
+    roles: ['Tenant Admin', 'Employee', 'Payroll Administrator', 'Finance Administrator', 'Auditor', 'Manager'],
+    moduleCode: 'PAYROLL', // BRD: Dynamic Module Management - matches seed script
     subItems: [
       { label: 'My Payslips', href: '/payroll', roles: ['Employee', 'Manager'] },
-      { label: 'Admin Dashboard', href: '/payroll/admin', roles: ['Super Admin', 'Tenant Admin', 'Payroll Administrator', 'Finance Administrator', 'Auditor'] },
-      { label: 'Salary Structure', href: '/payroll/salary-structure', roles: ['Super Admin', 'Tenant Admin', 'Payroll Administrator'] },
+      { label: 'Process Payroll', href: '/payroll/admin', roles: ['Tenant Admin', 'Payroll Administrator'], permissionRequired: 'process_payroll' },
+      { label: 'Admin Dashboard', href: '/payroll/admin', roles: ['Tenant Admin', 'Payroll Administrator', 'Finance Administrator', 'Auditor'] },
+      { label: 'Salary Structure', href: '/payroll/salary-structure', roles: ['Tenant Admin', 'Payroll Administrator'], permissionRequired: 'process_payroll' },
+      { label: 'EPFO Returns', href: '/payroll/epfo', roles: ['Tenant Admin', 'Payroll Administrator'], permissionRequired: 'process_payroll' },
+      { label: 'ESIC Returns', href: '/payroll/esic', roles: ['Tenant Admin', 'Payroll Administrator'], permissionRequired: 'process_payroll' },
+      { label: 'Tax Summary', href: '/tax', roles: ['Tenant Admin', 'Payroll Administrator', 'Finance Administrator', 'Auditor'] },
     ],
   },
   {
     label: 'Leave Management',
     href: '/leave',
     icon: <Calendar className="w-5 h-5" />,
-    roles: ['Super Admin', 'Tenant Admin', 'Employee', 'Manager', 'HR Administrator'],
+    roles: ['Tenant Admin', 'Employee', 'Manager', 'HR Administrator'],
+    moduleCode: 'LEAVE', // BRD: Dynamic Module Management - matches seed script
+    subItems: [
+      { label: 'My Leaves', href: '/leave', roles: ['Employee', 'Manager'] },
+      { label: 'Comp-Off', href: '/leave/comp-off', roles: ['Employee', 'Manager', 'HR Administrator', 'Tenant Admin'] },
+      { label: 'Holiday Calendar', href: '/admin/leave/holiday-calendar', roles: ['HR Administrator', 'Tenant Admin'] },
+      { label: 'Leave Encashment', href: '/admin/leave/encashment', roles: ['HR Administrator', 'Tenant Admin'] },
+    ],
   },
   {
     label: 'Travel & Expenses',
     href: '/travel',
     icon: <Plane className="w-5 h-5" />,
-    roles: ['Super Admin', 'Tenant Admin', 'Employee', 'Manager', 'HR Administrator', 'Finance Administrator'],
+    roles: ['Tenant Admin', 'Employee', 'Manager', 'HR Administrator', 'Finance Administrator'],
+    moduleCode: 'TRAVEL', // BRD: Dynamic Module Management - matches seed script
+  },
+  {
+    label: 'Loans & Advances',
+    href: '/loans/my-loans',
+    icon: <DollarSign className="w-5 h-5" />,
+    roles: ['Tenant Admin', 'Employee', 'Manager', 'HR Administrator', 'Finance Administrator'],
+    moduleCode: 'STAFF_LOANS', // BRD: Dynamic Module Management - matches seed script
+    subItems: [
+      { label: 'My Loans', href: '/loans/my-loans', roles: ['Employee'] },
+      { label: 'Apply for Loan', href: '/loans/apply', roles: ['Employee'] },
+      { label: 'Approval Queue', href: '/loans/approve', roles: ['Manager', 'HR Administrator', 'Finance Administrator', 'Tenant Admin'] },
+      { label: 'Loan Management', href: '/loans/admin', roles: ['HR Administrator', 'Finance Administrator', 'Tenant Admin'] },
+    ],
+  },
+  {
+    label: 'Exit Management',
+    href: '/exit/my-separation',
+    icon: <FileText className="w-5 h-5" />,
+    roles: ['Tenant Admin', 'Employee', 'Manager', 'HR Administrator', 'Finance Administrator'],
+    moduleCode: 'EXIT_MGMT', // BRD: Dynamic Module Management - matches seed script
+    subItems: [
+      { label: 'My Exit Process', href: '/exit/my-separation', roles: ['Employee'] },
+      { label: 'Submit Resignation', href: '/exit/apply', roles: ['Employee'] },
+      { label: 'Exit Management', href: '/exit/admin', roles: ['HR Administrator', 'Finance Administrator', 'Tenant Admin'] },
+    ],
+  },
+  {
+    label: 'Profile Updates',
+    href: '/employee/profile-update',
+    icon: <UserPen className="w-5 h-5" />,
+    roles: ['Tenant Admin', 'Employee', 'Manager', 'HR Administrator'],
+    subItems: [
+      { label: 'My Requests', href: '/employee/profile-update', roles: ['Employee', 'Manager'] },
+      { label: 'Review Requests', href: '/approvals/profile-update', roles: ['Tenant Admin', 'Manager', 'HR Administrator'] },
+    ],
+  },
+  {
+    label: 'Grievance Management',
+    href: '/grievance',
+    icon: <AlertCircle className="w-5 h-5" />,
+    roles: ['Tenant Admin', 'Employee', 'Manager', 'HR Administrator'],
+    moduleCode: 'GRIEVANCE', // BRD: Dynamic Module Management - BR-P1-004
+    subItems: [
+      { label: 'My Grievances', href: '/grievance', roles: ['Employee'] },
+      { label: 'Submit Grievance', href: '/grievance/submit', roles: ['Employee'] },
+      { label: 'Grievance Dashboard', href: '/grievance', roles: ['HR Administrator', 'Tenant Admin', 'Manager'] },
+    ],
   },
   {
     label: 'Performance',
     href: '/performance',
     icon: <TrendingUp className="w-5 h-5" />,
-    roles: ['Super Admin', 'Tenant Admin', 'Employee', 'Manager', 'HR Administrator'],
+    roles: ['Tenant Admin', 'Employee', 'Manager', 'HR Administrator'],
+    moduleCode: 'PERFORMANCE', // BRD: Dynamic Module Management - matches seed script
+    subItems: [
+      { label: 'My Appraisal', href: '/performance/my-appraisal', roles: ['Employee'] },
+      { label: 'Manager Reviews', href: '/performance/manager/appraisals', roles: ['Manager', 'HR Administrator', 'Tenant Admin'] },
+      { label: 'Appraisal Cycles', href: '/performance/cycles', roles: ['HR Administrator', 'Tenant Admin'] },
+      { label: 'Normalization', href: '/performance/normalization', roles: ['HR Administrator', 'Tenant Admin'] },
+    ],
   },
   {
     label: 'Attendance',
     href: '/attendance',
     icon: <Clock className="w-5 h-5" />,
-    roles: ['Super Admin', 'Tenant Admin', 'Employee', 'Manager', 'HR Administrator'],
+    roles: ['Tenant Admin', 'Employee', 'Manager', 'HR Administrator'],
+    moduleCode: 'ATTENDANCE', // BRD: Dynamic Module Management
+    subItems: [
+      { label: 'My Attendance', href: '/attendance', roles: ['Employee', 'Manager'] },
+      { label: 'My Shift', href: '/attendance/my-shift', roles: ['Employee', 'Manager'] },
+      { label: 'Overtime', href: '/attendance/overtime', roles: ['Employee', 'Manager'] },
+      { label: 'Shift Roster', href: '/attendance/shift-roster', roles: ['HR Administrator', 'Tenant Admin'] },
+      { label: 'Shift Management', href: '/admin/attendance/shifts', roles: ['HR Administrator', 'Tenant Admin'] },
+      { label: 'Biometric Sync', href: '/admin/attendance/biometric', roles: ['HR Administrator', 'Tenant Admin'] },
+      { label: 'Weekly Off', href: '/admin/attendance/weekly-off', roles: ['HR Administrator', 'Tenant Admin'] },
+    ],
   },
   {
     label: 'Tax Management',
     href: '/tax',
     icon: <FileText className="w-5 h-5" />,
-    roles: ['Super Admin', 'Tenant Admin', 'Employee', 'Payroll Administrator', 'Finance Administrator', 'Auditor'],
+    roles: ['Tenant Admin', 'Employee', 'Payroll Administrator', 'Finance Administrator', 'Auditor'],
+    moduleCode: 'TAX', // BRD: Dynamic Module Management - matches seed script
     subItems: [
       { label: 'Overview', href: '/tax' },
       { label: 'Declarations', href: '/tax/declarations' },
@@ -106,13 +245,15 @@ const navigationItems: NavItem[] = [
     label: 'Recruitment',
     href: '/recruitment',
     icon: <Briefcase className="w-5 h-5" />,
-    roles: ['Super Admin', 'Tenant Admin', 'HR Administrator'],
+    roles: ['Tenant Admin', 'HR Administrator'],
+    moduleCode: 'RECRUITMENT', // BRD: Dynamic Module Management
   },
   {
     label: 'Onboarding',
     href: '/onboarding',
     icon: <Users className="w-5 h-5" />,
-    roles: ['Super Admin', 'Tenant Admin', 'HR Administrator'],
+    roles: ['Tenant Admin', 'HR Administrator'],
+    moduleCode: 'ONBOARDING', // BRD: Dynamic Module Management
     subItems: [
       { label: 'Onboarding Dashboard', href: '/onboarding' },
       { label: 'Pre-joining Portal', href: '/onboarding/pre-joining' },
@@ -125,41 +266,117 @@ const navigationItems: NavItem[] = [
     label: 'Reports',
     href: '/reports',
     icon: <BarChart3 className="w-5 h-5" />,
-    roles: ['Super Admin', 'Tenant Admin', 'Manager', 'HR Administrator', 'Payroll Administrator', 'Finance Administrator', 'Auditor'],
+    roles: ['Tenant Admin', 'Manager', 'HR Administrator', 'Payroll Administrator', 'Finance Administrator', 'Auditor'],
+    moduleCode: 'REPORTS_BASIC', // BRD: Dynamic Module Management - matches seed script
+    subItems: [
+      { label: 'Analytics Dashboard', href: '/reports' },
+      { label: 'Standard Reports', href: '/reports/standard' },
+      { label: 'Scheduled Reports', href: '/reports/scheduled' },
+      { label: 'Report Builder', href: '/reports/builder' },
+    ],
   },
   {
     label: 'Approvals',
     href: '/approvals/leave',
     icon: <CheckCircle2 className="w-5 h-5" />,
-    roles: ['Super Admin', 'Tenant Admin', 'Manager', 'HR Administrator', 'Finance Administrator'],
+    roles: ['Tenant Admin', 'Manager', 'HR Administrator', 'Finance Administrator'],
+    // Approvals is a core feature, no moduleCode
     subItems: [
       { label: 'Leave Approvals', href: '/approvals/leave' },
       { label: 'Travel Approvals', href: '/approvals/travel' },
       { label: 'Expense Approvals', href: '/approvals/expense' },
+      { label: 'Profile Update Approvals', href: '/approvals/profile-update' },
     ],
   },
   {
     label: 'Administration',
     href: '/admin',
     icon: <Settings className="w-5 h-5" />,
-    roles: ['Super Admin', 'Tenant Admin', 'HR Administrator'],
+    roles: ['Tenant Admin', 'HR Administrator'],
+    // Administration is a core feature, no moduleCode
     subItems: [
-      { label: 'Users', href: '/admin/users', roles: ['Super Admin', 'Tenant Admin', 'HR Administrator'] },
-      { label: 'Role & Permissions', href: '/admin/users/role-permissions', roles: ['Super Admin', 'Tenant Admin'] },
-      { label: 'Access Certification', href: '/admin/access-certification', roles: ['Super Admin', 'Tenant Admin'] },
-      { label: 'LDAP Config', href: '/admin/ldap-config', roles: ['Super Admin', 'Tenant Admin'] },
-      { label: 'Departments', href: '/settings/departments', roles: ['Super Admin', 'Tenant Admin', 'HR Administrator'] },
-      { label: 'Designations', href: '/settings/designations', roles: ['Super Admin', 'Tenant Admin', 'HR Administrator'] },
-      { label: 'Permissions', href: '/settings/permissions', roles: ['Super Admin', 'Tenant Admin'] },
-      { label: 'Audit Log', href: '/admin/audit-log', roles: ['Super Admin', 'Tenant Admin', 'HR Administrator'] },
-      { label: 'Settings', href: '/settings', roles: ['Super Admin', 'Tenant Admin'] },
+      { label: 'Users', href: '/admin/users', roles: ['Tenant Admin', 'HR Administrator'] },
+      { label: 'Role & Permissions', href: '/admin/users/role-permissions', roles: ['Tenant Admin'] },
+      { label: 'Access Certification', href: '/admin/access-certification', roles: ['Tenant Admin'] },
+      { label: 'LDAP Config', href: '/admin/ldap-config', roles: ['Tenant Admin'] },
+      { label: 'Organization Chart', href: '/org/chart', roles: ['Tenant Admin', 'Manager'] },
+      { label: 'Bulk Import/Export', href: '/admin/employees/bulk-import', roles: ['Tenant Admin', 'HR Administrator'] },
+      { label: 'Departments', href: '/settings/departments', roles: ['Tenant Admin', 'HR Administrator'] },
+      { label: 'Designations', href: '/settings/designations', roles: ['Tenant Admin', 'HR Administrator'] },
+      { label: 'Permissions', href: '/settings/permissions', roles: ['Tenant Admin'] },
+      { label: 'Audit Log', href: '/admin/audit-log', roles: ['Tenant Admin'] },
+      { label: 'Settings', href: '/settings', roles: ['Tenant Admin'] },
+    ],
+  },
+  {
+    label: 'Module Management',
+    href: '/company/modules',
+    icon: <Package className="w-5 h-5" />,
+    roles: ['Tenant Admin'],
+    // Company Admin can request modules - no moduleCode (core feature for Tenant Admin)
+  },
+  // NOTE: Super Admin (Platform Admin) uses platformAdminNavItems below - NOT these operational modules
+  {
+    label: 'Learning & Development',
+    href: '/lms/courses',
+    icon: <Award className="w-5 h-5" />,
+    roles: ['Tenant Admin', 'Employee', 'Manager', 'HR Administrator'],
+    moduleCode: 'LMS', // BRD: Dynamic Module Management - BR-P1-005
+    subItems: [
+      { label: 'Course Catalog', href: '/lms/courses', roles: ['Employee', 'Manager', 'HR Administrator', 'Tenant Admin'] },
+      { label: 'My Trainings', href: '/lms/my-trainings', roles: ['Employee'] },
+      { label: 'Assign Training', href: '/lms/assign', roles: ['HR Administrator', 'Tenant Admin', 'Manager'] },
+      { label: 'Certificates', href: '/lms/certificates', roles: ['Employee', 'Manager', 'HR Administrator', 'Tenant Admin'] },
     ],
   },
 ];
 
 export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
-  const { currentUser, currentTenant } = useAuth();
+  const { currentUser, currentTenant, hasPermission } = useAuth();
   const pathname = usePathname();
+  const [enabledModules, setEnabledModules] = React.useState<Set<string>>(new Set());
+  const [modulesLoading, setModulesLoading] = React.useState(true);
+  
+  // BRD: Dynamic Module Management - DM-036
+  // Fetch enabled modules for current tenant
+  React.useEffect(() => {
+    const loadEnabledModules = async () => {
+      if (!currentUser?.tenantId) {
+        setModulesLoading(false);
+        return;
+      }
+
+      try {
+        // Super Admin can see everything
+        if (currentUser.role === 'Super Admin') {
+          setEnabledModules(new Set());
+          setModulesLoading(false);
+          return;
+        }
+
+        const res = await apiService.getMyCompanyModules();
+        if (res.success) {
+          const enabled = new Set<string>();
+          const raw = (res as any).data;
+          const modules = Array.isArray(raw) ? raw : (raw?.modules ?? (res as any).modules ?? []);
+          modules.forEach((cm: any) => {
+            if (cm.isEnabled && cm.moduleId?.moduleCode) {
+              enabled.add(cm.moduleId.moduleCode);
+            }
+          });
+          setEnabledModules(enabled);
+        }
+      } catch (error) {
+        console.error('Failed to load enabled modules:', error);
+        // On error, show all items (graceful degradation)
+        setEnabledModules(new Set());
+      } finally {
+        setModulesLoading(false);
+      }
+    };
+
+    loadEnabledModules();
+  }, [currentUser?.tenantId, currentUser?.role]);
   
   // Auto-expand parent items if current path matches a sub-item
   const getInitialExpandedItems = () => {
@@ -177,18 +394,26 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
   
   const [expandedItems, setExpandedItems] = React.useState<string[]>(getInitialExpandedItems);
 
-  const visibleItems = navigationItems.filter((item) => {
-    // Super Admin can see everything
-    if (currentUser?.role === 'Super Admin') {
-      return true;
-    }
-    // If no roles specified, show to all authenticated users
-    if (!item.roles || item.roles.length === 0) {
-      return true;
-    }
-    // Check if user's role is in the allowed roles
-    return item.roles.includes(currentUser?.role || '');
-  });
+  // BRD: Super Admin (Platform Admin) sees ONLY platform-level nav - NOT Personnel, Payroll, Leave, etc.
+  // Platform Admin manages: Tenants, Modules, Subscriptions - Company Admin does operational HR
+  const visibleItems =
+    currentUser?.role === 'Super Admin'
+      ? platformAdminNavItems.filter((item) => !item.roles || item.roles.includes('Super Admin'))
+      : navigationItems.filter((item) => {
+          // BRD: No bypass - show only modules enabled for tenant, filtered by role
+          if (item.moduleCode) {
+            const isPayrollRole = ['Payroll Administrator', 'Finance Administrator'].includes(currentUser?.role || '');
+            const isPayrollItem = item.moduleCode === 'PAYROLL';
+            if (isPayrollItem && isPayrollRole) {
+              // Payroll roles always see Payroll - getMyCompanyModules may exclude them
+            } else {
+              if (modulesLoading) return false;
+              if (!enabledModules.has(item.moduleCode)) return false;
+            }
+          }
+          if (!item.roles || item.roles.length === 0) return true;
+          return item.roles.includes(currentUser?.role || '');
+        });
 
   const toggleExpanded = (href: string) => {
     setExpandedItems(prev => 
@@ -274,6 +499,16 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                   {isExpanded && (
                     <div className="ml-4 space-y-1 border-l-2 border-sidebar-border pl-2">
                       {item.subItems?.filter((subItem) => {
+                        // BRD: No bypass - Super Admin uses platform nav; others follow module + role
+                        if (subItem.moduleCode && currentUser?.role !== 'Super Admin') {
+                          if (modulesLoading || !enabledModules.has(subItem.moduleCode)) {
+                            return false;
+                          }
+                        }
+                        // Permission-based: e.g. Process Payroll only for Maker (process_payroll)
+                        if (subItem.permissionRequired && !hasPermission(subItem.permissionRequired)) {
+                          return false;
+                        }
                         // Filter sub-items based on roles if specified
                         if (subItem.roles && subItem.roles.length > 0) {
                           return subItem.roles.includes(currentUser?.role || '');
@@ -321,10 +556,11 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-sidebar-primary/25 border border-sidebar-primary/30 flex items-center justify-center flex-shrink-0">
             <span className="text-xs font-bold text-sidebar-primary">
-              {currentUser?.name
+              {(currentUser?.name ?? '')
                 .split(' ')
                 .map((n) => n[0])
-                .join('')}
+                .filter(Boolean)
+                .join('') || '?'}
             </span>
           </div>
           <div className="min-w-0 flex-1">

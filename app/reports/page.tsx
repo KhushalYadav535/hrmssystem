@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { apiService } from '@/lib/api';
 
@@ -125,6 +126,10 @@ export default function ReportsPage() {
           <div>
             <h1 className="text-3xl font-bold text-foreground">Reports & Analytics</h1>
             <p className="text-muted-foreground mt-2">Comprehensive HR metrics and insights</p>
+            <div className="flex gap-4 mt-3">
+              <Link href="/reports/standard" className="text-sm text-primary hover:underline">Standard Reports</Link>
+              <Link href="/reports/scheduled" className="text-sm text-primary hover:underline">Scheduled Reports</Link>
+            </div>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" className="gap-2 bg-transparent" onClick={() => setShowFilters(!showFilters)}>

@@ -1,11 +1,13 @@
 'use client';
 
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { DollarSign, FileText, TrendingUp, AlertTriangle, Plus, Download } from 'lucide-react';
+import { DollarSign, FileText, TrendingUp, AlertTriangle, Plus, Download, Play } from 'lucide-react';
 import { usePayroll } from '@/lib/hooks/usePayroll';
+import { useAuth } from '@/lib/auth-context';
 import { useState, useEffect } from 'react';
 
 const payrollTrendData = [
@@ -16,6 +18,8 @@ const payrollTrendData = [
 
 export default function PayrollAdminDashboard() {
   const { payrolls } = usePayroll();
+  const { hasPermission } = useAuth();
+  const canProcessPayroll = hasPermission('process_payroll'); // BRD: Maker only
   const [deductionData, setDeductionData] = useState([
     { name: 'PF', amount: 0 },
     { name: 'ESI', amount: 0 },
@@ -158,12 +162,25 @@ export default function PayrollAdminDashboard() {
             <CardTitle className="text-lg">Quick Actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Button className="w-full justify-start h-auto py-2 bg-transparent" variant="outline">
-              <Plus className="w-4 h-4 mr-2" />
-              <div className="text-left">
-                <p className="text-sm font-medium">New Payroll Cycle</p>
-                <p className="text-xs text-muted-foreground">February 2026</p>
-              </div>
+            {canProcessPayroll && (
+              <Button asChild className="w-full justify-start h-auto py-2 bg-primary hover:bg-primary/90 text-primary-foreground">
+                <Link href="/payroll/admin" className="flex items-center gap-2">
+                  <Play className="w-4 h-4 flex-shrink-0" />
+                  <div className="text-left">
+                    <p className="text-sm font-medium">Process Payroll</p>
+                    <p className="text-xs opacity-90">Create new payroll cycle</p>
+                  </div>
+                </Link>
+              </Button>
+            )}
+            <Button asChild variant="outline" className="w-full justify-start h-auto py-2 bg-transparent">
+              <Link href="/payroll/admin" className="flex items-center gap-2">
+                <Plus className="w-4 h-4 flex-shrink-0" />
+                <div className="text-left">
+                  <p className="text-sm font-medium">Admin Dashboard</p>
+                  <p className="text-xs text-muted-foreground">View & manage payroll</p>
+                </div>
+              </Link>
             </Button>
             <Button className="w-full justify-start h-auto py-2 bg-transparent" variant="outline">
               <FileText className="w-4 h-4 mr-2" />

@@ -28,7 +28,8 @@ interface ExpenseItem {
 }
 
 export default function TravelClaimPage() {
-  const { isAuthenticated, user } = useAuth();
+  // BR-P0-001 Bug 2: Fix crash - use currentUser instead of user
+  const { isAuthenticated, currentUser } = useAuth();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [travelRequests, setTravelRequests] = useState<any[]>([]);
@@ -87,14 +88,38 @@ export default function TravelClaimPage() {
     setExpenseItems(expenseItems.filter(item => item.id !== id));
   };
 
+  // BR-P0-001 Bug 2: Enhanced form validation and error handling
   const handleSubmitClaim = async () => {
+    // Validation: Travel request selection
     if (!selectedTravelRequest) {
       toast.error('Please select a travel request');
       return;
     }
 
+    // Validation: At least one expense item
     if (expenseItems.length === 0) {
       toast.error('Please add at least one expense item');
+      return;
+    }
+
+    // Validation: All expense items must have valid data
+    const invalidItems = expenseItems.filter(item => {
+      return !item.category || !item.date || !item.amount || parseFloat(item.amount || '0') <= 0 || !item.description;
+    });
+    
+    if (invalidItems.length > 0) {
+      toast.error('Please ensure all expense items have valid category, date, amount, and description');
+      return;
+    }
+
+    // Validation: Date format
+    const invalidDates = expenseItems.filter(item => {
+      const date = new Date(item.date);
+      return isNaN(date.getTime());
+    });
+    
+    if (invalidDates.length > 0) {
+      toast.error('Please ensure all dates are valid');
       return;
     }
 
@@ -142,7 +167,15 @@ export default function TravelClaimPage() {
         toast.error(response.message || 'Failed to create travel claim');
       }
     } catch (error: any) {
-      toast.error(error.message || 'An error occurred');
+      // BR-P0-001 Bug 2: User-friendly error messages
+      if (error.message && error.message.includes('fetch')) {
+        toast.error('Network error: Please check your internet connection and try again');
+      } else if (error.message) {
+        toast.error(error.message);
+      } else {
+        toast.error('An unexpected error occurred. Please try again later.');
+      }
+      console.error('Expense claim submission error:', error);
     } finally {
       setIsSubmitting(false);
     }

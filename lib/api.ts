@@ -11,31 +11,26 @@ interface ApiResponse<T> {
 }
 
 class ApiService {
-  private getToken(): string | null {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('token');
-    }
-    return null;
-  }
-
+  // BR-P0-001 Bug 3: Token is now stored in HttpOnly cookie, not localStorage
+  // Cookies are automatically sent with requests, no need to manually add Authorization header
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
-    const token = this.getToken();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       ...options.headers,
     };
 
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+    // BR-P0-001 Bug 3: Cookies are automatically sent with credentials: 'include'
+    // Keep Authorization header for backward compatibility during migration
+    // TODO: Remove after full migration to cookies
 
     try {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         ...options,
         headers,
+        credentials: 'include', // BR-P0-001 Bug 3: Include cookies in requests
       });
 
       const data = await response.json();
@@ -72,9 +67,40 @@ class ApiService {
     return this.request('/reports/comprehensive');
   }
 
+  async getStandardReportTypes() {
+    return this.request('/reports/standard-types');
+  }
+
+  async generateStandardReport(reportType: string, filters?: Record<string, any>) {
+    return this.request('/reports/standard', {
+      method: 'POST',
+      body: JSON.stringify({ reportType, filters: filters || {} }),
+    });
+  }
+
+  async getScheduledReports() {
+    return this.request('/reports/scheduled');
+  }
+
+  async createScheduledReport(data: { reportName: string; reportType: string; frequency: string; recipients?: any[]; format?: string }) {
+    return this.request('/reports/scheduled', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateScheduledReport(id: string, data: Partial<{ status: string }>) {
+    return this.request(`/reports/scheduled/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
   // ==================== AUTHENTICATION ====================
 
   async login(email: string, password: string, tenantId?: string) {
+    // BR-P0-001 Bug 3: Token is now stored in HttpOnly cookie by backend
+    // Still return token in response for backward compatibility during migration
     return this.request<{
       token: string;
       user: any;
@@ -82,6 +108,15 @@ class ApiService {
     }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password, tenantId }),
+      credentials: 'include', // Include cookies in request
+    });
+  }
+
+  // BR-P0-001 Bug 1: Logout endpoint
+  async logout() {
+    return this.request('/auth/logout', {
+      method: 'POST',
+      credentials: 'include',
     });
   }
 
@@ -212,6 +247,242 @@ class ApiService {
 
   async deleteEmployee(id: string) {
     return this.request(`/employees/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== EMPLOYEE BANK ACCOUNTS ====================
+
+  async getEmployeeBankAccounts(employeeId: string) {
+    return this.request(`/employees/${employeeId}/bank-accounts`);
+  }
+
+  async getBankAccount(employeeId: string, accountId: string) {
+    return this.request(`/employees/${employeeId}/bank-accounts/${accountId}`);
+  }
+
+  async createBankAccount(employeeId: string, data: any) {
+    return this.request(`/employees/${employeeId}/bank-accounts`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateBankAccount(employeeId: string, accountId: string, data: any) {
+    return this.request(`/employees/${employeeId}/bank-accounts/${accountId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteBankAccount(employeeId: string, accountId: string) {
+    return this.request(`/employees/${employeeId}/bank-accounts/${accountId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== EMPLOYEE EMERGENCY CONTACTS ====================
+
+  async getEmployeeEmergencyContacts(employeeId: string) {
+    return this.request(`/employees/${employeeId}/emergency-contacts`);
+  }
+
+  async createEmergencyContact(employeeId: string, data: any) {
+    return this.request(`/employees/${employeeId}/emergency-contacts`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateEmergencyContact(employeeId: string, contactId: string, data: any) {
+    return this.request(`/employees/${employeeId}/emergency-contacts/${contactId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteEmergencyContact(employeeId: string, contactId: string) {
+    return this.request(`/employees/${employeeId}/emergency-contacts/${contactId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== EMPLOYEE NOMINEES ====================
+
+  async getEmployeeNominees(employeeId: string, nomineeType?: string) {
+    const query = nomineeType ? `?nomineeType=${nomineeType}` : '';
+    return this.request(`/employees/${employeeId}/nominees${query}`);
+  }
+
+  async createNominee(employeeId: string, data: any) {
+    return this.request(`/employees/${employeeId}/nominees`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateNominee(employeeId: string, nomineeId: string, data: any) {
+    return this.request(`/employees/${employeeId}/nominees/${nomineeId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteNominee(employeeId: string, nomineeId: string) {
+    return this.request(`/employees/${employeeId}/nominees/${nomineeId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== EMPLOYEE PREVIOUS EMPLOYMENTS ====================
+
+  async getEmployeePreviousEmployments(employeeId: string) {
+    return this.request(`/employees/${employeeId}/previous-employments`);
+  }
+
+  async createPreviousEmployment(employeeId: string, data: any) {
+    return this.request(`/employees/${employeeId}/previous-employments`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updatePreviousEmployment(employeeId: string, employmentId: string, data: any) {
+    return this.request(`/employees/${employeeId}/previous-employments/${employmentId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deletePreviousEmployment(employeeId: string, employmentId: string) {
+    return this.request(`/employees/${employeeId}/previous-employments/${employmentId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== EMPLOYEE FAMILY DETAILS ====================
+
+  async getEmployeeFamilyDetails(employeeId: string) {
+    return this.request(`/family-members/${employeeId}`);
+  }
+
+  // ==================== BULK EMPLOYEE IMPORT/EXPORT (BR-P0-006) ====================
+
+  async downloadImportTemplate() {
+    const response = await fetch(`${API_BASE_URL}/employees/bulk/template`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to download template');
+    }
+    
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'employee-import-template.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    
+    return { success: true };
+  }
+
+  async validateBulkImport(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await fetch(`${API_BASE_URL}/employees/bulk/validate`, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      return {
+        success: false,
+        message: data.message || 'Validation failed',
+        error: data.error,
+      };
+    }
+    
+    return {
+      success: true,
+      data: data.data,
+    };
+  }
+
+  async bulkImportEmployees(filePath: string, importValidOnly: boolean = true) {
+    return this.request('/employees/bulk/import', {
+      method: 'POST',
+      body: JSON.stringify({ filePath, importValidOnly }),
+    });
+  }
+
+  async bulkExportEmployees(params: {
+    exportType?: 'complete' | 'basic' | 'statutory' | 'payroll';
+    department?: string;
+    status?: string;
+    location?: string;
+    startDate?: string;
+    endDate?: string;
+  }) {
+    const response = await fetch(`${API_BASE_URL}/employees/bulk/export`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(params),
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      return {
+        success: false,
+        message: error.message || 'Export failed',
+        error: error.error,
+      };
+    }
+    
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `employees-export-${Date.now()}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    
+    return { success: true };
+  }
+
+  async getFamilyDetails(employeeId: string) {
+    return this.request(`/employees/${employeeId}/family-details`);
+  }
+
+  async upsertFamilyDetails(employeeId: string, data: any) {
+    return this.request(`/employees/${employeeId}/family-details`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateFamilyDetails(employeeId: string, data: any) {
+    return this.request(`/employees/${employeeId}/family-details`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteFamilyDetails(employeeId: string) {
+    return this.request(`/employees/${employeeId}/family-details`, {
       method: 'DELETE',
     });
   }
@@ -557,6 +828,35 @@ class ApiService {
     });
   }
 
+  // ==================== COMP-OFF (BR-P1-003) ====================
+
+  async getCompOffs(params?: { employeeId?: string; status?: string }) {
+    const query = new URLSearchParams();
+    if (params?.employeeId) query.append('employeeId', params.employeeId);
+    if (params?.status) query.append('status', params.status);
+    return this.request(`/comp-off?${query.toString()}`);
+  }
+
+  async requestCompOff(data: { workedDate: string; workedHours: number; reason: string }) {
+    return this.request('/comp-off/request', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async approveCompOff(id: string) {
+    return this.request(`/comp-off/${id}/approve`, {
+      method: 'PATCH',
+    });
+  }
+
+  async availCompOff(id: string, availDate: string) {
+    return this.request(`/comp-off/${id}/avail`, {
+      method: 'POST',
+      body: JSON.stringify({ availDate }),
+    });
+  }
+
   // ==================== TRAVEL MANAGEMENT ====================
 
   // Travel Requests
@@ -856,6 +1156,82 @@ class ApiService {
     });
   }
 
+  // ==================== ORGANIZATION UNITS ====================
+
+  async getOrganizationHierarchy() {
+    return this.request('/org/hierarchy');
+  }
+
+  async getOrganizationUnits(params?: {
+    type?: 'HO' | 'ZO' | 'RO' | 'BRANCH';
+    isActive?: boolean;
+    parentUnitId?: string;
+    city?: string;
+    state?: string;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.type) query.append('type', params.type);
+    if (params?.isActive !== undefined) query.append('isActive', String(params.isActive));
+    if (params?.parentUnitId) query.append('parentUnitId', params.parentUnitId);
+    if (params?.city) query.append('city', params.city);
+    if (params?.state) query.append('state', params.state);
+    return this.request(`/org/units?${query.toString()}`);
+  }
+
+  async getOrganizationUnit(id: string) {
+    return this.request(`/org/units/${id}`);
+  }
+
+  async getUnitChildren(id: string) {
+    return this.request(`/org/units/${id}/children`);
+  }
+
+  async getUnitEmployees(id: string) {
+    return this.request(`/org/units/${id}/employees`);
+  }
+
+  async createOrganizationUnit(data: {
+    unitCode: string;
+    unitName: string;
+    unitType: 'HO' | 'ZO' | 'RO' | 'BRANCH';
+    parentUnitId?: string;
+    unitHeadId?: string;
+    state?: string;
+    city?: string;
+    address?: string;
+    pinCode?: string;
+    isActive?: boolean;
+  }) {
+    return this.request('/org/units', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateOrganizationUnit(id: string, data: {
+    unitCode?: string;
+    unitName?: string;
+    unitType?: 'HO' | 'ZO' | 'RO' | 'BRANCH';
+    parentUnitId?: string;
+    unitHeadId?: string;
+    state?: string;
+    city?: string;
+    address?: string;
+    pinCode?: string;
+    isActive?: boolean;
+  }) {
+    return this.request(`/org/units/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteOrganizationUnit(id: string) {
+    return this.request(`/org/units/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   // ==================== BONUSES ====================
 
   async getBonuses(params?: { status?: string }) {
@@ -1063,6 +1439,10 @@ class ApiService {
   }
 
   // ==================== TENANT SETTINGS ====================
+
+  async getTenants() {
+    return this.request('/tenants');
+  }
 
   async getCurrentTenant() {
     return this.request('/tenants/current');
@@ -1694,6 +2074,14 @@ class ApiService {
   }
 
   // Normalization
+  async getNormalizationPreview(params: { appraisalCycleId: string; departmentId?: string; departmentName?: string }) {
+    const query = new URLSearchParams();
+    query.append('appraisalCycleId', params.appraisalCycleId);
+    if (params?.departmentId) query.append('departmentId', params.departmentId);
+    if (params?.departmentName) query.append('departmentName', params.departmentName);
+    return this.request(`/appraisal/normalizations/preview?${query.toString()}`);
+  }
+
   async getNormalizations(params?: { appraisalCycleId?: string; departmentId?: string; status?: string }) {
     const query = new URLSearchParams();
     if (params?.appraisalCycleId) query.append('appraisalCycleId', params.appraisalCycleId);
@@ -2027,6 +2415,834 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify({ samlResponse, ldapCredentials }),
     });
+  }
+
+  // ==================== LOAN TYPES (MASTER DATA) ====================
+
+  async getLoanTypes(params?: { isActive?: boolean }) {
+    const query = new URLSearchParams();
+    if (params?.isActive !== undefined) query.append('isActive', String(params.isActive));
+    return this.request(`/loan-types?${query.toString()}`);
+  }
+
+  async getLoanType(id: string) {
+    return this.request(`/loan-types/${id}`);
+  }
+
+  // ==================== EMPLOYEE LOANS ====================
+
+  async applyForLoan(data: {
+    loanTypeId: string;
+    appliedAmount: number;
+    tenureMonths: number;
+    remarks?: string;
+  }) {
+    return this.request('/loans/apply', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getMyLoans() {
+    return this.request('/loans/my-loans');
+  }
+
+  async getLoanDetails(id: string) {
+    return this.request(`/loans/${id}`);
+  }
+
+  async getLoanSchedule(id: string) {
+    return this.request(`/loans/${id}/schedule`);
+  }
+
+  async getApprovalQueue() {
+    return this.request('/loans/approve-queue');
+  }
+
+  async approveLoan(id: string, data: {
+    action: 'APPROVED' | 'REJECTED';
+    remarks?: string;
+    sanctionedAmount?: number;
+  }) {
+    return this.request(`/loans/${id}/approve`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async disburseLoan(id: string) {
+    return this.request(`/loans/${id}/disburse`, {
+      method: 'PATCH',
+    });
+  }
+
+  async getAllLoans(params?: {
+    status?: string;
+    loanTypeId?: string;
+    employeeId?: string;
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+    skip?: number;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.status) query.append('status', params.status);
+    if (params?.loanTypeId) query.append('loanTypeId', params.loanTypeId);
+    if (params?.employeeId) query.append('employeeId', params.employeeId);
+    if (params?.startDate) query.append('startDate', params.startDate);
+    if (params?.endDate) query.append('endDate', params.endDate);
+    if (params?.limit) query.append('limit', String(params.limit));
+    if (params?.skip) query.append('skip', String(params.skip));
+    return this.request(`/loans/admin?${query.toString()}`);
+  }
+
+  // ==================== EXIT MANAGEMENT ====================
+
+  async submitResignation(data: {
+    separationType: string;
+    resignationDate?: string;
+    lastWorkingDate: string;
+    noticePeriodDays?: number;
+    resignationReason?: string;
+    resignationLetterUrl?: string;
+  }) {
+    return this.request('/exit/resign', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getMySeparation() {
+    return this.request('/exit/my-separation');
+  }
+
+  async getSeparation(id: string) {
+    return this.request(`/exit/${id}`);
+  }
+
+  async acceptResignation(id: string, data: {
+    acceptedDate?: string;
+    hrRemarks?: string;
+  }) {
+    return this.request(`/exit/${id}/accept`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getClearances(id: string) {
+    return this.request(`/exit/${id}/clearances`);
+  }
+
+  async markClearance(id: string, department: string, data: {
+    status: 'CLEARED' | 'WAIVED';
+    remarks?: string;
+    checklistItems?: any[];
+  }) {
+    return this.request(`/exit/${id}/clearance/${department}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async calculateFnf(id: string) {
+    return this.request(`/exit/${id}/fnf`);
+  }
+
+  async createFnfSettlement(id: string) {
+    return this.request(`/exit/${id}/fnf`, {
+      method: 'POST',
+    });
+  }
+
+  async approveFnfSettlement(id: string, data: {
+    remarks?: string;
+  }) {
+    return this.request(`/exit/${id}/fnf/approve`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async markFnfPaid(id: string, data: {
+    paidDate?: string;
+    paymentMode?: string;
+    paymentReference?: string;
+  }) {
+    return this.request(`/exit/${id}/fnf/pay`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getAllExits(params?: {
+    status?: string;
+    separationType?: string;
+    startDate?: string;
+    endDate?: string;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.status) query.append('status', params.status);
+    if (params?.separationType) query.append('separationType', params.separationType);
+    if (params?.startDate) query.append('startDate', params.startDate);
+    if (params?.endDate) query.append('endDate', params.endDate);
+    return this.request(`/exit/admin/all?${query.toString()}`);
+  }
+
+  // ==================== MODULE MANAGEMENT ====================
+  // BRD: Dynamic Module Management System
+
+  // Platform Admin APIs
+  async getAllPlatformModules(params?: { category?: string; isActive?: boolean }) {
+    const query = new URLSearchParams();
+    if (params?.category) query.append('category', params.category);
+    if (params?.isActive !== undefined) query.append('isActive', String(params.isActive));
+    return this.request(`/platform/modules?${query.toString()}`);
+  }
+
+  async getCompanyModules(tenantId: string, includeInactive?: boolean) {
+    const query = includeInactive ? '?includeInactive=true' : '';
+    return this.request(`/platform/companies/${tenantId}/modules${query}`);
+  }
+
+  async enableModule(tenantId: string, moduleId: string, data: {
+    pricingModel?: string;
+    monthlyCost?: number;
+    userLimit?: number;
+    moduleConfig?: any;
+    trialDays?: number;
+  }) {
+    return this.request(`/platform/companies/${tenantId}/modules/${moduleId}/enable`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async disableModule(tenantId: string, moduleId: string, reason: string) {
+    return this.request(`/platform/companies/${tenantId}/modules/${moduleId}/disable`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async getModuleRequests(status?: string) {
+    const query = status ? `?status=${status}` : '';
+    return this.request(`/platform/module-requests${query}`);
+  }
+
+  /** Company Admin: Get my tenant's module requests */
+  async getCompanyModuleRequests(status?: string) {
+    const query = status ? `?status=${status}` : '';
+    return this.request(`/company/module-requests${query}`);
+  }
+
+  async approveModuleRequest(requestId: string, customPricing?: any) {
+    return this.request(`/platform/module-requests/${requestId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ customPricing }),
+    });
+  }
+
+  async rejectModuleRequest(requestId: string, rejectionReason: string) {
+    return this.request(`/platform/module-requests/${requestId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ rejectionReason }),
+    });
+  }
+
+  async applySubscriptionPackage(tenantId: string, packageId: string) {
+    return this.request(`/platform/companies/${tenantId}/subscription/package`, {
+      method: 'POST',
+      body: JSON.stringify({ packageId }),
+    });
+  }
+
+  // Platform Admin - Subscription Packages CRUD
+  async getSubscriptionPackages() {
+    return this.request('/platform-admin/subscription-packages');
+  }
+  async getSubscriptionPackage(id: string) {
+    return this.request(`/platform-admin/subscription-packages/${id}`);
+  }
+  async createSubscriptionPackage(data: any) {
+    return this.request('/platform-admin/subscription-packages', { method: 'POST', body: JSON.stringify(data) });
+  }
+  async updateSubscriptionPackage(id: string, data: any) {
+    return this.request(`/platform-admin/subscription-packages/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+  async deleteSubscriptionPackage(id: string) {
+    return this.request(`/platform-admin/subscription-packages/${id}`, { method: 'DELETE' });
+  }
+
+  // Platform Admin - Create/Update Platform Modules
+  async createPlatformModule(data: any) {
+    return this.request('/platform-admin/modules', { method: 'POST', body: JSON.stringify(data) });
+  }
+  async updatePlatformModule(id: string, data: any) {
+    return this.request(`/platform-admin/modules/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  // Platform Admin - Integrations
+  async getIntegrations() {
+    return this.request('/platform-admin/integrations');
+  }
+  async updateIntegration(id: string, data: { isEnabled?: boolean; config?: Record<string, any> }) {
+    return this.request(`/platform-admin/integrations/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  // Platform Admin - Settings
+  async getPlatformSettings() {
+    return this.request('/platform-admin/settings');
+  }
+  async updatePlatformSettings(data: Record<string, any>) {
+    return this.request('/platform-admin/settings', { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  // Platform Admin - Analytics
+  async getPlatformAnalytics() {
+    return this.request('/platform-admin/analytics');
+  }
+
+  // Platform Admin - Create Tenant
+  async createTenant(data: { name: string; code: string; location?: string }) {
+    return this.request('/tenants', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  // Company Admin APIs
+  async getMyCompanyModules() {
+    return this.request('/company/modules');
+  }
+
+  async requestModuleActivation(data: {
+    moduleId: string;
+    requestType: string;
+    businessJustification: string;
+    expectedUsers?: number;
+    trialRequested?: boolean;
+  }) {
+    return this.request('/company/module-requests', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getAvailableModules() {
+    return this.request('/company/available-modules');
+  }
+
+  // Common APIs
+  async checkModuleAccess(moduleCode: string) {
+    return this.request(`/modules/check/${moduleCode}`);
+  }
+
+  // ==================== ATTENDANCE ENHANCEMENTS (BR-P1-002) ====================
+
+  // Shift Management
+  async getShifts() {
+    return this.request('/shifts');
+  }
+
+  async createShift(data: any) {
+    return this.request('/shifts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateShift(id: string, data: any) {
+    return this.request(`/shifts/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async assignShift(data: { employeeId: string; shiftId: string; effectiveDate: string }) {
+    return this.request('/shifts/assign', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getEmployeeShift(employeeId: string) {
+    return this.request(`/shifts/employee/${employeeId}`);
+  }
+
+  async getShiftRoster(params?: { startDate?: string; endDate?: string; department?: string }) {
+    const query = new URLSearchParams();
+    if (params?.startDate) query.append('startDate', params.startDate);
+    if (params?.endDate) query.append('endDate', params.endDate);
+    if (params?.department) query.append('department', params.department);
+    return this.request(`/shifts/roster?${query.toString()}`);
+  }
+
+  // Overtime Management
+  async requestOvertime(data: { date: string; requestedHours: number; reason: string; otType?: string }) {
+    return this.request('/overtime/request', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async approveOvertime(id: string, data: { approvedHours?: number; remarks?: string }) {
+    return this.request(`/overtime/${id}/approve`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getOvertime(params?: { employeeId?: string; status?: string; startDate?: string; endDate?: string }) {
+    const query = new URLSearchParams();
+    if (params?.employeeId) query.append('employeeId', params.employeeId);
+    if (params?.status) query.append('status', params.status);
+    if (params?.startDate) query.append('startDate', params.startDate);
+    if (params?.endDate) query.append('endDate', params.endDate);
+    return this.request(`/overtime?${query.toString()}`);
+  }
+
+  async autoDetectOvertime(data: { date: string; employeeIds?: string[] }) {
+    return this.request('/overtime/auto-detect', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Profile Update Requests (ESS - BR-P2-005)
+  async getProfileUpdateRequests(params?: { employeeId?: string; status?: string; page?: number; limit?: number }) {
+    const query = new URLSearchParams();
+    if (params?.employeeId) query.append('employeeId', params.employeeId);
+    if (params?.status) query.append('status', params.status);
+    if (params?.page) query.append('page', String(params.page));
+    if (params?.limit) query.append('limit', String(params.limit));
+    return this.request(`/profile-update-requests?${query.toString()}`);
+  }
+
+  async getProfileUpdateRequest(id: string) {
+    return this.request(`/profile-update-requests/${id}`);
+  }
+
+  async createProfileUpdateRequest(data: { requestType?: string; requestedFields: { field: string; requestedValue: any; label?: string }[]; reason?: string }) {
+    return this.request('/profile-update-requests', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async reviewProfileUpdateRequest(id: string, data: { action: 'Approved' | 'Rejected'; reviewComments?: string }) {
+    return this.request(`/profile-update-requests/${id}/review`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Biometric Integration
+  async syncBiometricPunches(punches: any[]) {
+    return this.request('/biometric/sync', {
+      method: 'POST',
+      body: JSON.stringify({ punches }),
+    });
+  }
+
+  async processBiometricPunches(data: { startDate: string; endDate: string; employeeIds?: string[] }) {
+    return this.request('/biometric/process', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getBiometricPunches(params?: { employeeId?: string; startDate?: string; endDate?: string }) {
+    const query = new URLSearchParams();
+    if (params?.employeeId) query.append('employeeId', params.employeeId);
+    if (params?.startDate) query.append('startDate', params.startDate);
+    if (params?.endDate) query.append('endDate', params.endDate);
+    return this.request(`/biometric/punches?${query.toString()}`);
+  }
+
+  // Weekly Off Configuration
+  async getWeeklyOff(params?: { employeeId?: string; department?: string; location?: string }) {
+    const query = new URLSearchParams();
+    if (params?.employeeId) query.append('employeeId', params.employeeId);
+    if (params?.department) query.append('department', params.department);
+    if (params?.location) query.append('location', params.location);
+    return this.request(`/weekly-off?${query.toString()}`);
+  }
+
+  async createWeeklyOff(data: any) {
+    return this.request('/weekly-off', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getEmployeeWeeklyOffCalendar(employeeId: string, params?: { startDate?: string; endDate?: string }) {
+    const query = new URLSearchParams();
+    if (params?.startDate) query.append('startDate', params.startDate);
+    if (params?.endDate) query.append('endDate', params.endDate);
+    return this.request(`/weekly-off/employee/${employeeId}/calendar?${query.toString()}`);
+  }
+
+  // ==================== LEAVE ENHANCEMENTS (BR-P1-003) ====================
+
+  // Holiday Calendar
+  async getHolidayCalendar(params?: { year?: number; location?: string }) {
+    const query = new URLSearchParams();
+    if (params?.year) query.append('year', params.year.toString());
+    if (params?.location) query.append('location', params.location);
+    return this.request(`/holiday-calendar?${query.toString()}`);
+  }
+
+  async createHoliday(data: any) {
+    return this.request('/holiday-calendar', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateHoliday(id: string, data: any) {
+    return this.request(`/holiday-calendar/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteHoliday(id: string) {
+    return this.request(`/holiday-calendar/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== LMS (BR-P1-005) ====================
+
+  async getCourses(params?: { category?: string; status?: string }) {
+    const query = new URLSearchParams();
+    if (params?.category) query.append('category', params.category);
+    if (params?.status) query.append('status', params.status);
+    return this.request(`/lms/courses?${query.toString()}`);
+  }
+
+  async createCourse(data: any) {
+    return this.request('/lms/courses', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async assignTraining(data: { employeeIds: string[]; courseId: string; dueDate?: string; trainingEndDate?: string; priority?: string }) {
+    const body: any = { ...data };
+    if (data.trainingEndDate) body.trainingEndDate = data.trainingEndDate;
+    else if (data.dueDate) body.trainingEndDate = data.dueDate;
+    return this.request('/lms/assign', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async getMyTrainings(params?: { status?: string; category?: string }) {
+    const query = new URLSearchParams();
+    if (params?.status) query.append('status', params.status);
+    if (params?.category) query.append('category', params.category);
+    return this.request(`/lms/my-trainings?${query.toString()}`);
+  }
+
+  async updateTrainingProgress(assignmentId: string, data: { progress: number; completed?: boolean; notes?: string }) {
+    return this.request(`/lms/assignments/${assignmentId}/progress`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getTrainingCalendar(params?: { startDate?: string; endDate?: string }) {
+    const query = new URLSearchParams();
+    if (params?.startDate) query.append('startDate', params.startDate);
+    if (params?.endDate) query.append('endDate', params.endDate);
+    return this.request(`/lms/calendar?${query.toString()}`);
+  }
+
+  async createTrainingCalendar(data: any) {
+    return this.request('/lms/calendar', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getCertificates(params?: { employeeId?: string; courseId?: string }) {
+    const query = new URLSearchParams();
+    if (params?.employeeId) query.append('employeeId', params.employeeId);
+    if (params?.courseId) query.append('courseId', params.courseId);
+    return this.request(`/lms/certificates?${query.toString()}`);
+  }
+
+  // ==================== TRANSFER MANAGEMENT (BR-P2-003) ====================
+
+  async submitTransferRequest(data: any) {
+    return this.request('/transfers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getTransferRequests(params?: { status?: string; employeeId?: string }) {
+    const query = new URLSearchParams();
+    if (params?.status) query.append('status', params.status);
+    if (params?.employeeId) query.append('employeeId', params.employeeId);
+    return this.request(`/transfers?${query.toString()}`);
+  }
+
+  async getTransferRequest(id: string) {
+    return this.request(`/transfers/${id}`);
+  }
+
+  async currentManagerApproval(id: string, data: { approved: boolean; recommendation?: string; rejectionReason?: string }) {
+    return this.request(`/transfers/${id}/current-manager-approval`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        action: data.approved ? 'APPROVE' : 'REJECT',
+        recommendation: data.recommendation,
+        rejectionReason: data.rejectionReason,
+      }),
+    });
+  }
+
+  async destinationManagerApproval(id: string, data: { approved: boolean; acceptance?: string; rejectionReason?: string }) {
+    return this.request(`/transfers/${id}/destination-manager-approval`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        action: data.approved ? 'APPROVE' : 'REJECT',
+        acceptance: data.acceptance,
+        rejectionReason: data.rejectionReason,
+      }),
+    });
+  }
+
+  async hrVerification(id: string, data: { verified?: boolean; availabilityConfirmed?: boolean; remarks?: string; approvedLocation?: any; approvedRelievingDate?: string; approvedJoiningDate?: string }) {
+    const verified = data.verified ?? data.availabilityConfirmed ?? true;
+    return this.request(`/transfers/${id}/hr-verification`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        availabilityConfirmed: verified,
+        remarks: data.remarks,
+        approvedLocation: data.approvedLocation,
+        approvedRelievingDate: data.approvedRelievingDate,
+        approvedJoiningDate: data.approvedJoiningDate,
+      }),
+    });
+  }
+
+  async generateTransferOrder(id: string) {
+    return this.request(`/transfers/${id}/generate-order`, {
+      method: 'POST',
+    });
+  }
+
+  async markRelieved(id: string, data: { relievedDate: string; remarks?: string }) {
+    return this.request(`/transfers/${id}/relieve`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async markJoined(id: string, data: { joinedDate: string; remarks?: string }) {
+    return this.request(`/transfers/${id}/join`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // ==================== GRIEVANCE MANAGEMENT (BR-P1-004) ====================
+
+  async submitGrievance(data: {
+    category: string;
+    subCategory?: string;
+    subject: string;
+    description: string;
+    incidentDate?: string;
+    incidentLocation?: string;
+    witnesses?: Array<{ name: string; employeeCode?: string; contact?: string }>;
+    documents?: Array<{ name: string; type: string; url: string }>;
+    preferredResolution?: string;
+    confidentialityRequired?: boolean;
+    anonymousSubmission?: boolean;
+  }) {
+    return this.request('/grievances', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getMyGrievances(params?: { status?: string; category?: string }) {
+    const query = new URLSearchParams();
+    if (params?.status) query.append('status', params.status);
+    if (params?.category) query.append('category', params.category);
+    return this.request(`/grievances/my-grievances?${query.toString()}`);
+  }
+
+  async getGrievance(id: string) {
+    return this.request(`/grievances/${id}`);
+  }
+
+  async getAllGrievances(params?: {
+    status?: string;
+    category?: string;
+    severity?: string;
+    assignedTo?: string;
+    slaStatus?: string;
+    department?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.status) query.append('status', params.status);
+    if (params?.category) query.append('category', params.category);
+    if (params?.severity) query.append('severity', params.severity);
+    if (params?.assignedTo) query.append('assignedTo', params.assignedTo);
+    if (params?.slaStatus) query.append('slaStatus', params.slaStatus);
+    if (params?.department) query.append('department', params.department);
+    if (params?.search) query.append('search', params.search);
+    if (params?.page) query.append('page', params.page.toString());
+    if (params?.limit) query.append('limit', params.limit.toString());
+    return this.request(`/grievances?${query.toString()}`);
+  }
+
+  async assignGrievance(id: string, data: { assignedTo: string; assignedDepartment?: string; severity?: string }) {
+    return this.request(`/grievances/${id}/assign`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async addGrievanceComment(id: string, comment: string, isInternal: boolean = false) {
+    return this.request(`/grievances/${id}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ comment, isInternal }),
+    });
+  }
+
+  async proposeResolution(id: string, data: { resolutionDetails: string; actionTaken: string }) {
+    return this.request(`/grievances/${id}/resolution`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async approveResolution(id: string, implementationDate?: string) {
+    return this.request(`/grievances/${id}/resolution/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ implementationDate }),
+    });
+  }
+
+  async submitGrievanceFeedback(id: string, satisfactionRating: number, feedback?: string) {
+    return this.request(`/grievances/${id}/feedback`, {
+      method: 'POST',
+      body: JSON.stringify({ satisfactionRating, feedback }),
+    });
+  }
+
+  async getGrievanceDashboardStats() {
+    return this.request('/grievances/dashboard/stats');
+  }
+
+  // ==================== PERFORMANCE APPRAISAL (BR-P1-001) ====================
+
+  async getAppraisalCycles() {
+    return this.request('/performance/cycles');
+  }
+
+  async createAppraisalCycle(data: {
+    cycleName: string;
+    cycleType: string;
+    startDate: string;
+    endDate: string;
+    selfAssessmentDeadline: string;
+    managerReviewDeadline: string;
+    normalizationDeadline: string;
+    applicableTo: string;
+    applicableDepartments?: string[];
+    applicableGrades?: string[];
+  }) {
+    return this.request('/performance/cycles', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async activateAppraisalCycle(cycleId: string) {
+    return this.request(`/performance/cycles/${cycleId}/activate`, {
+      method: 'PATCH',
+    });
+  }
+
+  async getMyAppraisal(cycleId?: string) {
+    const query = cycleId ? `?cycleId=${cycleId}` : '';
+    return this.request(`/performance/my-appraisal${query}`);
+  }
+
+  async submitSelfAssessment(appraisalId: string, data: {
+    competencyRatings: Record<string, number>;
+    trainingNeeds?: Array<{ skill: string; program: string; priority: string }>;
+    careerAspirations?: { goals: string; preferredPath: string };
+    achievements?: string;
+    challengesFaced?: string;
+    overallComments?: string;
+    goalAchievements?: Array<{ goalId: string; achievement: number }>;
+  }) {
+    return this.request(`/performance/${appraisalId}/self-assessment`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getManagerAppraisals(params?: { cycleId?: string; status?: string }) {
+    const query = new URLSearchParams();
+    if (params?.cycleId) query.append('cycleId', params.cycleId);
+    if (params?.status) query.append('status', params.status);
+    return this.request(`/performance/manager/appraisals?${query.toString()}`);
+  }
+
+  async submitManagerReview(appraisalId: string, data: {
+    competencyRatings: Record<string, number>;
+    overallPerformanceRating: number;
+    strengths?: string;
+    developmentAreas?: string;
+    developmentPlan?: string;
+    trainingRecommendations?: string[];
+    promotionRecommendation?: boolean;
+    retentionRisk?: boolean;
+    incrementRecommendation?: { percentage: number; justification: string };
+    commentsToEmployee?: string;
+    goalRatings?: Array<{ goalId: string; achievement: number }>;
+  }) {
+    return this.request(`/performance/${appraisalId}/manager-review`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async normalizeRatings(data: {
+    cycleId: string;
+    department?: string;
+    adjustments: Array<{ appraisalId: string; normalizedRating: number; justification?: string }>;
+  }) {
+    return this.request('/performance/normalize', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getAllAppraisals(params?: {
+    cycleId?: string;
+    status?: string;
+    department?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.cycleId) query.append('cycleId', params.cycleId);
+    if (params?.status) query.append('status', params.status);
+    if (params?.department) query.append('department', params.department);
+    if (params?.page) query.append('page', params.page.toString());
+    if (params?.limit) query.append('limit', params.limit.toString());
+    return this.request(`/performance/admin/all?${query.toString()}`);
   }
 }
 

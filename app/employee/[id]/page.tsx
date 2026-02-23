@@ -11,6 +11,7 @@ import { User, FileText, MapPin, Award, BookOpen, AlertCircle, Download, Edit } 
 import { useState, useEffect } from 'react';
 import apiService from '@/lib/api';
 import { toast } from 'sonner';
+import { maskAadhaar, maskPAN, maskAccountNumber } from '@/lib/masking';
 
 interface Employee {
   _id?: string;
@@ -43,6 +44,11 @@ export default function EmployeeDetailPage() {
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [employeeId, setEmployeeId] = useState<string | null>(null);
+  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
+  const [emergencyContacts, setEmergencyContacts] = useState<any[]>([]);
+  const [nominees, setNominees] = useState<any[]>([]);
+  const [previousEmployments, setPreviousEmployments] = useState<any[]>([]);
+  const [familyDetails, setFamilyDetails] = useState<any | null>(null);
 
   useEffect(() => {
     // Ensure params are available and extract ID
@@ -79,7 +85,15 @@ export default function EmployeeDetailPage() {
       console.log('Loading employee with ID:', employeeId);
       const response = await apiService.getEmployee(employeeId);
       if (response.success && response.data) {
-        setEmployee(response.data);
+        const empData = response.data;
+        setEmployee(empData);
+        
+        // Set related data (already included in response from backend)
+        setBankAccounts(empData.bankAccounts || []);
+        setEmergencyContacts(empData.emergencyContacts || []);
+        setNominees(empData.nominees || []);
+        setPreviousEmployments(empData.previousEmployments || []);
+        setFamilyDetails(empData.familyDetails || null);
       } else {
         toast.error('Employee not found');
         router.push('/personnel');
@@ -213,11 +227,12 @@ export default function EmployeeDetailPage() {
         </div>
 
         <Tabs defaultValue="personal" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="personal">Personal</TabsTrigger>
             <TabsTrigger value="employment">Employment</TabsTrigger>
+            <TabsTrigger value="family">Family & Nominees</TabsTrigger>
             <TabsTrigger value="documents">Documents</TabsTrigger>
-            <TabsTrigger value="history">History</TabsTrigger>
+            <TabsTrigger value="history">Previous Employment</TabsTrigger>
             <TabsTrigger value="performance">Performance</TabsTrigger>
             <TabsTrigger value="actions">Actions</TabsTrigger>
           </TabsList>
@@ -255,12 +270,24 @@ export default function EmployeeDetailPage() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">PAN</p>
-                    <p className="text-lg font-semibold">{employee.panNumber || 'N/A'}</p>
+                    <p className="text-lg font-semibold">{maskPAN(employee.panNumber)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Aadhaar</p>
-                    <p className="text-lg font-semibold">{employee.aadhaarNumber ? `${employee.aadhaarNumber.substring(0, 4)} XXXX ${employee.aadhaarNumber.substring(8)}` : 'N/A'}</p>
+                    <p className="text-lg font-semibold">{maskAadhaar(employee.aadhaarNumber)}</p>
                   </div>
+                  {employee.uanNumber && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">UAN</p>
+                      <p className="text-lg font-semibold">{employee.uanNumber}</p>
+                    </div>
+                  )}
+                  {employee.passportNumber && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Passport</p>
+                      <p className="text-lg font-semibold">{employee.passportNumber}</p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -325,7 +352,217 @@ export default function EmployeeDetailPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Bank Accounts */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Bank Accounts</CardTitle>
+                  <CardDescription>Employee bank account details</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {bankAccounts.length > 0 ? (
+                    <div className="space-y-3">
+                      {bankAccounts.map((account: any) => (
+                        <div key={account._id || account.id} className="p-4 border rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold">{account.bankName}</span>
+                              {account.isPrimary && (
+                                <Badge variant="default" className="text-xs">Primary</Badge>
+                              )}
+                            </div>
+                            <Badge variant="outline">{account.accountType}</Badge>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                              <span className="text-muted-foreground">Account Number:</span>
+                              <span className="ml-2 font-mono">{maskAccountNumber(account.accountNumber)}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">IFSC:</span>
+                              <span className="ml-2 font-mono">{account.ifscCode}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Branch:</span>
+                              <span className="ml-2">{account.branchName}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Account Holder:</span>
+                              <span className="ml-2">{account.accountHolderName}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground text-sm">No bank accounts found</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Emergency Contacts */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Emergency Contacts</CardTitle>
+                  <CardDescription>Emergency contact information</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {emergencyContacts.length > 0 ? (
+                    <div className="space-y-3">
+                      {emergencyContacts.map((contact: any) => (
+                        <div key={contact._id || contact.id} className="p-4 border rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-semibold">{contact.name}</span>
+                            <Badge variant="outline">{contact.relationship}</Badge>
+                          </div>
+                          <div className="text-sm space-y-1">
+                            <div>
+                              <span className="text-muted-foreground">Phone:</span>
+                              <span className="ml-2">{contact.phone}</span>
+                            </div>
+                            {contact.address && (
+                              <div>
+                                <span className="text-muted-foreground">Address:</span>
+                                <span className="ml-2">{contact.address}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground text-sm">No emergency contacts found</p>
+                  )}
+                </CardContent>
+              </Card>
             </div>
+          </TabsContent>
+
+          {/* New Tab: Family & Nominees */}
+          <TabsContent value="family">
+            <div className="space-y-4">
+              {/* Family Details */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Family Details</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {familyDetails ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Dependent Children</p>
+                        <p className="text-lg font-semibold">{familyDetails.dependentChildrenCount || 0}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Dependent Parents</p>
+                        <p className="text-lg font-semibold">{familyDetails.hasDependentParents ? 'Yes' : 'No'}</p>
+                      </div>
+                      {familyDetails.spouseName && (
+                        <div>
+                          <p className="text-sm text-muted-foreground">Spouse Name</p>
+                          <p className="text-lg font-semibold">{familyDetails.spouseName}</p>
+                        </div>
+                      )}
+                      {familyDetails.spouseOccupation && (
+                        <div>
+                          <p className="text-sm text-muted-foreground">Spouse Occupation</p>
+                          <p className="text-lg font-semibold">{familyDetails.spouseOccupation}</p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground text-sm">No family details found</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Nominees */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Nominees</CardTitle>
+                  <CardDescription>PF and Gratuity nominees</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {nominees.length > 0 ? (
+                    <div className="space-y-3">
+                      {nominees.map((nominee: any) => (
+                        <div key={nominee._id || nominee.id} className="p-4 border rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-semibold">{nominee.nomineeName}</span>
+                            <Badge variant="outline">{nominee.nomineeType}</Badge>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                              <span className="text-muted-foreground">Relationship:</span>
+                              <span className="ml-2">{nominee.relationship}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Share:</span>
+                              <span className="ml-2">{nominee.sharePercentage}%</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Date of Birth:</span>
+                              <span className="ml-2">{formatDate(nominee.dateOfBirth)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground text-sm">No nominees found</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* New Tab: Previous Employment */}
+          <TabsContent value="history">
+            <Card>
+              <CardHeader>
+                <CardTitle>Previous Employment History</CardTitle>
+                <CardDescription>Previous employment records</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {previousEmployments.length > 0 ? (
+                  <div className="space-y-4">
+                    {previousEmployments.map((employment: any) => (
+                      <div key={employment._id || employment.id} className="p-4 border rounded-lg">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="font-semibold text-lg">{employment.employerName}</span>
+                          <div className="text-sm text-muted-foreground">
+                            {formatDate(employment.startDate)} - {formatDate(employment.endDate)}
+                          </div>
+                        </div>
+                        {employment.employerAddress && (
+                          <p className="text-sm text-muted-foreground mb-2">{employment.employerAddress}</p>
+                        )}
+                        <div className="flex gap-2 mt-3">
+                          {employment.relievingLetterUrl && (
+                            <Button size="sm" variant="outline" asChild>
+                              <a href={employment.relievingLetterUrl} target="_blank" rel="noopener noreferrer">
+                                <FileText className="w-4 h-4 mr-2" />
+                                Relieving Letter
+                              </a>
+                            </Button>
+                          )}
+                          {employment.experienceCertUrl && (
+                            <Button size="sm" variant="outline" asChild>
+                              <a href={employment.experienceCertUrl} target="_blank" rel="noopener noreferrer">
+                                <FileText className="w-4 h-4 mr-2" />
+                                Experience Certificate
+                              </a>
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground text-sm">No previous employment records found</p>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="documents">
@@ -353,22 +590,47 @@ export default function EmployeeDetailPage() {
           <TabsContent value="history">
             <Card>
               <CardHeader>
-                <CardTitle>Employment History</CardTitle>
+                <CardTitle>Previous Employment History</CardTitle>
+                <CardDescription>Previous employment records</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-6">
-                  {[
-                    { date: '2023-01-15', event: 'Promoted to Senior Accountant', detail: 'Grade: A1' },
-                    { date: '2022-06-01', event: 'Salary Revision', detail: 'Increment: 8%' },
-                    { date: '2020-01-15', event: 'Joined Organization', detail: 'Designation: Accountant' }
-                  ].map((item, idx) => (
-                    <div key={idx} className="border-l-2 border-primary pl-4">
-                      <p className="text-sm text-muted-foreground">{item.date}</p>
-                      <p className="font-semibold mt-1">{item.event}</p>
-                      <p className="text-sm text-muted-foreground">{item.detail}</p>
-                    </div>
-                  ))}
-                </div>
+                {previousEmployments.length > 0 ? (
+                  <div className="space-y-4">
+                    {previousEmployments.map((employment: any) => (
+                      <div key={employment._id || employment.id} className="p-4 border rounded-lg">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="font-semibold text-lg">{employment.employerName}</span>
+                          <div className="text-sm text-muted-foreground">
+                            {formatDate(employment.startDate)} - {formatDate(employment.endDate)}
+                          </div>
+                        </div>
+                        {employment.employerAddress && (
+                          <p className="text-sm text-muted-foreground mb-2">{employment.employerAddress}</p>
+                        )}
+                        <div className="flex gap-2 mt-3">
+                          {employment.relievingLetterUrl && (
+                            <Button size="sm" variant="outline" asChild>
+                              <a href={employment.relievingLetterUrl} target="_blank" rel="noopener noreferrer">
+                                <FileText className="w-4 h-4 mr-2" />
+                                Relieving Letter
+                              </a>
+                            </Button>
+                          )}
+                          {employment.experienceCertUrl && (
+                            <Button size="sm" variant="outline" asChild>
+                              <a href={employment.experienceCertUrl} target="_blank" rel="noopener noreferrer">
+                                <FileText className="w-4 h-4 mr-2" />
+                                Experience Certificate
+                              </a>
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground text-sm">No previous employment records found</p>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

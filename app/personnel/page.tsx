@@ -283,7 +283,7 @@ export default function PersonnelPage() {
   };
 
   return (
-    <DashboardLayout>
+      <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-start">

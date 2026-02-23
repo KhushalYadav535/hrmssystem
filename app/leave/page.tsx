@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Calendar as CalendarIcon, Check, X, Loader2, AlertCircle } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, Check, X, Loader2, AlertCircle, Info } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -51,8 +51,11 @@ export default function LeavePage() {
     reason: '',
     medicalCertificate: null as File | null,
     attachments: [] as File[],
+    isHalfDay: false,
+    halfDayType: '' as 'FIRST_HALF' | 'SECOND_HALF' | '',
   });
   const [sandwichLeaveWarning, setSandwichLeaveWarning] = useState<string | null>(null);
+  const [sandwichAcknowledged, setSandwichAcknowledged] = useState(false);
 
   if (!isAuthenticated) {
     redirect('/login');
@@ -156,11 +159,19 @@ export default function LeavePage() {
     }
   };
 
-  // Check for sandwich leave when dates change
+  // When half-day is selected, sync endDate to startDate
+  useEffect(() => {
+    if (formData.isHalfDay && formData.startDate) {
+      setFormData((prev) => ({ ...prev, endDate: formData.startDate }));
+    }
+  }, [formData.isHalfDay, formData.startDate]);
+
+  // Check for sandwich leave when dates change (BR-P1-003: Sandwich leave policy)
   useEffect(() => {
     const checkSandwichLeave = async () => {
       if (!formData.startDate || !formData.endDate) {
         setSandwichLeaveWarning(null);
+        setSandwichAcknowledged(false);
         return;
       }
 
@@ -179,16 +190,18 @@ export default function LeavePage() {
         const holidayBefore = await apiService.checkHoliday(dayBefore.toISOString().split('T')[0]);
         const holidayAfter = await apiService.checkHoliday(dayAfter.toISOString().split('T')[0]);
 
-        if ((isDayBeforeWeekend || holidayBefore.success && holidayBefore.isHoliday) && 
-            (isDayAfterWeekend || holidayAfter.success && holidayAfter.isHoliday)) {
+        if ((isDayBeforeWeekend || (holidayBefore.success && holidayBefore.isHoliday)) &&
+            (isDayAfterWeekend || (holidayAfter.success && holidayAfter.isHoliday))) {
           setSandwichLeaveWarning(
-            'This leave appears to be between holidays/weekends. Please ensure this is intentional.'
+            'Sandwich leave detected: This leave falls between holidays/weekends. Per policy, you must acknowledge before submitting.'
           );
+          setSandwichAcknowledged(false);
         } else {
           setSandwichLeaveWarning(null);
+          setSandwichAcknowledged(true); // Not sandwich, no acknowledgment needed
         }
       } catch (error) {
-        // Ignore errors in sandwich leave check
+        setSandwichLeaveWarning(null);
       }
     };
 
@@ -197,7 +210,7 @@ export default function LeavePage() {
 
   const handleApplyLeave = async () => {
     try {
-      if (!formData.leaveType || !formData.startDate || !formData.endDate || !formData.reason) {
+      if (!formData.leaveType || !formData.startDate || !formData.reason) {
         toast({
           title: "Error",
           description: "Please fill in all fields",
@@ -206,15 +219,50 @@ export default function LeavePage() {
         return;
       }
 
+      // Half-day requires halfDayType
+      if (formData.isHalfDay && !formData.halfDayType) {
+        toast({
+          title: "Error",
+          description: "Please select First Half or Second Half for half-day leave",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Sandwich leave policy: require acknowledgment
+      if (sandwichLeaveWarning && !sandwichAcknowledged) {
+        toast({
+          title: "Error",
+          description: "Please acknowledge the sandwich leave policy before submitting",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const effectiveEndDate = formData.isHalfDay ? formData.startDate : formData.endDate;
+      if (!effectiveEndDate) {
+        toast({
+          title: "Error",
+          description: "Please select end date",
+          variant: "destructive",
+        });
+        return;
+      }
+
       // Extract just the leave type name (remove any extra text like " (X days/year)")
       const leaveTypeName = formData.leaveType.split(' (')[0].trim();
 
+      // Calculate days: 0.5 for half-day, else calendar days
+      const days = formData.isHalfDay
+        ? 0.5
+        : Math.ceil((effectiveEndDate.getTime() - formData.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
       // Check leave balance - skip check for Leave Without Pay (LWP)
-      if (!leaveTypeName.toLowerCase().includes('without pay') && 
+      if (!leaveTypeName.toLowerCase().includes('without pay') &&
           !leaveTypeName.toLowerCase().includes('lwp')) {
         const balance = leaveBalances.find(b => b.leaveType === leaveTypeName);
         const availableBalance = balance?.available || 0;
-        
+
         if (availableBalance <= 0) {
           toast({
             title: "Error",
@@ -225,7 +273,6 @@ export default function LeavePage() {
         }
 
         // Check medical certificate requirement
-        const days = Math.ceil((formData.endDate.getTime() - formData.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
         
         if (days > availableBalance) {
           toast({
@@ -246,7 +293,6 @@ export default function LeavePage() {
         }
       } else {
         // For LWP, still check medical certificate if needed
-        const days = Math.ceil((formData.endDate.getTime() - formData.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
         if (leaveTypeName.toLowerCase().includes('sick') && days > 3 && !formData.medicalCertificate) {
           toast({
             title: "Error",
@@ -262,10 +308,15 @@ export default function LeavePage() {
       // leaveTypeName already extracted above
       const payload: any = {
         leaveType: leaveTypeName,
-        startDate: formData.startDate.toISOString(),
-        endDate: formData.endDate.toISOString(),
+        startDate: formData.startDate!.toISOString(),
+        endDate: effectiveEndDate.toISOString(),
         reason: formData.reason.trim(),
       };
+
+      if (formData.isHalfDay && formData.halfDayType) {
+        payload.isHalfDay = true;
+        payload.halfDayType = formData.halfDayType;
+      }
 
       // Add medical certificate if provided
       if (formData.medicalCertificate) {
@@ -292,8 +343,11 @@ export default function LeavePage() {
           reason: '',
           medicalCertificate: null,
           attachments: [],
+          isHalfDay: false,
+          halfDayType: '',
         });
         setSandwichLeaveWarning(null);
+        setSandwichAcknowledged(false);
         loadLeaves(); // Reload leaves after successful submission
       } else {
         toast({
@@ -385,6 +439,42 @@ export default function LeavePage() {
                     </Select>
                   </div>
                   
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="checkbox"
+                      id="isHalfDay"
+                      checked={formData.isHalfDay}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          isHalfDay: e.target.checked,
+                          halfDayType: e.target.checked ? formData.halfDayType : '',
+                          endDate: e.target.checked && formData.startDate ? formData.startDate : formData.endDate,
+                        })
+                      }
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    <Label htmlFor="isHalfDay" className="font-normal cursor-pointer">
+                      Half-day leave (BR-P1-003)
+                    </Label>
+                  </div>
+                  {formData.isHalfDay && (
+                    <div className="grid gap-2">
+                      <Label>Half-day type</Label>
+                      <Select
+                        value={formData.halfDayType}
+                        onValueChange={(v) => setFormData({ ...formData, halfDayType: v as 'FIRST_HALF' | 'SECOND_HALF' })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="FIRST_HALF">First Half (Morning)</SelectItem>
+                          <SelectItem value="SECOND_HALF">Second Half (Afternoon)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label>Start Date</Label>
@@ -412,7 +502,7 @@ export default function LeavePage() {
                       </Popover>
                     </div>
                     <div className="grid gap-2">
-                      <Label>End Date</Label>
+                      <Label>End Date {formData.isHalfDay && '(same as start for half-day)'}</Label>
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button
@@ -421,6 +511,7 @@ export default function LeavePage() {
                               "w-full justify-start text-left font-normal",
                               !formData.endDate && "text-muted-foreground"
                             )}
+                            disabled={formData.isHalfDay}
                           >
                             <CalendarIcon className="mr-2 h-4 w-4" />
                             {formData.endDate ? format(formData.endDate, "PPP") : <span>Pick a date</span>}
@@ -431,12 +522,31 @@ export default function LeavePage() {
                             mode="single"
                             selected={formData.endDate}
                             onSelect={(date) => setFormData({ ...formData, endDate: date })}
+                            disabled={formData.isHalfDay}
                             initialFocus
                           />
                         </PopoverContent>
                       </Popover>
                     </div>
                   </div>
+
+                  {sandwichLeaveWarning && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 flex gap-2">
+                      <Info className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm text-amber-800">{sandwichLeaveWarning}</p>
+                        <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={sandwichAcknowledged}
+                            onChange={(e) => setSandwichAcknowledged(e.target.checked)}
+                            className="h-4 w-4 rounded border-amber-300"
+                          />
+                          <span className="text-sm text-amber-800">I acknowledge this is sandwich leave and understand the policy</span>
+                        </label>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="grid gap-2">
                     <Label htmlFor="reason">Reason</Label>

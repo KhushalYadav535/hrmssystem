@@ -339,7 +339,8 @@ export default function PayrollAdminDashboard() {
   }
 
   // BRD Access Control:
-  // - Payroll Administrator: Full access (process + view)
+  // - Payroll Administrator (Maker): Can CREATE, EDIT, SUBMIT payroll. Cannot APPROVE.
+  // - Payroll Administrator (Checker): Can VIEW, APPROVE, REJECT payroll. Cannot EDIT or CREATE.
   // - HR Administrator: NOT ALLOWED (cannot process payroll or modify salary structures per BRD)
   // - Tenant Admin: View access (all reports)
   // - Finance Administrator: View access (financial reports)
@@ -347,9 +348,23 @@ export default function PayrollAdminDashboard() {
   // - Employee: Should use /payroll page (own payslip only)
   // - Manager: Should use /payroll page (team payslips)
   
+  // BR-P0-001 Bug 4: Separate Maker and Checker permissions
   const allowedRoles = ['Payroll Administrator', 'Tenant Admin', 'Finance Administrator', 'Auditor', 'Super Admin'];
-  const canProcessPayroll = hasPermission('process_payroll') || currentUser?.role === 'Payroll Administrator' || currentUser?.role === 'Super Admin';
-  const canViewPayroll = hasPermission('view_payroll_reports') || hasPermission('process_payroll') || allowedRoles.includes(currentUser?.role || '');
+  
+  // BR-P0-001 Bug 4: Maker can CREATE, EDIT, SUBMIT payroll (cannot APPROVE)
+  // Checker can VIEW, APPROVE, REJECT (cannot EDIT or CREATE)
+  // Logic: If user has process_payroll permission, they are Maker. If they have approve_payroll, they are Checker.
+  // A user can be both Maker and Checker, but cannot approve their own created payrolls (enforced per transaction).
+  const isMaker = hasPermission('process_payroll') || (currentUser?.role === 'Payroll Administrator' && !hasPermission('approve_payroll_only'));
+  const isChecker = hasPermission('approve_payroll') || currentUser?.role === 'Payroll Administrator' || currentUser?.role === 'Finance Administrator';
+  
+  // BR-P0-001 Bug 4: Maker can process payroll, Checker cannot
+  const canProcessPayroll = isMaker || currentUser?.role === 'Super Admin';
+  
+  // BR-P0-001 Bug 4: Checker can approve payroll (but not their own created ones - enforced per transaction)
+  const canApprovePayroll = isChecker || currentUser?.role === 'Super Admin';
+  
+  const canViewPayroll = hasPermission('view_payroll_reports') || hasPermission('process_payroll') || hasPermission('approve_payroll') || allowedRoles.includes(currentUser?.role || '');
 
   if (!canViewPayroll && currentUser?.role !== 'Super Admin') {
     // Employees and Managers should use /payroll page

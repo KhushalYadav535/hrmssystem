@@ -19,6 +19,8 @@ export interface Tenant {
   status: 'active' | 'inactive';
 }
 
+export type PayrollSubRole = 'Maker' | 'Checker';
+
 export interface User {
   id: string;
   tenantId: string;
@@ -26,6 +28,8 @@ export interface User {
   password: string;
   name: string;
   role: UserRole;
+  /** BRD: Maker=process payroll, Checker=approve only. Set by Tenant Admin for Payroll Administrator */
+  payrollSubRole?: PayrollSubRole | null;
   designation: string;
   department: string;
   status: 'active' | 'inactive';
