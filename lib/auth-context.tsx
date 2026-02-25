@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             joinDate: user.joinDate,
             avatar: user.avatar || '',
           });
-          
+
           const tenantData = user.tenantId._id ? user.tenantId : { id: user.tenantId };
           setCurrentTenant({
             id: tenantData._id ? tenantData._id.toString() : tenantData.id || user.tenantId,
@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             employees: tenantData.employees || 0,
             status: tenantData.status || 'active',
           });
-          
+
           // Store user/tenant IDs for reference (not token)
           localStorage.setItem('currentUserId', user._id || user.id);
           localStorage.setItem('currentTenantId', user.tenantId._id ? user.tenantId._id.toString() : user.tenantId.toString());
@@ -73,22 +73,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       setIsLoading(false);
     };
-    
+
     restoreSession();
   }, []);
 
   const login = useCallback(async (email: string, password: string, tenantId?: string) => {
     try {
       const response = await apiService.login(email, password, tenantId);
-      
+
       if (response.success && response.data) {
         const { user, tenant } = response.data;
-        
+
         // BR-P0-001 Bug 3: Token is now stored in HttpOnly cookie by backend
         // Only store user info in localStorage (not token)
         localStorage.setItem('currentUserId', user.id);
         localStorage.setItem('currentTenantId', user.tenantId);
-        
+
         // Set user and tenant
         setCurrentUser({
           id: user.id,
@@ -104,7 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           joinDate: user.joinDate || new Date().toISOString().split('T')[0],
           avatar: user.avatar || '',
         });
-        
+
         if (tenant) {
           setCurrentTenant({
             id: tenant.id,
@@ -115,10 +115,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             status: tenant.status,
           });
         }
-        
+
         return { success: true, message: 'Login successful', tenant };
       }
-      
+
       return { success: false, message: response.message || 'Login failed' };
     } catch (error: any) {
       return { success: false, message: error.message || 'Network error' };
@@ -133,7 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // BR-P0-001 Bug 3: Token is in HttpOnly cookie, not localStorage
         localStorage.setItem('currentUserId', user.id);
         localStorage.setItem('currentTenantId', user.tenantId);
-        
+
         setCurrentUser({
           id: user.id,
           tenantId: user.tenantId,
@@ -147,7 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           joinDate: user.joinDate || new Date().toISOString().split('T')[0],
           avatar: user.avatar || '',
         });
-        
+
         if (tenant) {
           setCurrentTenant({
             id: tenant.id,
@@ -175,14 +175,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         password,
         'Tenant Administrator'
       );
-      
+
       if (response.success && response.data) {
         const { tenant, user } = response.data;
-        
+
         // BR-P0-001 Bug 3: Token is in HttpOnly cookie, not localStorage
         localStorage.setItem('currentUserId', user.id);
         localStorage.setItem('currentTenantId', tenant.id);
-        
+
         // Set user and tenant
         setCurrentUser({
           id: user.id,
@@ -197,7 +197,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           joinDate: new Date().toISOString().split('T')[0],
           avatar: '',
         });
-        
+
         setCurrentTenant({
           id: tenant.id,
           name: tenant.name,
@@ -206,10 +206,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           employees: 0,
           status: 'active',
         });
-        
+
         return { success: true, message: 'Tenant registered successfully', tenantId: tenant.id };
       }
-      
+
       return { success: false, message: response.message || 'Registration failed' };
     } catch (error: any) {
       return { success: false, message: error.message || 'Network error' };
@@ -228,17 +228,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // BR-P0-001 Bug 1: Clear all storage (localStorage, sessionStorage, in-memory state)
       setCurrentUser(null);
       setCurrentTenant(null);
-      
+
       // Clear localStorage
       localStorage.removeItem('token'); // Remove if exists (backward compatibility)
       localStorage.removeItem('currentUserId');
       localStorage.removeItem('currentTenantId');
-      
+
       // Clear sessionStorage
       if (typeof window !== 'undefined') {
         sessionStorage.clear();
       }
-      
+
       // Note: HttpOnly cookie is cleared by backend logout endpoint
     }
   }, []);
@@ -249,11 +249,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Re-login with the new tenant
         const response = await apiService.login(currentUser.email, '', tenantId);
         if (response.success && response.data) {
-        const { user, tenant } = response.data;
-        // BR-P0-001 Bug 3: Token is in HttpOnly cookie, not localStorage
-        localStorage.setItem('currentUserId', user.id);
-        localStorage.setItem('currentTenantId', tenantId);
-          
+          const { user, tenant } = response.data;
+          // BR-P0-001 Bug 3: Token is in HttpOnly cookie, not localStorage
+          localStorage.setItem('currentUserId', user.id);
+          localStorage.setItem('currentTenantId', tenantId);
+
           setCurrentUser({
             id: user.id,
             tenantId: user.tenantId,
@@ -268,7 +268,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             joinDate: user.joinDate || new Date().toISOString().split('T')[0],
             avatar: user.avatar || '',
           });
-          
+
           if (tenant) {
             setCurrentTenant({
               id: tenant.id,
@@ -289,12 +289,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const hasPermission = useCallback(
     (permission: string) => {
       if (!currentUser) return false;
-      
+
       // Super Admin has ALL permissions
       if (currentUser.role === 'Super Admin') {
         return true;
       }
-      
+
       const rolePermissions: Record<UserRole, string[]> = {
         'Super Admin': [
           // All permissions - checked above
@@ -302,7 +302,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ],
         'Tenant Admin': [
           // Company owner/CEO - can manage everything including system configuration within tenant
-          'manage_employees', 'view_all_reports', 'manage_policies', 'manage_onboarding', 
+          'manage_employees', 'view_all_reports', 'manage_policies', 'manage_onboarding',
           'manage_recruitment', 'view_payroll_reports', 'approve_leave', 'approve_expense',
           'approve_appraisal', 'view_team', 'manage_finance', 'view_financial_reports',
           'manage_departments', 'manage_designations', 'view_audit_logs',
@@ -312,12 +312,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'manage_settings', 'manage_sms', 'manage_whatsapp', 'system_maintenance'
         ],
         'HR Administrator': [
-          'manage_employees', 'configure_system', 'view_all_reports', 'manage_policies', 
+          'manage_employees', 'configure_system', 'view_all_reports', 'manage_policies',
           'manage_onboarding', 'manage_recruitment', 'approve_leave', 'approve_expense',
           'view_team', 'manage_departments', 'manage_designations', 'view_audit_logs',
           'manage_users', 'manage_roles', 'manage_attendance', 'view_attendance',
           // HR Admin is also an employee, so they can apply for their own leave
-          'apply_leave', 'submit_expense', 'view_profile', 'view_payslip', 'view_tax', 
+          'apply_leave', 'submit_expense', 'view_profile', 'view_payslip', 'view_tax',
           'submit_appraisal', 'view_own_data'
         ],
         'Payroll Administrator': [
@@ -331,15 +331,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'reconcile_accounts', 'view_audit_logs', 'manage_finance'
         ],
         'Manager': [
-          'approve_leave', 'approve_expense', 'approve_travel', 'view_team', 
+          'approve_leave', 'approve_expense', 'approve_travel', 'view_team',
           'view_reports', 'approve_appraisal', 'view_team_payslip', 'manage_team_goals'
         ],
         'Employee': [
-          'view_payslip', 'apply_leave', 'submit_expense', 'view_profile', 
+          'view_payslip', 'apply_leave', 'submit_expense', 'view_profile',
           'view_tax', 'view_attendance', 'submit_appraisal', 'view_own_data'
         ],
         'Auditor': [
-          'view_all_reports', 'view_audit_logs', 'view_financial_reports', 
+          'view_all_reports', 'view_audit_logs', 'view_financial_reports',
           'view_payroll_reports', 'view_employee_data', 'export_reports'
         ],
       };

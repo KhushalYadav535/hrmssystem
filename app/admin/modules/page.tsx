@@ -1,14 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/lib/auth-context';
+import React, { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import apiService from '@/lib/api';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -16,252 +15,178 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, CheckCircle2, XCircle, AlertCircle, Settings } from 'lucide-react';
+import {
+  Loader2,
+  Save,
+  Search,
+  CheckCircle2,
+  XCircle,
+  Package,
+  Building2,
+  Shield,
+} from 'lucide-react';
 import { Tenant } from '@/lib/types';
 
-/**
- * Platform Admin - Module Management Dashboard
- * BRD: Dynamic Module Management System - DM-033
- */
 export default function PlatformModuleManagementPage() {
-  const { user } = useAuth();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const preselectedTenant = searchParams.get('tenant');
+
   const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [selectedTenant, setSelectedTenant] = useState<string>('');
+  const [selectedTenantId, setSelectedTenantId] = useState<string>('');
   const [allModules, setAllModules] = useState<any[]>([]);
-  const [companyModules, setCompanyModules] = useState<any[]>([]);
-  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [enabledModuleIds, setEnabledModuleIds] = useState<Set<string>>(new Set());
+  const [pendingChanges, setPendingChanges] = useState<Set<string>>(new Set());
+  const [originalEnabled, setOriginalEnabled] = useState<Set<string>>(new Set());
+  const [loadingTenantModules, setLoadingTenantModules] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [enablingModule, setEnablingModule] = useState(false);
-  const [configDialogOpen, setConfigDialogOpen] = useState(false);
-  const [selectedModule, setSelectedModule] = useState<any>(null);
-  const [configData, setConfigData] = useState({
-    pricingModel: '',
-    monthlyCost: 0,
-    userLimit: undefined as number | undefined,
-    trialDays: undefined as number | undefined,
-  });
+  const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('ALL');
 
   useEffect(() => {
-    loadData();
+    loadInitial();
   }, []);
 
   useEffect(() => {
-    if (selectedTenant) {
-      loadCompanyModules();
-      loadPendingRequests();
-    }
-  }, [selectedTenant]);
+    if (selectedTenantId) loadTenantModules(selectedTenantId);
+  }, [selectedTenantId]);
 
-  const loadData = async () => {
+  const loadInitial = async () => {
     try {
       setLoading(true);
-      
-      // Load tenants
-      const tenantsRes = await apiService.getTenants();
-      if (tenantsRes.success && tenantsRes.data) {
-        setTenants(tenantsRes.data);
-        if (tenantsRes.data.length > 0) {
-          setSelectedTenant(tenantsRes.data[0].id);
-        }
+      const [tRes, mRes] = await Promise.all([
+        apiService.getTenants(),
+        apiService.getAllPlatformModules(),
+      ]);
+
+      let tenantList: Tenant[] = [];
+      if (tRes.success && tRes.data) {
+        tenantList = Array.isArray(tRes.data) ? tRes.data : [];
+        setTenants(tenantList);
+      }
+      if (mRes.success && mRes.data) {
+        const mods = Array.isArray(mRes.data) ? mRes.data : (mRes as any).modules ?? [];
+        setAllModules(mods);
       }
 
-      // Load all platform modules
-      const modulesRes = await apiService.getAllPlatformModules();
-      if (modulesRes.success && modulesRes.data) {
-        setAllModules(modulesRes.data);
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to load data',
-        variant: 'destructive',
-      });
+      const firstId = preselectedTenant || (tenantList[0]?.id ?? '');
+      if (firstId) setSelectedTenantId(firstId);
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
   };
 
-  const loadCompanyModules = async () => {
-    if (!selectedTenant) return;
-    
+  const loadTenantModules = async (tenantId: string) => {
     try {
-      const res = await apiService.getCompanyModules(selectedTenant, true);
-      if (res.success && res.data) {
-        setCompanyModules(res.data);
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to load company modules',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const loadPendingRequests = async () => {
-    if (!selectedTenant) return;
-    
-    try {
-      const res = await apiService.getModuleRequests('PENDING');
-      if (res.success && res.data) {
-        const raw = res.data as any;
-        const list = Array.isArray(raw) ? raw : (raw?.requests || []);
-        const filtered = list.filter((r: any) => String(r.tenantId) === String(selectedTenant));
-        setPendingRequests(filtered);
-      }
-    } catch (error: any) {
-      console.error('Failed to load requests:', error);
-    }
-  };
-
-  const handleEnableModule = async (moduleId: string) => {
-    if (!selectedTenant) return;
-    const id = typeof moduleId === 'string' ? moduleId : (moduleId as any)?.toString?.() || '';
-    if (!id) {
-      toast({ title: 'Error', description: 'Invalid module', variant: 'destructive' });
-      return;
-    }
-
-    setEnablingModule(true);
-    try {
-      const res = await apiService.enableModule(selectedTenant, id, {
-        pricingModel: configData.pricingModel || 'FLAT_FEE',
-        monthlyCost: Number(configData.monthlyCost) || 0,
-        userLimit: configData.userLimit,
-        trialDays: configData.trialDays,
-      });
-      if (res.success) {
-        toast({ title: 'Success', description: 'Module enabled successfully' });
-        setConfigDialogOpen(false);
-        setSelectedModule(null);
-        loadCompanyModules();
-      } else {
-        toast({
-          title: 'Error',
-          description: (res as any).error || (res as any).message || 'Failed to enable module',
-          variant: 'destructive',
-        });
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to enable module',
-        variant: 'destructive',
-      });
+      setLoadingTenantModules(true);
+      const res = await apiService.getCompanyModules(tenantId, true);
+      const raw = (res as any).data ?? (res as any).modules ?? [];
+      const list: any[] = Array.isArray(raw) ? raw : [];
+      const enabled = new Set<string>(
+        list
+          .filter((cm: any) => cm.isEnabled)
+          .map((cm: any) => (cm.moduleId?._id ?? cm.moduleId ?? '').toString())
+      );
+      setEnabledModuleIds(new Set(enabled));
+      setOriginalEnabled(new Set(enabled));
+      setPendingChanges(new Set());
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
     } finally {
-      setEnablingModule(false);
+      setLoadingTenantModules(false);
     }
   };
 
-  const handleDisableModule = async (moduleId: string, reason: string) => {
-    if (!selectedTenant) return;
-
-    if (!reason.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please provide a reason for disabling',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    try {
-      const res = await apiService.disableModule(selectedTenant, moduleId, reason);
-      if (res.success) {
-        toast({
-          title: 'Success',
-          description: 'Module disabled successfully',
-        });
-        loadCompanyModules();
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to disable module',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleApproveRequest = async (requestId: string) => {
-    try {
-      const res = await apiService.approveModuleRequest(requestId);
-      if (res.success) {
-        toast({
-          title: 'Success',
-          description: 'Request approved successfully',
-        });
-        loadPendingRequests();
-        loadCompanyModules();
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to approve request',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleRejectRequest = async (requestId: string, reason: string) => {
-    if (!reason.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please provide a rejection reason',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    try {
-      const res = await apiService.rejectModuleRequest(requestId, reason);
-      if (res.success) {
-        toast({
-          title: 'Success',
-          description: 'Request rejected',
-        });
-        loadPendingRequests();
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to reject request',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const openConfigDialog = (module: any) => {
-    setSelectedModule(module);
-    setConfigData({
-      pricingModel: module.pricingModel || 'FLAT_FEE',
-      monthlyCost: module.basePrice || 0,
-      userLimit: undefined,
-      trialDays: undefined,
+  const toggleModule = (moduleId: string, isCore: boolean) => {
+    if (isCore) return; // Core modules cannot be toggled
+    setEnabledModuleIds(prev => {
+      const next = new Set(prev);
+      if (next.has(moduleId)) next.delete(moduleId);
+      else next.add(moduleId);
+      return next;
     });
-    setConfigDialogOpen(true);
+    setPendingChanges(prev => {
+      const next = new Set(prev);
+      if (next.has(moduleId)) next.delete(moduleId);
+      else next.add(moduleId);
+      return next;
+    });
   };
 
-  const enabledModules = companyModules.filter(m => m.isEnabled);
-  const disabledModules = companyModules.filter(m => !m.isEnabled);
-  const availableModules = allModules.filter(
-    m => !m.isCore && !companyModules.some(cm => cm.moduleId?._id === m._id)
-  );
+  const handleSave = async () => {
+    if (!selectedTenantId || pendingChanges.size === 0) return;
+
+    setSaving(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const moduleId of Array.from(pendingChanges)) {
+      const nowEnabled = enabledModuleIds.has(moduleId);
+      const wasEnabled = originalEnabled.has(moduleId);
+
+      try {
+        if (nowEnabled && !wasEnabled) {
+          // Enable
+          await apiService.enableModule(selectedTenantId, moduleId, {
+            pricingModel: 'FLAT_FEE',
+            monthlyCost: 0,
+          });
+          successCount++;
+        } else if (!nowEnabled && wasEnabled) {
+          // Disable
+          await apiService.disableModule(selectedTenantId, moduleId, 'Disabled by Super Admin');
+          successCount++;
+        }
+      } catch {
+        failCount++;
+      }
+    }
+
+    setSaving(false);
+
+    if (failCount === 0) {
+      toast({ title: 'Saved!', description: `${successCount} module(s) updated for this tenant.` });
+    } else {
+      toast({
+        title: 'Partial Success',
+        description: `${successCount} updated, ${failCount} failed.`,
+        variant: 'destructive',
+      });
+    }
+
+    // Reload to get fresh state
+    await loadTenantModules(selectedTenantId);
+  };
+
+  const handleReset = () => {
+    setEnabledModuleIds(new Set(originalEnabled));
+    setPendingChanges(new Set());
+  };
+
+  // Unique categories
+  const categories = ['ALL', ...Array.from(new Set(allModules.map(m => m.moduleCategory).filter(Boolean)))];
+
+  const filteredModules = allModules.filter(m => {
+    const matchesSearch =
+      !search ||
+      m.moduleName?.toLowerCase().includes(search.toLowerCase()) ||
+      m.description?.toLowerCase().includes(search.toLowerCase()) ||
+      m.moduleCode?.toLowerCase().includes(search.toLowerCase());
+    const matchesCategory = categoryFilter === 'ALL' || m.moduleCategory === categoryFilter;
+    return matchesSearch && matchesCategory;
+  });
+
+  const selectedTenant = tenants.find(t => t.id === selectedTenantId);
+  const enabledCount = allModules.filter(m => enabledModuleIds.has(m._id?.toString())).length;
+  const totalNonCore = allModules.filter(m => !m.isCore).length;
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
@@ -269,367 +194,208 @@ export default function PlatformModuleManagementPage() {
 
   return (
     <DashboardLayout>
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Module Management</h1>
-          <p className="text-muted-foreground">Manage modules for companies</p>
-        </div>
-      </div>
-
-      {/* Tenant Selector */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Select Company</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Select value={selectedTenant} onValueChange={setSelectedTenant}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select a company" />
-            </SelectTrigger>
-            <SelectContent>
-              {tenants.map((tenant) => (
-                <SelectItem key={tenant.id} value={tenant.id}>
-                  {tenant.name} ({tenant.code})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </CardContent>
-      </Card>
-
-      {selectedTenant && (
-        <>
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Active Modules</CardDescription>
-                <CardTitle className="text-2xl">{enabledModules.length}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Available Modules</CardDescription>
-                <CardTitle className="text-2xl">{availableModules.length}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Pending Requests</CardDescription>
-                <CardTitle className="text-2xl">{pendingRequests.length}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Total Modules</CardDescription>
-                <CardTitle className="text-2xl">{allModules.length}</CardTitle>
-              </CardHeader>
-            </Card>
+      <div className="space-y-6 p-1">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold">Module Assignment</h1>
+            <p className="text-muted-foreground">
+              Select which modules a tenant can access. Changes reflect in their sidebar immediately.
+            </p>
           </div>
+          {pendingChanges.size > 0 && (
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleReset} disabled={saving}>
+                Reset
+              </Button>
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</>
+                ) : (
+                  <><Save className="h-4 w-4 mr-2" />Save Changes ({pendingChanges.size})</>
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
 
-          <Tabs defaultValue="active" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="active">Active Modules ({enabledModules.length})</TabsTrigger>
-              <TabsTrigger value="available">Available Modules ({availableModules.length})</TabsTrigger>
-              <TabsTrigger value="requests">Pending Requests ({pendingRequests.length})</TabsTrigger>
-            </TabsList>
-
-            {/* Active Modules Tab */}
-            <TabsContent value="active" className="space-y-4">
-              {enabledModules.length === 0 ? (
-                <Card>
-                  <CardContent className="py-8 text-center text-muted-foreground">
-                    No active modules
-                  </CardContent>
-                </Card>
-              ) : (
-                enabledModules.map((cm) => {
-                  const module = cm.moduleId || {};
-                  return (
-                    <Card key={cm._id}>
-                      <CardHeader>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <CardTitle className="flex items-center gap-2">
-                              {module.moduleName}
-                              <Badge variant={cm.trialEndDate ? 'secondary' : 'default'}>
-                                {cm.trialEndDate ? 'Trial' : 'Active'}
-                              </Badge>
-                            </CardTitle>
-                            <CardDescription>{module.description}</CardDescription>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openConfigDialog(module)}
-                            >
-                              <Settings className="h-4 w-4 mr-2" />
-                              Configure
-                            </Button>
-                            {!module.isCore && (
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => {
-                                  const reason = prompt('Reason for disabling:');
-                                  if (reason) {
-                                    handleDisableModule(module._id, reason);
-                                  }
-                                }}
-                              >
-                                Disable
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <span className="text-muted-foreground">Category:</span>
-                            <p className="font-medium">{module.moduleCategory}</p>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Monthly Cost:</span>
-                            <p className="font-medium">₹{cm.monthlyCost?.toLocaleString() || 0}</p>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Activated:</span>
-                            <p className="font-medium">
-                              {new Date(cm.activationDate).toLocaleDateString()}
-                            </p>
-                          </div>
-                          {cm.trialEndDate && (
-                            <div>
-                              <span className="text-muted-foreground">Trial Ends:</span>
-                              <p className="font-medium">
-                                {new Date(cm.trialEndDate).toLocaleDateString()}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })
-              )}
-            </TabsContent>
-
-            {/* Available Modules Tab */}
-            <TabsContent value="available" className="space-y-4">
-              {availableModules.length === 0 ? (
-                <Card>
-                  <CardContent className="py-8 text-center text-muted-foreground">
-                    All modules are enabled
-                  </CardContent>
-                </Card>
-              ) : (
-                availableModules.map((module) => (
-                  <Card key={module._id}>
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <CardTitle>{module.moduleName}</CardTitle>
-                          <CardDescription>{module.description}</CardDescription>
-                        </div>
-                        <Button onClick={() => openConfigDialog(module)}>Enable</Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div>
-                          <span className="text-muted-foreground">Category:</span>
-                          <p className="font-medium">{module.moduleCategory}</p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Pricing:</span>
-                          <p className="font-medium">
-                            {module.pricingModel === 'FLAT_FEE'
-                              ? `₹${module.basePrice?.toLocaleString()}/month`
-                              : module.pricingModel === 'PER_USER'
-                              ? `₹${module.basePrice}/user/month`
-                              : 'Bundled'}
-                          </p>
-                        </div>
-                        {module.dependsOnModules && module.dependsOnModules.length > 0 && (
-                          <div>
-                            <span className="text-muted-foreground">Depends on:</span>
-                            <p className="font-medium">{module.dependsOnModules.join(', ')}</p>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </TabsContent>
-
-            {/* Pending Requests Tab */}
-            <TabsContent value="requests" className="space-y-4">
-              {pendingRequests.length === 0 ? (
-                <Card>
-                  <CardContent className="py-8 text-center text-muted-foreground">
-                    No pending requests
-                  </CardContent>
-                </Card>
-              ) : (
-                pendingRequests.map((request) => {
-                  const module = request.moduleId || {};
-                  return (
-                    <Card key={request._id}>
-                      <CardHeader>
-                        <CardTitle>{module.moduleName}</CardTitle>
-                        <CardDescription>
-                          Requested by: {request.requestedBy} on{' '}
-                          {new Date(request.requestedAt).toLocaleDateString()}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div>
-                          <Label>Business Justification</Label>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {request.businessJustification}
-                          </p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <span className="text-muted-foreground">Request Type:</span>
-                            <p className="font-medium">{request.requestType}</p>
-                          </div>
-                          {request.expectedUsers && (
-                            <div>
-                              <span className="text-muted-foreground">Expected Users:</span>
-                              <p className="font-medium">{request.expectedUsers}</p>
-                            </div>
-                          )}
-                          {request.trialRequested && (
-                            <div>
-                              <span className="text-muted-foreground">Trial Duration:</span>
-                              <p className="font-medium">{request.trialDurationDays} days</p>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={() => handleApproveRequest(request._id)}
-                            className="flex-1"
-                          >
-                            <CheckCircle2 className="h-4 w-4 mr-2" />
-                            Approve
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            onClick={() => {
-                              const reason = prompt('Rejection reason:');
-                              if (reason) {
-                                handleRejectRequest(request._id, reason);
-                              }
-                            }}
-                            className="flex-1"
-                          >
-                            <XCircle className="h-4 w-4 mr-2" />
-                            Reject
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })
-              )}
-            </TabsContent>
-          </Tabs>
-        </>
-      )}
-
-      {/* Module Configuration Dialog */}
-      <Dialog open={configDialogOpen} onOpenChange={setConfigDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Configure Module: {selectedModule?.moduleName}</DialogTitle>
-            <DialogDescription>
-              Set pricing, limits, and activation options for this module
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Pricing Model</Label>
-              <Select
-                value={configData.pricingModel}
-                onValueChange={(value) => setConfigData({ ...configData, pricingModel: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
+        {/* Tenant Selector */}
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <Building2 className="h-5 w-5 text-muted-foreground shrink-0" />
+              <Select value={selectedTenantId} onValueChange={setSelectedTenantId}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Select a tenant/company" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="FLAT_FEE">Flat Fee</SelectItem>
-                  <SelectItem value="PER_USER">Per User</SelectItem>
-                  <SelectItem value="PER_TRANSACTION">Per Transaction</SelectItem>
-                  <SelectItem value="BUNDLED">Bundled</SelectItem>
+                  {tenants.map(t => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name} ({(t as any).code})
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>Monthly Cost (₹)</Label>
-              <Input
-                type="number"
-                value={configData.monthlyCost}
-                onChange={(e) =>
-                  setConfigData({ ...configData, monthlyCost: Number(e.target.value) })
-                }
-              />
+          </CardContent>
+        </Card>
+
+        {selectedTenantId && (
+          <>
+            {/* Stats Row */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <Card>
+                <CardContent className="pt-4">
+                  <p className="text-xs text-muted-foreground">Enabled</p>
+                  <p className="text-2xl font-bold text-green-600">{enabledCount}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <p className="text-xs text-muted-foreground">Disabled</p>
+                  <p className="text-2xl font-bold text-red-500">{totalNonCore - (enabledCount - allModules.filter(m => m.isCore && enabledModuleIds.has(m._id?.toString())).length)}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <p className="text-xs text-muted-foreground">Total Modules</p>
+                  <p className="text-2xl font-bold">{allModules.length}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <p className="text-xs text-muted-foreground">Pending Changes</p>
+                  <p className="text-2xl font-bold text-amber-500">{pendingChanges.size}</p>
+                </CardContent>
+              </Card>
             </div>
-            <div>
-              <Label>User Limit (optional)</Label>
-              <Input
-                type="number"
-                value={configData.userLimit || ''}
-                onChange={(e) =>
-                  setConfigData({
-                    ...configData,
-                    userLimit: e.target.value ? Number(e.target.value) : undefined,
-                  })
-                }
-                placeholder="Leave empty for unlimited"
-              />
+
+            {/* Filters */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search modules..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-full sm:w-48">
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map(c => (
+                    <SelectItem key={c} value={c}>{c === 'ALL' ? 'All Categories' : c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div>
-              <Label>Trial Period (days, optional)</Label>
-              <Input
-                type="number"
-                value={configData.trialDays || ''}
-                onChange={(e) =>
-                  setConfigData({
-                    ...configData,
-                    trialDays: e.target.value ? Number(e.target.value) : undefined,
-                  })
-                }
-                placeholder="Leave empty for direct activation"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfigDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => selectedModule && handleEnableModule(selectedModule._id)}
-              disabled={enablingModule}
-            >
-              {enablingModule ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Activating...
-                </>
-              ) : (
-                'Save & Activate'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+
+            {/* Module Grid */}
+            {loadingTenantModules ? (
+              <div className="flex items-center justify-center h-40">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredModules.map(module => {
+                  const mid = module._id?.toString();
+                  const isEnabled = enabledModuleIds.has(mid);
+                  const isCore = module.isCore;
+                  const hasPending = pendingChanges.has(mid);
+
+                  return (
+                    <div
+                      key={mid}
+                      onClick={() => toggleModule(mid, isCore)}
+                      className={[
+                        'relative rounded-xl border-2 p-4 cursor-pointer transition-all duration-200 select-none',
+                        isCore
+                          ? 'border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-800 cursor-not-allowed opacity-80'
+                          : isEnabled
+                            ? 'border-green-400 bg-green-50/60 dark:bg-green-950/20 dark:border-green-700 hover:shadow-md'
+                            : 'border-border bg-card hover:border-muted-foreground/40 hover:shadow-sm',
+                        hasPending ? 'ring-2 ring-amber-400 ring-offset-1' : '',
+                      ].join(' ')}
+                    >
+                      {/* Top-right indicator */}
+                      <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                        {isCore && (
+                          <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
+                            <Shield className="h-3 w-3 mr-1" />Core
+                          </Badge>
+                        )}
+                        {hasPending && (
+                          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                        )}
+                        {isEnabled ? (
+                          <CheckCircle2 className="h-5 w-5 text-green-500" />
+                        ) : (
+                          <XCircle className="h-5 w-5 text-muted-foreground/40" />
+                        )}
+                      </div>
+
+                      {/* Module Info */}
+                      <div className="pr-16">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Package className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <p className="font-semibold text-sm leading-tight">{module.moduleName}</p>
+                        </div>
+                        <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
+                          {module.description || 'No description'}
+                        </p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {module.moduleCategory && (
+                            <Badge variant="outline" className="text-xs px-1.5 py-0">
+                              {module.moduleCategory}
+                            </Badge>
+                          )}
+                          <span className="text-xs font-mono text-muted-foreground">
+                            {module.moduleCode}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {filteredModules.length === 0 && (
+                  <div className="col-span-full text-center text-muted-foreground py-12">
+                    No modules found matching your search.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Bottom Save Bar (sticky) */}
+            {pendingChanges.size > 0 && (
+              <div className="sticky bottom-4 z-10">
+                <div className="bg-background border rounded-xl shadow-lg px-4 py-3 flex items-center justify-between gap-4">
+                  <p className="text-sm font-medium">
+                    <span className="text-amber-500 font-bold">{pendingChanges.size}</span> unsaved change
+                    {pendingChanges.size !== 1 ? 's' : ''} for{' '}
+                    <span className="font-bold">{selectedTenant?.name}</span>
+                  </p>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={handleReset} disabled={saving}>
+                      Reset
+                    </Button>
+                    <Button size="sm" onClick={handleSave} disabled={saving}>
+                      {saving ? (
+                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</>
+                      ) : (
+                        <><Save className="h-4 w-4 mr-2" />Save Changes</>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </DashboardLayout>
   );
 }

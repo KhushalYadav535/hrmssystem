@@ -35,7 +35,7 @@ interface DistributionData {
 }
 
 export default function NormalizationPage() {
-  const { isAuthenticated, hasPermission } = useAuth();
+  const { isAuthenticated, currentUser } = useAuth();
   const { toast } = useToast();
   const [cycles, setCycles] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
@@ -47,7 +47,10 @@ export default function NormalizationPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [justification, setJustification] = useState('');
 
-  if (!isAuthenticated || !hasPermission('manage_appraisal')) {
+  // Check if user has permission to access normalization
+  const hasNormalizationAccess = currentUser && ['HR Administrator', 'Tenant Admin', 'Super Admin'].includes(currentUser.role);
+
+  if (!isAuthenticated || !hasNormalizationAccess) {
     redirect('/dashboard');
   }
 

@@ -39,7 +39,7 @@ interface TeamMember {
 }
 
 export default function ManagerRatingPage() {
-  const { isAuthenticated, hasPermission, user } = useAuth();
+  const { isAuthenticated, currentUser } = useAuth();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -88,7 +88,7 @@ export default function ManagerRatingPage() {
       }
 
       // Get team members (employees reporting to this manager)
-      const empRes = await apiService.getEmployees({ reportingManager: user?._id });
+      const empRes = await apiService.getEmployees({ reportingManager: currentUser?._id });
       if (empRes.success && empRes.data && Array.isArray(empRes.data)) {
         setTeamMembers(empRes.data);
         if (empRes.data.length > 0) {
@@ -168,7 +168,7 @@ export default function ManagerRatingPage() {
     }
   };
 
-  if (!isAuthenticated || !hasPermission('approve_appraisal')) {
+  if (!isAuthenticated || !currentUser || !['Manager', 'HR Administrator', 'Tenant Admin', 'Super Admin'].includes(currentUser.role)) {
     redirect('/dashboard');
   }
 

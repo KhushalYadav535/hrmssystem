@@ -46,16 +46,15 @@ export default function HolidayCalendarPage() {
   const [holidays, setHolidays] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingHoliday, setEditingHoliday] = useState<any>(null);
+  const [editingHolidayIndex, setEditingHolidayIndex] = useState<number | null>(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [holidayCalendarId, setHolidayCalendarId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    holidayName: '',
-    holidayDate: '',
-    holidayType: 'NATIONAL',
-    location: '',
-    applicableTo: 'ALL',
+    date: '',
+    name: '',
+    type: 'NATIONAL',
+    applicableLocations: [] as string[],
     isOptional: false,
-    description: '',
   });
 
   useEffect(() => {
@@ -67,10 +66,25 @@ export default function HolidayCalendarPage() {
       setLoading(true);
       const res = await apiService.getHolidayCalendar({ year: selectedYear });
       if (res.success && res.data) {
-        setHolidays(res.data);
+        // Handle array of calendars from the response
+        if (Array.isArray(res.data)) {
+          const currentYearCalendar = res.data.find((cal: any) => cal.year === selectedYear);
+          if (currentYearCalendar) {
+            setHolidayCalendarId(currentYearCalendar._id);
+            setHolidays(currentYearCalendar.holidays || []);
+          } else {
+            setHolidayCalendarId(null);
+            setHolidays([]);
+          }
+        } else {
+          // Handle single calendar object
+          setHolidayCalendarId(res.data._id);
+          setHolidays(res.data.holidays || []);
+        }
       }
     } catch (error: any) {
       toast.error('Error loading holiday calendar');
+      setHolidays([]);
     } finally {
       setLoading(false);
     }
@@ -79,12 +93,51 @@ export default function HolidayCalendarPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (editingHoliday) {
-        await apiService.updateHoliday(editingHoliday._id, formData);
+      if (!formData.date || !formData.name) {
+        toast.error('Date and name are required');
+        return;
+      }
+
+      if (editingHolidayIndex !== null) {
+        // Update existing holiday
+        if (!holidayCalendarId) {
+          toast.error('Holiday calendar not found');
+          return;
+        }
+        const updatedHolidays = [...holidays];
+        updatedHolidays[editingHolidayIndex] = {
+          ...formData,
+          date: new Date(formData.date),
+        };
+        await apiService.updateHoliday(holidayCalendarId, {
+          year: selectedYear,
+          holidays: updatedHolidays,
+        });
         toast.success('Holiday updated successfully');
       } else {
-        await apiService.createHoliday(formData);
-        toast.success('Holiday added successfully');
+        // Create new holiday calendar or add to existing
+        if (holidayCalendarId) {
+          // Add to existing calendar
+          const updatedHolidays = [...holidays, {
+            ...formData,
+            date: new Date(formData.date),
+          }];
+          await apiService.updateHoliday(holidayCalendarId, {
+            year: selectedYear,
+            holidays: updatedHolidays,
+          });
+          toast.success('Holiday added successfully');
+        } else {
+          // Create new holiday calendar
+          await apiService.createHoliday({
+            year: selectedYear,
+            holidays: [{
+              ...formData,
+              date: new Date(formData.date),
+            }],
+          });
+          toast.success('Holiday calendar created successfully');
+        }
       }
       setDialogOpen(false);
       resetForm();
@@ -94,12 +147,28 @@ export default function HolidayCalendarPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (index: number) => {
     if (!confirm('Are you sure you want to delete this holiday?')) return;
     
     try {
-      await apiService.deleteHoliday(id);
-      toast.success('Holiday deleted successfully');
+      if (!holidayCalendarId) {
+        toast.error('Holiday calendar not found');
+        return;
+      }
+      
+      const updatedHolidays = holidays.filter((_, i) => i !== index);
+      
+      if (updatedHolidays.length === 0) {
+        // Delete entire calendar if no holidays left
+        await apiService.deleteHoliday(holidayCalendarId);
+        toast.success('Holiday calendar deleted successfully');
+      } else {
+        await apiService.updateHoliday(holidayCalendarId, {
+          year: selectedYear,
+          holidays: updatedHolidays,
+        });
+        toast.success('Holiday deleted successfully');
+      }
       loadHolidays();
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete holiday');
@@ -107,28 +176,24 @@ export default function HolidayCalendarPage() {
   };
 
   const resetForm = () => {
-    setEditingHoliday(null);
+    setEditingHolidayIndex(null);
     setFormData({
-      holidayName: '',
-      holidayDate: '',
-      holidayType: 'NATIONAL',
-      location: '',
-      applicableTo: 'ALL',
+      date: '',
+      name: '',
+      type: 'NATIONAL',
+      applicableLocations: [],
       isOptional: false,
-      description: '',
     });
   };
 
-  const handleEdit = (holiday: any) => {
-    setEditingHoliday(holiday);
+  const handleEdit = (index: number, holiday: any) => {
+    setEditingHolidayIndex(index);
     setFormData({
-      holidayName: holiday.holidayName,
-      holidayDate: holiday.holidayDate.split('T')[0],
-      holidayType: holiday.holidayType,
-      location: holiday.location || '',
-      applicableTo: holiday.applicableTo || 'ALL',
+      date: holiday.date ? new Date(holiday.date).toISOString().split('T')[0] : '',
+      name: holiday.name,
+      type: holiday.type || 'NATIONAL',
+      applicableLocations: holiday.applicableLocations || [],
       isOptional: holiday.isOptional || false,
-      description: holiday.description || '',
     });
     setDialogOpen(true);
   };
@@ -200,17 +265,17 @@ export default function HolidayCalendarPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {holidays.map((holiday) => (
-                    <TableRow key={holiday._id}>
+                  {holidays.map((holiday, index) => (
+                    <TableRow key={index}>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <CalendarIcon className="w-4 h-4" />
-                          {format(new Date(holiday.holidayDate), 'dd MMM yyyy')}
+                          {format(new Date(holiday.date), 'dd MMM yyyy')}
                         </div>
                       </TableCell>
-                      <TableCell className="font-medium">{holiday.holidayName}</TableCell>
-                      <TableCell>{getHolidayTypeBadge(holiday.holidayType)}</TableCell>
-                      <TableCell>{holiday.location || 'All Locations'}</TableCell>
+                      <TableCell className="font-medium">{holiday.name}</TableCell>
+                      <TableCell>{getHolidayTypeBadge(holiday.type)}</TableCell>
+                      <TableCell>{holiday.applicableLocations?.length > 0 ? holiday.applicableLocations.join(', ') : 'All Locations'}</TableCell>
                       <TableCell>
                         {holiday.isOptional ? (
                           <Badge variant="outline">Optional</Badge>
@@ -223,14 +288,14 @@ export default function HolidayCalendarPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleEdit(holiday)}
+                            onClick={() => handleEdit(index, holiday)}
                           >
                             <Edit className="w-4 h-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDelete(holiday._id)}
+                            onClick={() => handleDelete(index)}
                           >
                             <Trash2 className="w-4 h-4 text-destructive" />
                           </Button>
@@ -247,17 +312,17 @@ export default function HolidayCalendarPage() {
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{editingHoliday ? 'Edit Holiday' : 'Add New Holiday'}</DialogTitle>
+              <DialogTitle>{editingHolidayIndex !== null ? 'Edit Holiday' : 'Add New Holiday'}</DialogTitle>
               <DialogDescription>
-                Configure holiday details
+                Configure holiday details for {selectedYear}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label>Holiday Name *</Label>
                 <Input
-                  value={formData.holidayName}
-                  onChange={(e) => setFormData({ ...formData, holidayName: e.target.value })}
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
                   placeholder="e.g., Republic Day"
                 />
@@ -266,8 +331,8 @@ export default function HolidayCalendarPage() {
                 <Label>Holiday Date *</Label>
                 <Input
                   type="date"
-                  value={formData.holidayDate}
-                  onChange={(e) => setFormData({ ...formData, holidayDate: e.target.value })}
+                  value={formData.date}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                   required
                 />
               </div>
@@ -275,8 +340,8 @@ export default function HolidayCalendarPage() {
                 <div className="space-y-2">
                   <Label>Holiday Type *</Label>
                   <Select
-                    value={formData.holidayType}
-                    onValueChange={(value) => setFormData({ ...formData, holidayType: value })}
+                    value={formData.type}
+                    onValueChange={(value) => setFormData({ ...formData, type: value })}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -286,31 +351,29 @@ export default function HolidayCalendarPage() {
                       <SelectItem value="STATE">State</SelectItem>
                       <SelectItem value="REGIONAL">Regional</SelectItem>
                       <SelectItem value="BANK">Bank Holiday</SelectItem>
+                      <SelectItem value="OPTIONAL">Optional</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Location</Label>
-                  <Input
-                    value={formData.location}
-                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                    placeholder="Leave empty for all locations"
-                  />
+                  <Label>Optional Holiday</Label>
+                  <div className="flex items-center gap-2 mt-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.isOptional}
+                      onChange={(e) => setFormData({ ...formData, isOptional: e.target.checked })}
+                      id="optional"
+                      className="rounded"
+                    />
+                    <Label htmlFor="optional" className="text-sm font-normal">Mark as optional</Label>
+                  </div>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Description</Label>
-                <Input
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Optional description"
-                />
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>
                   Cancel
                 </Button>
-                <Button type="submit">{editingHoliday ? 'Update' : 'Add'} Holiday</Button>
+                <Button type="submit">{editingHolidayIndex !== null ? 'Update' : 'Add'} Holiday</Button>
               </DialogFooter>
             </form>
           </DialogContent>

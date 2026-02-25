@@ -127,6 +127,7 @@ const navigationItems: NavItem[] = [
       { label: 'Process Payroll', href: '/payroll/admin', roles: ['Tenant Admin', 'Payroll Administrator'], permissionRequired: 'process_payroll' },
       { label: 'Admin Dashboard', href: '/payroll/admin', roles: ['Tenant Admin', 'Payroll Administrator', 'Finance Administrator', 'Auditor'] },
       { label: 'Salary Structure', href: '/payroll/salary-structure', roles: ['Tenant Admin', 'Payroll Administrator'], permissionRequired: 'process_payroll' },
+      { label: '⚡ Async Payroll Queue', href: '/payroll/queue', roles: ['Tenant Admin', 'Payroll Administrator'], permissionRequired: 'process_payroll' },
       { label: 'EPFO Returns', href: '/payroll/epfo', roles: ['Tenant Admin', 'Payroll Administrator'], permissionRequired: 'process_payroll' },
       { label: 'ESIC Returns', href: '/payroll/esic', roles: ['Tenant Admin', 'Payroll Administrator'], permissionRequired: 'process_payroll' },
       { label: 'Tax Summary', href: '/tax', roles: ['Tenant Admin', 'Payroll Administrator', 'Finance Administrator', 'Auditor'] },
@@ -210,6 +211,9 @@ const navigationItems: NavItem[] = [
       { label: 'Manager Reviews', href: '/performance/manager/appraisals', roles: ['Manager', 'HR Administrator', 'Tenant Admin'] },
       { label: 'Appraisal Cycles', href: '/performance/cycles', roles: ['HR Administrator', 'Tenant Admin'] },
       { label: 'Normalization', href: '/performance/normalization', roles: ['HR Administrator', 'Tenant Admin'] },
+      { label: 'Competency Library', href: '/performance/competencies', roles: ['HR Administrator', 'Tenant Admin'] },
+      { label: 'Appraisal Disputes', href: '/performance/disputes', roles: ['Employee', 'Manager', 'HR Administrator', 'Tenant Admin'] },
+      { label: 'Increment Management', href: '/performance/increments', roles: ['HR Administrator', 'Tenant Admin'] },
     ],
   },
   {
@@ -298,6 +302,9 @@ const navigationItems: NavItem[] = [
       { label: 'Users', href: '/admin/users', roles: ['Tenant Admin', 'HR Administrator'] },
       { label: 'Role & Permissions', href: '/admin/users/role-permissions', roles: ['Tenant Admin'] },
       { label: 'Access Certification', href: '/admin/access-certification', roles: ['Tenant Admin'] },
+      { label: 'Session Management', href: '/admin/sessions', roles: ['Tenant Admin'] },
+      { label: 'Promotions', href: '/employee/promotions', roles: ['Tenant Admin', 'HR Administrator', 'Manager'] },
+      { label: 'Disciplinary Records', href: '/employee/disciplinary', roles: ['Tenant Admin', 'HR Administrator', 'Manager'] },
       { label: 'LDAP Config', href: '/admin/ldap-config', roles: ['Tenant Admin'] },
       { label: 'Organization Chart', href: '/org/chart', roles: ['Tenant Admin', 'Manager'] },
       { label: 'Bulk Import/Export', href: '/admin/employees/bulk-import', roles: ['Tenant Admin', 'HR Administrator'] },
@@ -336,7 +343,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const [enabledModules, setEnabledModules] = React.useState<Set<string>>(new Set());
   const [modulesLoading, setModulesLoading] = React.useState(true);
-  
+
   // BRD: Dynamic Module Management - DM-036
   // Fetch enabled modules for current tenant
   React.useEffect(() => {
@@ -377,7 +384,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
 
     loadEnabledModules();
   }, [currentUser?.tenantId, currentUser?.role]);
-  
+
   // Auto-expand parent items if current path matches a sub-item
   const getInitialExpandedItems = () => {
     const expanded: string[] = [];
@@ -391,7 +398,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
     });
     return expanded;
   };
-  
+
   const [expandedItems, setExpandedItems] = React.useState<string[]>(getInitialExpandedItems);
 
   // BRD: Super Admin (Platform Admin) sees ONLY platform-level nav - NOT Personnel, Payroll, Leave, etc.
@@ -400,24 +407,24 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
     currentUser?.role === 'Super Admin'
       ? platformAdminNavItems.filter((item) => !item.roles || item.roles.includes('Super Admin'))
       : navigationItems.filter((item) => {
-          // BRD: No bypass - show only modules enabled for tenant, filtered by role
-          if (item.moduleCode) {
-            const isPayrollRole = ['Payroll Administrator', 'Finance Administrator'].includes(currentUser?.role || '');
-            const isPayrollItem = item.moduleCode === 'PAYROLL';
-            if (isPayrollItem && isPayrollRole) {
-              // Payroll roles always see Payroll - getMyCompanyModules may exclude them
-            } else {
-              if (modulesLoading) return false;
-              if (!enabledModules.has(item.moduleCode)) return false;
-            }
+        // BRD: No bypass - show only modules enabled for tenant, filtered by role
+        if (item.moduleCode) {
+          const isPayrollRole = ['Payroll Administrator', 'Finance Administrator'].includes(currentUser?.role || '');
+          const isPayrollItem = item.moduleCode === 'PAYROLL';
+          if (isPayrollItem && isPayrollRole) {
+            // Payroll roles always see Payroll - getMyCompanyModules may exclude them
+          } else {
+            if (modulesLoading) return false;
+            if (!enabledModules.has(item.moduleCode)) return false;
           }
-          if (!item.roles || item.roles.length === 0) return true;
-          return item.roles.includes(currentUser?.role || '');
-        });
+        }
+        if (!item.roles || item.roles.length === 0) return true;
+        return item.roles.includes(currentUser?.role || '');
+      });
 
   const toggleExpanded = (href: string) => {
-    setExpandedItems(prev => 
-      prev.includes(href) 
+    setExpandedItems(prev =>
+      prev.includes(href)
         ? prev.filter(h => h !== href)
         : [...prev, href]
     );
@@ -452,7 +459,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
           {isOpen ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
         </Button>
       </div>
-      
+
       {/* Header Section */}
       <div className="p-6 border-b border-sidebar-border bg-gradient-to-b from-sidebar-primary/15 to-transparent flex-shrink-0">
         <div className="flex items-center gap-3 mb-2">

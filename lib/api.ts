@@ -57,6 +57,37 @@ class ApiService {
     }
   }
 
+  // ==================== GENERIC HTTP HELPERS ====================
+  // These allow new pages to call any endpoint without defining typed methods.
+  async get<T = any>(endpoint: string): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, { method: 'GET' });
+  }
+
+  async post<T = any>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, {
+      method: 'POST',
+      body: data !== undefined ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  async put<T = any>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, {
+      method: 'PUT',
+      body: data !== undefined ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  async patch<T = any>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, {
+      method: 'PATCH',
+      body: data !== undefined ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  async delete<T = any>(endpoint: string): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, { method: 'DELETE' });
+  }
+
   // ==================== REPORTS ====================
 
   async getDashboardStats() {
@@ -373,11 +404,11 @@ class ApiService {
       method: 'GET',
       credentials: 'include',
     });
-    
+
     if (!response.ok) {
       throw new Error('Failed to download template');
     }
-    
+
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -387,22 +418,22 @@ class ApiService {
     a.click();
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
-    
+
     return { success: true };
   }
 
   async validateBulkImport(file: File) {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     const response = await fetch(`${API_BASE_URL}/employees/bulk/validate`, {
       method: 'POST',
       body: formData,
       credentials: 'include',
     });
-    
+
     const data = await response.json();
-    
+
     if (!response.ok) {
       return {
         success: false,
@@ -410,7 +441,7 @@ class ApiService {
         error: data.error,
       };
     }
-    
+
     return {
       success: true,
       data: data.data,
@@ -440,7 +471,7 @@ class ApiService {
       body: JSON.stringify(params),
       credentials: 'include',
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       return {
@@ -449,7 +480,7 @@ class ApiService {
         error: error.error,
       };
     }
-    
+
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -459,7 +490,7 @@ class ApiService {
     a.click();
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
-    
+
     return { success: true };
   }
 
@@ -1793,7 +1824,7 @@ class ApiService {
 
   // ==================== OFFER LETTERS ====================
 
-  async createOfferLetter(data: { candidateId: string; [key: string]: any }) {
+  async createOfferLetter(data: { candidateId: string;[key: string]: any }) {
     return this.request('/onboarding/offer-letters', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -2703,8 +2734,15 @@ class ApiService {
     return this.request('/platform-admin/analytics');
   }
 
-  // Platform Admin - Create Tenant
-  async createTenant(data: { name: string; code: string; location?: string }) {
+  // Platform Admin - Create Tenant (same as register-tenant: creates tenant + Tenant Admin user)
+  async createTenant(data: {
+    name: string;
+    code: string;
+    location?: string;
+    adminEmail: string;
+    adminPassword: string;
+    adminName?: string;
+  }) {
     return this.request('/tenants', { method: 'POST', body: JSON.stringify(data) });
   }
 
