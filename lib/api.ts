@@ -3282,6 +3282,76 @@ class ApiService {
     if (params?.limit) query.append('limit', params.limit.toString());
     return this.request(`/performance/admin/all?${query.toString()}`);
   }
+
+  // ==================== PLATFORM ADMIN: INTEGRATIONS ====================
+
+  async getIntegrations() {
+    return this.request('/platform-admin/integrations');
+  }
+
+  async updateIntegration(id: string, data: { isEnabled?: boolean; config?: Record<string, any> }) {
+    return this.request(`/platform-admin/integrations/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // ==================== PLATFORM ADMIN: SETTINGS ====================
+
+  async getPlatformSettings() {
+    return this.request('/platform-admin/settings');
+  }
+
+  async updatePlatformSettings(data: {
+    billingCycle?: string;
+    autoRenew?: boolean;
+    currency?: string;
+    whitelabelEnabled?: boolean;
+    appName?: string;
+    supportEmail?: string;
+    [key: string]: any;
+  }) {
+    return this.request('/platform-admin/settings', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // ==================== PLATFORM ADMIN: AUDIT LOGS ====================
+
+  async getAuditLogs(params?: {
+    module?: string;
+    action?: string;
+    status?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    search?: string;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.module) query.append('module', params.module);
+    if (params?.action) query.append('action', params.action);
+    if (params?.status) query.append('status', params.status);
+    if (params?.dateFrom) query.append('dateFrom', params.dateFrom);
+    if (params?.dateTo) query.append('dateTo', params.dateTo);
+    if (params?.search) query.append('search', params.search);
+    return this.request(`/platform-admin/audit-logs?${query.toString()}`);
+  }
+
+  async exportAuditLogs(params?: {
+    module?: string;
+    action?: string;
+    status?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.module) query.append('module', params.module);
+    if (params?.action) query.append('action', params.action);
+    if (params?.status) query.append('status', params.status);
+    if (params?.dateFrom) query.append('dateFrom', params.dateFrom);
+    if (params?.dateTo) query.append('dateTo', params.dateTo);
+    return this.request(`/platform-admin/audit-logs/export?${query.toString()}`);
+  }
 }
 
 export const apiService = new ApiService();

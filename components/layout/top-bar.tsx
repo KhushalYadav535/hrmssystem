@@ -14,6 +14,7 @@ import {
 import { Menu, Bell, User, LogOut, Building2, Moon, Sun, Monitor } from 'lucide-react';
 import { mockNotifications } from '@/lib/mock-data';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface TopBarProps {
   onToggleSidebar: () => void;
@@ -22,6 +23,7 @@ interface TopBarProps {
 export default function TopBar({ onToggleSidebar }: TopBarProps) {
   const { currentUser, currentTenant, logout, switchTenant } = useAuth();
   const { theme, setTheme } = useTheme();
+  const router = useRouter();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const unreadCount = mockNotifications.filter((n) => !n.read).length;
 
@@ -41,10 +43,10 @@ export default function TopBar({ onToggleSidebar }: TopBarProps) {
       <div className="h-full px-6 flex items-center justify-between">
         {/* Left side */}
         <div className="flex items-center gap-4">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={onToggleSidebar} 
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggleSidebar}
             className="hover:bg-secondary/50 transition-colors rounded-xl"
             title="Toggle sidebar"
           >
@@ -116,9 +118,8 @@ export default function TopBar({ onToggleSidebar }: TopBarProps) {
                     mockNotifications.map((notif) => (
                       <div
                         key={notif.id}
-                        className={`p-4 border-b border-border last:border-0 hover:bg-secondary/50 cursor-pointer transition-colors ${
-                          !notif.read ? 'bg-primary/5' : ''
-                        }`}
+                        className={`p-4 border-b border-border last:border-0 hover:bg-secondary/50 cursor-pointer transition-colors ${!notif.read ? 'bg-primary/5' : ''
+                          }`}
                       >
                         <div className="flex justify-between items-start gap-2">
                           <div className="flex-1 min-w-0">
@@ -163,7 +164,7 @@ export default function TopBar({ onToggleSidebar }: TopBarProps) {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push(currentUser?.role === 'Super Admin' ? '/admin/profile' : `/employee/${currentUser?.id}`)}>
                 <User className="w-4 h-4 mr-2" />
                 <span>My Profile</span>
               </DropdownMenuItem>
