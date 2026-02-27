@@ -42,8 +42,10 @@ export default function TravelClaimPage() {
     amount: '',
     description: '',
   });
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    setIsMounted(true);
     loadApprovedTravelRequests();
   }, []);
 
@@ -106,7 +108,7 @@ export default function TravelClaimPage() {
     const invalidItems = expenseItems.filter(item => {
       return !item.category || !item.date || !item.amount || parseFloat(item.amount || '0') <= 0 || !item.description;
     });
-    
+
     if (invalidItems.length > 0) {
       toast.error('Please ensure all expense items have valid category, date, amount, and description');
       return;
@@ -117,7 +119,7 @@ export default function TravelClaimPage() {
       const date = new Date(item.date);
       return isNaN(date.getTime());
     });
-    
+
     if (invalidDates.length > 0) {
       toast.error('Please ensure all dates are valid');
       return;
@@ -210,7 +212,7 @@ export default function TravelClaimPage() {
                       const requestId = request._id || request.id;
                       return (
                         <SelectItem key={requestId} value={requestId}>
-                          {request.origin} → {request.destination} ({request.departureDate ? new Date(request.departureDate).toLocaleDateString() : ''})
+                          {request.origin} → {request.destination} {isMounted && request.departureDate ? `(${new Date(request.departureDate).toLocaleDateString()})` : ''}
                         </SelectItem>
                       );
                     })

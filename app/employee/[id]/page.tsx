@@ -85,9 +85,9 @@ export default function EmployeeDetailPage() {
       console.log('Loading employee with ID:', employeeId);
       const response = await apiService.getEmployee(employeeId);
       if (response.success && response.data) {
-        const empData = response.data;
+        const empData: any = response.data;
         setEmployee(empData);
-        
+
         // Set related data (already included in response from backend)
         setBankAccounts(empData.bankAccounts || []);
         setEmergencyContacts(empData.emergencyContacts || []);
@@ -109,7 +109,7 @@ export default function EmployeeDetailPage() {
   };
 
   // Check permissions: Allow Tenant Admin, HR Admin, Manager, and users with manage_employees permission
-  // Also allow users with view_profile or view_employee_data permissions
+  // Also allow users with view_profile or view_employee_data permissions, OR if the user is viewing their own profile
   // Wait for auth to be ready before checking
   useEffect(() => {
     // Don't check if auth is still loading or user is not authenticated
@@ -125,20 +125,27 @@ export default function EmployeeDetailPage() {
     const allowedRoles = ['Tenant Admin', 'HR Administrator', 'Manager'];
     const hasRoleAccess = currentUser && allowedRoles.includes(currentUser.role);
     const hasPermissionAccess = hasPermission('manage_employees') || hasPermission('view_profile') || hasPermission('view_employee_data');
-    
-    // Only redirect if user definitely doesn't have access
-    if (!hasRoleAccess && !hasPermissionAccess) {
+
+    // Check if the current user is an employee viewing their own profile
+    // Safely get user ID supporting both id and _id properties
+    const currentUserId = currentUser ? ((currentUser as any).id || (currentUser as any)._id) : null;
+    const isOwnProfile = currentUser && employee && (currentUser.email === employee.email || currentUserId === employee.userId);
+
+    // Check both permission-based access and whether the data has loaded to check ownership
+    // If we're still loading the employee data, we can't determine ownership yet
+    if (!isLoading && !hasRoleAccess && !hasPermissionAccess && !isOwnProfile) {
       console.log('Access denied - redirecting to dashboard', {
         role: currentUser.role,
         hasRoleAccess,
         hasPermissionAccess,
+        isOwnProfile,
         hasManageEmployees: hasPermission('manage_employees'),
         hasViewProfile: hasPermission('view_profile'),
         hasViewEmployeeData: hasPermission('view_employee_data'),
       });
       router.push('/dashboard');
     }
-  }, [isAuthenticated, currentUser, hasPermission, router]);
+  }, [isAuthenticated, currentUser, hasPermission, router, isLoading, employee]);
 
   if (isLoading) {
     return (
@@ -663,19 +670,47 @@ export default function EmployeeDetailPage() {
 
           <TabsContent value="actions">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Button className="h-20 text-lg gap-2">
+              <Button
+                className="h-20 text-lg gap-2"
+                onClick={() => {
+                  if (!employeeId) return;
+                  const targetId = encodeURIComponent(employeeId);
+                  window.location.href = `/employee/transfer?employeeId=${targetId}`;
+                }}
+              >
                 <Award className="w-5 h-5" />
                 Initiate Transfer
               </Button>
-              <Button className="h-20 text-lg gap-2">
+              <Button
+                className="h-20 text-lg gap-2"
+                onClick={() => {
+                  if (!employeeId) return;
+                  const targetId = encodeURIComponent(employeeId);
+                  window.location.href = `/employee/promotions?employeeId=${targetId}`;
+                }}
+              >
                 <Award className="w-5 h-5" />
                 Initiate Promotion
               </Button>
-              <Button className="h-20 text-lg gap-2">
+              <Button
+                className="h-20 text-lg gap-2"
+                onClick={() => {
+                  if (!employeeId) return;
+                  const targetId = encodeURIComponent(employeeId);
+                  window.location.href = `/employee/disciplinary?employeeId=${targetId}`;
+                }}
+              >
                 <AlertCircle className="w-5 h-5" />
                 Add Disciplinary Record
               </Button>
-              <Button className="h-20 text-lg gap-2">
+              <Button
+                className="h-20 text-lg gap-2"
+                onClick={() => {
+                  if (!employeeId) return;
+                  const targetId = encodeURIComponent(employeeId);
+                  window.location.href = `/employee/training?employeeId=${targetId}`;
+                }}
+              >
                 <BookOpen className="w-5 h-5" />
                 Assign Training
               </Button>

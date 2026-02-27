@@ -22,6 +22,8 @@ import apiService from '@/lib/api';
 export default function TravelAdvancePage() {
   const { isAuthenticated } = useAuth();
   const [travelDate, setTravelDate] = useState<Date>();
+  const [travelRequests, setTravelRequests] = useState<any[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     travelRequestId: '',
     purpose: '',
@@ -30,32 +32,83 @@ export default function TravelAdvancePage() {
     advanceAmount: '',
     reason: '',
   });
+  const [isMounted, setIsMounted] = useState(false);
 
   if (!isAuthenticated) {
     redirect('/login');
   }
 
+  useEffect(() => {
+    setIsMounted(true);
+    const loadApprovedRequests = async () => {
+      try {
+        const response = await apiService.getTravelRequests({ status: 'Approved' });
+        if (response.success && response.data) {
+          setTravelRequests(Array.isArray(response.data) ? response.data : []);
+        }
+      } catch (error) {
+        console.error('Failed to load travel requests for advance', error);
+        toast.error('Failed to load approved travel requests');
+      }
+    };
+
+    loadApprovedRequests();
+  }, []);
+
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => {
       const updated = { ...prev, [field]: value };
-      
-      // Auto-calculate advance amount (80% of estimated expense)
-      if (field === 'estimatedExpense' && value) {
-        const estimated = parseFloat(value) || 0;
-        updated.advanceAmount = (estimated * 0.8).toFixed(2);
+
+      if (field === 'estimatedExpense') {
+        const estimated = parseFloat(value || '0') || 0;
+        updated.advanceAmount = estimated > 0 ? (estimated * 0.8).toFixed(2) : '';
       }
-      
+
       return updated;
     });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (!formData.travelRequestId) {
+      toast.error('Please select a linked travel request');
+      return;
+    }
     if (!travelDate || !formData.purpose || !formData.destination || !formData.estimatedExpense) {
       toast.error('Please fill all required fields');
       return;
     }
 
-    toast.success('Travel advance request submitted successfully!');
+    const estimated = parseFloat(formData.estimatedExpense || '0') || 0;
+    const advance = parseFloat(formData.advanceAmount || '0') || 0;
+    if (estimated <= 0 || advance <= 0) {
+      toast.error('Estimated expense and advance amount must be greater than 0');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const payload = {
+        travelRequestId: formData.travelRequestId,
+        travelDate: travelDate.toISOString(),
+        purpose: formData.purpose.trim(),
+        destination: formData.destination.trim(),
+        estimatedExpense: estimated,
+        advanceAmount: advance,
+        reason: formData.reason.trim() || undefined,
+      };
+
+      const response = await apiService.createTravelAdvance(payload);
+      if (response.success) {
+        toast.success('Travel advance request submitted successfully!');
+        window.location.href = '/travel';
+      } else {
+        toast.error(response.message || 'Failed to submit travel advance request');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'An error occurred while submitting request');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -95,15 +148,18 @@ export default function TravelAdvancePage() {
               <Label htmlFor="travelRequestId">Linked Travel Request <span className="text-red-500">*</span></Label>
               <Select value={formData.travelRequestId} onValueChange={(value) => {
                 handleInputChange('travelRequestId', value);
-                // Auto-fill from selected travel request
-                const selectedRequest = travelRequests.find(r => (r._id || r.id) === value);
+                const selectedRequest = travelRequests.find((r) => (r._id || r.id) === value);
                 if (selectedRequest) {
+                  const est = selectedRequest.estimatedAmount || 0;
                   setFormData(prev => ({
                     ...prev,
                     travelRequestId: value,
-                    estimatedExpense: selectedRequest.estimatedAmount?.toString() || '',
-                    advanceAmount: (selectedRequest.estimatedAmount * 0.8).toFixed(2),
+                    estimatedExpense: est ? est.toString() : '',
+                    advanceAmount: est ? (est * 0.8).toFixed(2) : '',
                   }));
+                  if (!travelDate && selectedRequest.departureDate) {
+                    setTravelDate(new Date(selectedRequest.departureDate));
+                  }
                 }
               }}>
                 <SelectTrigger id="travelRequestId">
@@ -115,7 +171,7 @@ export default function TravelAdvancePage() {
                       const requestId = request._id || request.id;
                       return (
                         <SelectItem key={requestId} value={requestId}>
-                          {request.origin} → {request.destination} ({request.departureDate ? new Date(request.departureDate).toLocaleDateString() : ''}) - ₹{request.estimatedAmount}
+                          {request.origin} → {request.destination} {isMounted && request.departureDate ? `(${new Date(request.departureDate).toLocaleDateString()})` : ''} - ₹{request.estimatedAmount || 0}
                         </SelectItem>
                       );
                     })
@@ -262,9 +318,18 @@ export default function TravelAdvancePage() {
 
             {/* Actions */}
             <div className="flex gap-3 pt-4 border-t">
-              <Button onClick={handleSubmit} className="gap-2">
-                <Save className="w-4 h-4" />
-                Submit Advance Request
+              <Button onClick={handleSubmit} className="gap-2" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    Submit Advance Request
+                  </>
+                )}
               </Button>
               <Button variant="outline" onClick={() => window.history.back()}>
                 <X className="w-4 h-4 mr-2" />

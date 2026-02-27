@@ -361,6 +361,15 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
           return;
         }
 
+        // BRD: Only Tenant Admin and HR Administrator can call /api/company/modules
+        // Other roles (Payroll Maker, Payroll Checker, etc.) skip this call
+        const adminRoles = ['Tenant Admin', 'HR Administrator'];
+        if (!adminRoles.includes(currentUser?.role || '')) {
+          setEnabledModules(new Set());
+          setModulesLoading(false);
+          return;
+        }
+
         const res = await apiService.getMyCompanyModules();
         if (res.success) {
           const enabled = new Set<string>();
@@ -401,18 +410,27 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
 
   const [expandedItems, setExpandedItems] = React.useState<string[]>(getInitialExpandedItems);
 
+  React.useEffect(() => {
+    const sidebarNav = document.getElementById('sidebar-nav');
+    if (sidebarNav) {
+      sidebarNav.scrollTop = 0;
+    }
+  }, [pathname]);
+
   // BRD: Super Admin (Platform Admin) sees ONLY platform-level nav - NOT Personnel, Payroll, Leave, etc.
   // Platform Admin manages: Tenants, Modules, Subscriptions - Company Admin does operational HR
+  const isAdminRole = ['Tenant Admin', 'HR Administrator'].includes(currentUser?.role || '');
   const visibleItems =
     currentUser?.role === 'Super Admin'
       ? platformAdminNavItems.filter((item) => !item.roles || item.roles.includes('Super Admin'))
       : navigationItems.filter((item) => {
-        // BRD: No bypass - show only modules enabled for tenant, filtered by role
-        if (item.moduleCode) {
+        // Module filtering: only applies when we fetched enabled modules (Tenant Admin, HR Admin)
+        // Employee, Manager, etc. don't call getMyCompanyModules - show all items matching their role
+        if (item.moduleCode && isAdminRole) {
           const isPayrollRole = ['Payroll Administrator', 'Finance Administrator'].includes(currentUser?.role || '');
           const isPayrollItem = item.moduleCode === 'PAYROLL';
           if (isPayrollItem && isPayrollRole) {
-            // Payroll roles always see Payroll - getMyCompanyModules may exclude them
+            // Payroll roles always see Payroll
           } else {
             if (modulesLoading) return false;
             if (!enabledModules.has(item.moduleCode)) return false;
@@ -474,7 +492,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
       </div>
 
       {/* Navigation Section - Scrollable */}
-      <nav className="flex-1 overflow-y-auto p-4 space-y-2 pb-20">
+      <nav id="sidebar-nav" className="flex-1 overflow-y-auto overscroll-contain [overflow-anchor:none] p-4 space-y-2 pb-20">
         {visibleItems.map((item) => {
           const hasSubItems = item.subItems && item.subItems.length > 0;
           const isExpanded = expandedItems.includes(item.href);
@@ -506,8 +524,8 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                   {isExpanded && (
                     <div className="ml-4 space-y-1 border-l-2 border-sidebar-border pl-2">
                       {item.subItems?.filter((subItem) => {
-                        // BRD: No bypass - Super Admin uses platform nav; others follow module + role
-                        if (subItem.moduleCode && currentUser?.role !== 'Super Admin') {
+                        // Module check only for admin roles who fetched enabled modules
+                        if (subItem.moduleCode && isAdminRole) {
                           if (modulesLoading || !enabledModules.has(subItem.moduleCode)) {
                             return false;
                           }

@@ -20,15 +20,17 @@ import { cn } from '@/lib/utils';
 import apiService from '@/lib/api';
 
 export default function LTAPage() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState('balance');
   const [journeyDate, setJourneyDate] = useState<Date>();
   const [ltaBalance, setLtaBalance] = useState<any>(null);
   const [ltas, setLtas] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentEmployee, setCurrentEmployee] = useState<any>(null);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    setIsMounted(true);
     loadCurrentEmployee();
   }, []);
 
@@ -40,7 +42,7 @@ export default function LTAPage() {
 
   const loadCurrentEmployee = async () => {
     try {
-      const empResponse = await apiService.getEmployees({ email: user?.email });
+      const empResponse = await apiService.getEmployees({ email: currentUser?.email });
       if (empResponse.success && empResponse.data && Array.isArray(empResponse.data) && empResponse.data.length > 0) {
         setCurrentEmployee(empResponse.data[0]);
       }
@@ -54,7 +56,7 @@ export default function LTAPage() {
     try {
       setIsLoading(true);
       const employeeId = currentEmployee._id || currentEmployee.id;
-      
+
       const [balanceRes, ltasRes] = await Promise.all([
         apiService.getLTABalance(employeeId),
         apiService.getLTAs({ employeeId }),
@@ -141,7 +143,9 @@ export default function LTAPage() {
               <CardContent className="p-6">
                 <div>
                   <p className="text-sm text-muted-foreground">Remaining</p>
-                  <p className="text-2xl font-bold text-green-600">{ltaData.journeysRemaining}</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {(ltaBalance?.totalJourneys || 0) - (ltaBalance?.journeysUtilized || 0)}
+                  </p>
                   <p className="text-xs text-muted-foreground mt-1">Journeys available</p>
                 </div>
               </CardContent>
@@ -161,7 +165,9 @@ export default function LTAPage() {
                   <li>Family includes: Self, Spouse, and up to 2 children</li>
                   <li>Eligible modes: Train, Air, Public Transport</li>
                   <li>Exemption amount: Actual fare or entitled class fare, whichever is lower</li>
-                  <li>Block expires on: {format(new Date(ltaData.blockEndDate), 'MMMM dd, yyyy')}</li>
+                  {ltaBalance?.blockEndDate && (
+                    <li>Block expires on: {format(new Date(ltaBalance.blockEndDate), 'MMMM dd, yyyy')}</li>
+                  )}
                 </ul>
               </div>
             </div>
@@ -188,34 +194,42 @@ export default function LTAPage() {
                     <div>
                       <p className="font-semibold">Block Period</p>
                       <p className="text-sm text-muted-foreground">
-                        {format(new Date(ltaData.blockStartDate), 'MMM dd, yyyy')} - {format(new Date(ltaData.blockEndDate), 'MMM dd, yyyy')}
+                        {isMounted && ltaBalance?.blockStartDate && ltaBalance?.blockEndDate
+                          ? `${format(new Date(ltaBalance.blockStartDate), 'MMM dd, yyyy')} - ${format(
+                            new Date(ltaBalance.blockEndDate),
+                            'MMM dd, yyyy'
+                          )}`
+                          : 'N/A'}
                       </p>
                     </div>
-                    <Badge variant="outline">{ltaData.currentBlock}</Badge>
+                    <Badge variant="outline">{ltaBalance?.blockYear || 'Current Block'}</Badge>
                   </div>
 
                   <div className="grid grid-cols-3 gap-4">
                     <div className="text-center p-4 border rounded-lg">
-                      <p className="text-2xl font-bold">{ltaData.totalJourneys}</p>
+                      <p className="text-2xl font-bold">{ltaBalance?.totalJourneys || 0}</p>
                       <p className="text-xs text-muted-foreground mt-1">Total Available</p>
                     </div>
                     <div className="text-center p-4 border rounded-lg">
-                      <p className="text-2xl font-bold text-yellow-600">{ltaData.journeysUsed}</p>
+                      <p className="text-2xl font-bold text-yellow-600">{ltaBalance?.journeysUtilized || 0}</p>
                       <p className="text-xs text-muted-foreground mt-1">Used</p>
                     </div>
                     <div className="text-center p-4 border rounded-lg">
-                      <p className="text-2xl font-bold text-green-600">{ltaData.journeysRemaining}</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        {(ltaBalance?.totalJourneys || 0) - (ltaBalance?.journeysUtilized || 0)}
+                      </p>
                       <p className="text-xs text-muted-foreground mt-1">Remaining</p>
                     </div>
                   </div>
 
-                  {new Date(ltaData.blockEndDate) < new Date(Date.now() + 180 * 24 * 60 * 60 * 1000) && (
-                    <div className="p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 rounded-lg">
-                      <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-200">
-                        ⚠️ Block expires in less than 6 months. Use remaining journeys soon!
-                      </p>
-                    </div>
-                  )}
+                  {isMounted && ltaBalance?.blockEndDate &&
+                    new Date(ltaBalance.blockEndDate) < new Date(Date.now() + 180 * 24 * 60 * 60 * 1000) && (
+                      <div className="p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 rounded-lg">
+                        <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-200">
+                          ⚠️ Block expires in less than 6 months. Use remaining journeys soon!
+                        </p>
+                      </div>
+                    )}
                 </div>
               </CardContent>
             </Card>
@@ -228,28 +242,37 @@ export default function LTAPage() {
                 <CardDescription>View all your LTA claims in the current block</CardDescription>
               </CardHeader>
               <CardContent>
-                {ltaData.journeys.length > 0 ? (
+                {ltas.length > 0 ? (
                   <div className="space-y-3">
-                    {ltaData.journeys.map((journey) => (
-                      <div key={journey.id} className="p-4 border rounded-lg hover:bg-secondary/50 transition-colors">
+                    {ltas.map((journey) => (
+                      <div
+                        key={journey._id || journey.id}
+                        className="p-4 border rounded-lg hover:bg-secondary/50 transition-colors"
+                      >
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-2">
                               <Plane className="w-4 h-4 text-muted-foreground" />
                               <p className="font-semibold">{journey.destination}</p>
-                              <Badge className={journey.status === 'Approved' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}>
+                              <Badge
+                                className={
+                                  journey.status === 'Approved'
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-yellow-100 text-yellow-700'
+                                }
+                              >
                                 {journey.status}
                               </Badge>
                             </div>
                             <p className="text-sm text-muted-foreground mb-1">
-                              Date: {format(new Date(journey.date), 'MMM dd, yyyy')}
+                              Date: {journey.date ? format(new Date(journey.date), 'MMM dd, yyyy') : 'N/A'}
                             </p>
                             <div className="flex items-center gap-4 text-xs text-muted-foreground">
                               <span className="flex items-center gap-1">
                                 <Users className="w-3 h-3" />
-                                {journey.familyMembers.join(', ')}
+                                {Array.isArray(journey.familyMembers) ? journey.familyMembers.join(', ') : 'N/A'}
                               </span>
-                              <span>Amount: ₹{journey.amount.toLocaleString()}</span>
+                              <span>Amount: ₹{(journey.amount || 0).toLocaleString()}</span>
                             </div>
                           </div>
                           <div className="flex gap-2">

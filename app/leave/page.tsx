@@ -408,14 +408,11 @@ export default function LeavePage() {
                             const availableBalance = balance?.available || 0;
                             const isLWP = policy.leaveType.toLowerCase().includes('without pay') || 
                                          policy.leaveType.toLowerCase().includes('lwp');
-                            const isDisabled = !isLWP && availableBalance <= 0;
-                            
+
                             return (
                               <SelectItem 
                                 key={policy._id || policy.id} 
                                 value={policy.leaveType}
-                                disabled={isDisabled}
-                                className={isDisabled ? "opacity-50 cursor-not-allowed" : ""}
                               >
                                 {policy.leaveType} ({policy.daysPerYear} days/year)
                                 {!isLWP && (

@@ -32,7 +32,7 @@ export default function AttendancePage() {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('all');
   const { employees } = useEmployees();
-  
+
   // Check if user is HR Admin or Tenant Admin (can see all employees)
   const isHRAdmin = currentUser?.role === 'HR Administrator' || currentUser?.role === 'Tenant Admin' || currentUser?.role === 'Super Admin';
 
@@ -59,24 +59,24 @@ export default function AttendancePage() {
       const now = new Date();
       const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
       const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
-      
+
       // If HR Admin and employee selected, filter by employee
       const params: any = { startDate, endDate };
       if (isHRAdmin && selectedEmployeeId && selectedEmployeeId !== 'all') {
         params.employeeId = selectedEmployeeId;
       }
-      
+
       const response = await apiService.getAttendances(params);
       if (response.success && response.data) {
         const records = Array.isArray(response.data) ? response.data : [];
         setAttendanceRecords(records);
-        
+
         // Calculate summary
         const presentDays = records.filter((a) => a.status === 'Present').length;
         const totalWorkingHours = records.reduce((sum, a) => sum + (a.workingHours || 0), 0);
         const avgWorkingHours = records.length > 0 ? (totalWorkingHours / records.length).toFixed(1) : '0';
         const attendanceRate = records.length > 0 ? Math.round((presentDays / records.length) * 100) : 0;
-        
+
         setSummary({
           presentDays,
           totalWorkingHours,
@@ -190,7 +190,7 @@ export default function AttendancePage() {
             <CardContent className="p-6">
               <div>
                 <p className="text-sm text-muted-foreground">Present Days</p>
-                <p className="text-2xl font-bold">{isLoading ? '...' : (summary?.presentDays || 0)}</p>
+                <p className="text-2xl font-bold">{isLoading ? '0' : (summary?.presentDays || 0)}</p>
                 <p className="text-xs text-muted-foreground mt-1">Current month</p>
               </div>
             </CardContent>
@@ -200,7 +200,7 @@ export default function AttendancePage() {
             <CardContent className="p-6">
               <div>
                 <p className="text-sm text-muted-foreground">Total Working Hours</p>
-                <p className="text-2xl font-bold">{isLoading ? '...' : (summary?.totalWorkingHours?.toFixed(1) || '0')}h</p>
+                <p className="text-2xl font-bold">{isLoading ? '0.0' : (summary?.totalWorkingHours?.toFixed(1) || '0')}h</p>
                 <p className="text-xs text-muted-foreground mt-1">This period</p>
               </div>
             </CardContent>
@@ -210,7 +210,7 @@ export default function AttendancePage() {
             <CardContent className="p-6">
               <div>
                 <p className="text-sm text-muted-foreground">Average Daily Hours</p>
-                <p className="text-2xl font-bold">{isLoading ? '...' : (summary?.avgWorkingHours || '0')}h</p>
+                <p className="text-2xl font-bold">{isLoading ? '0' : (summary?.avgWorkingHours || '0')}h</p>
                 <p className="text-xs text-muted-foreground mt-1">Per working day</p>
               </div>
             </CardContent>
@@ -220,7 +220,7 @@ export default function AttendancePage() {
             <CardContent className="p-6">
               <div>
                 <p className="text-sm text-muted-foreground">Attendance Rate</p>
-                <p className="text-2xl font-bold text-green-600">{isLoading ? '...' : (summary?.attendanceRate || 0)}%</p>
+                <p className="text-2xl font-bold text-green-600">{isLoading ? '0' : (summary?.attendanceRate || 0)}%</p>
                 <p className="text-xs text-muted-foreground mt-1">This period</p>
               </div>
             </CardContent>
@@ -238,7 +238,7 @@ export default function AttendancePage() {
               <CardDescription>Check in/out and manage attendance</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button 
+              <Button
                 className="w-full gap-2 bg-green-600 hover:bg-green-700"
                 onClick={handleCheckIn}
                 disabled={isCheckingIn || todayStatus?.checkedIn}
@@ -255,8 +255,8 @@ export default function AttendancePage() {
                   </>
                 )}
               </Button>
-              <Button 
-                className="w-full gap-2 bg-transparent" 
+              <Button
+                className="w-full gap-2 bg-transparent"
                 variant="outline"
                 onClick={handleCheckOut}
                 disabled={isCheckingOut || !todayStatus?.checkedIn || todayStatus?.checkedOut}
@@ -273,8 +273,8 @@ export default function AttendancePage() {
                   </>
                 )}
               </Button>
-              <Button 
-                className="w-full bg-transparent" 
+              <Button
+                className="w-full bg-transparent"
                 variant="outline"
                 onClick={handleRequestRegularization}
                 asChild
@@ -283,8 +283,8 @@ export default function AttendancePage() {
                   Request Regularization
                 </Link>
               </Button>
-              <Button 
-                className="w-full bg-transparent" 
+              <Button
+                className="w-full bg-transparent"
                 variant="outline"
                 asChild
               >
@@ -292,8 +292,8 @@ export default function AttendancePage() {
                   View My Shift
                 </Link>
               </Button>
-              <Button 
-                className="w-full bg-transparent" 
+              <Button
+                className="w-full bg-transparent"
                 variant="outline"
                 asChild
               >
@@ -329,7 +329,9 @@ export default function AttendancePage() {
         <Card className="border-0 shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg">Attendance Records</CardTitle>
-            <CardDescription>January 2026</CardDescription>
+            <CardDescription>
+              {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -364,7 +366,7 @@ export default function AttendancePage() {
                       const employee = record.employeeId;
                       const employeeName = employee ? `${employee.firstName || ''} ${employee.lastName || ''}`.trim() : 'N/A';
                       const employeeCode = employee?.employeeCode || '';
-                      
+
                       return (
                         <tr key={recordId} className="border-b border-border hover:bg-secondary/50 transition-colors">
                           {isHRAdmin && (

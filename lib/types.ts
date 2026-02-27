@@ -1,12 +1,12 @@
 // Type definitions for HRMS System
 
-export type UserRole = 
-  | 'Super Admin' 
-  | 'Tenant Admin' 
-  | 'HR Administrator' 
+export type UserRole =
+  | 'Super Admin'
+  | 'Tenant Admin'
+  | 'HR Administrator'
   | 'Payroll Administrator'
   | 'Finance Administrator'
-  | 'Manager' 
+  | 'Manager'
   | 'Employee'
   | 'Auditor';
 
@@ -28,6 +28,7 @@ export interface User {
   password: string;
   name: string;
   role: UserRole;
+  employeeId?: string | null;
   /** BRD: Maker=process payroll, Checker=approve only. Set by Tenant Admin for Payroll Administrator */
   payrollSubRole?: PayrollSubRole | null;
   designation: string;

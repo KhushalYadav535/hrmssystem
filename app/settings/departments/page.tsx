@@ -27,7 +27,7 @@ interface Department {
 }
 
 export default function DepartmentManagementPage() {
-  const { isAuthenticated, hasPermission } = useAuth();
+  const { isAuthenticated, hasPermission, currentUser } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -59,7 +59,12 @@ export default function DepartmentManagementPage() {
     }
   };
 
-  if (!isAuthenticated || !hasPermission('manage_settings')) {
+  const canAccess =
+    hasPermission('manage_settings') ||
+    currentUser?.role === 'Tenant Admin' ||
+    currentUser?.role === 'HR Administrator';
+
+  if (!isAuthenticated || !canAccess) {
     redirect('/dashboard');
   }
 

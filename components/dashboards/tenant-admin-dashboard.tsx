@@ -12,7 +12,6 @@ import { useState, useEffect } from 'react';
 import { apiService } from '@/lib/api';
 
 export default function TenantAdminDashboard() {
-  const { employees } = useEmployees();
   const { jobs } = useJobs({ status: 'Open' });
   const [dashboardStats, setDashboardStats] = useState({
     totalEmployees: 0,
@@ -23,7 +22,8 @@ export default function TenantAdminDashboard() {
       onboarding: 0
     },
     openPositions: 0,
-    applications: 0
+    applications: 0,
+    recentJoiningsList: []
   });
   
   const [departmentData, setDepartmentData] = useState<any[]>([]);
@@ -41,7 +41,8 @@ export default function TenantAdminDashboard() {
             newJoinings: response.data.newJoinings,
             pendingApprovals: response.data.pendingApprovals,
             openPositions: response.data.openPositions,
-            applications: response.data.applications
+            applications: response.data.applications,
+            recentJoiningsList: response.data.recentJoiningsList || []
           }));
           setDepartmentData(response.data.departmentData || []);
           setFinancialData(response.data.financialData || []);
@@ -60,10 +61,7 @@ export default function TenantAdminDashboard() {
   const totalExpenses = financialData.reduce((sum, m) => sum + (m.expenses || 0), 0);
   const netProfit = totalRevenue - totalExpenses; // Or just show Total Cost since it's HRMS
 
-  // Get recent joinings from employees list
-  const recentJoinings = employees
-    .sort((a, b) => new Date(b.joinDate).getTime() - new Date(a.joinDate).getTime())
-    .slice(0, 5);
+  const recentJoinings = dashboardStats.recentJoiningsList || [];
 
   return (
     <div className="space-y-6">

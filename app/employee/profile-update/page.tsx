@@ -37,13 +37,50 @@ const REQUEST_TYPES = [
   { value: 'OTHER', label: 'Other' },
 ];
 
-const ALLOWED_FIELDS: { field: string; label: string; type: string }[] = [
-  { field: 'phone', label: 'Phone Number', type: 'tel' },
-  { field: 'address', label: 'Address', type: 'text' },
+const PERSONAL_FIELDS: { field: string; label: string; type: string }[] = [
   { field: 'bloodGroup', label: 'Blood Group', type: 'text' },
   { field: 'maritalStatus', label: 'Marital Status', type: 'text' },
   { field: 'passportNumber', label: 'Passport Number', type: 'text' },
 ];
+
+const CONTACT_FIELDS: { field: string; label: string; type: string }[] = [
+  { field: 'phone', label: 'Phone Number', type: 'tel' },
+  { field: 'alternatePhone', label: 'Alternate Phone', type: 'tel' },
+  { field: 'personalEmail', label: 'Personal Email', type: 'email' },
+];
+
+const ADDRESS_FIELDS: { field: string; label: string; type: string }[] = [
+  { field: 'currentAddress', label: 'Current Address', type: 'text' },
+  { field: 'permanentAddress', label: 'Permanent Address', type: 'text' },
+];
+
+const BANK_FIELDS: { field: string; label: string; type: string }[] = [
+  { field: 'bankAccountNumber', label: 'Account Number', type: 'text' },
+  { field: 'bankIfsc', label: 'IFSC Code', type: 'text' },
+  { field: 'bankName', label: 'Bank Name', type: 'text' },
+  { field: 'bankBranch', label: 'Branch', type: 'text' },
+];
+
+const OTHER_FIELDS: { field: string; label: string; type: string }[] = [
+  { field: 'otherDetails', label: 'Details to Update', type: 'text' },
+];
+
+const getFieldsForRequestType = (requestType: string) => {
+  switch (requestType) {
+    case 'PERSONAL':
+      return PERSONAL_FIELDS;
+    case 'CONTACT':
+      return CONTACT_FIELDS;
+    case 'ADDRESS':
+      return ADDRESS_FIELDS;
+    case 'BANK':
+      return BANK_FIELDS;
+    case 'OTHER':
+      return OTHER_FIELDS;
+    default:
+      return PERSONAL_FIELDS;
+  }
+};
 
 export default function ProfileUpdatePage() {
   const { isAuthenticated, user } = useAuth();
@@ -86,7 +123,8 @@ export default function ProfileUpdatePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const requestedFields = ALLOWED_FIELDS
+    const allowedForType = getFieldsForRequestType(formData.requestType);
+    const requestedFields = allowedForType
       .filter((f) => formData.fields[f.field] !== undefined && String(formData.fields[f.field]).trim() !== '')
       .map((f) => ({
         field: f.field,
@@ -210,27 +248,38 @@ export default function ProfileUpdatePage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <Label>Request Type</Label>
-                <Select value={formData.requestType} onValueChange={(v) => setFormData({ ...formData, requestType: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {REQUEST_TYPES.map((t) => (
-                      <SelectItem key={t.value} value={t.value}>
-                        {t.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  value={formData.requestType}
+                  onChange={(e) =>
+                    setFormData({
+                      requestType: e.target.value,
+                      reason: formData.reason,
+                      // Reset only fields not relevant to new type to avoid leaking values
+                      fields: {},
+                    })
+                  }
+                >
+                  {REQUEST_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
               </div>
-              {ALLOWED_FIELDS.map((f) => (
+              {getFieldsForRequestType(formData.requestType).map((f) => (
                 <div key={f.field}>
                   <Label>{f.label}</Label>
                   <Input
                     type={f.type}
                     placeholder={`Current: ${employee?.[f.field] || '-'}`}
                     value={formData.fields[f.field] || ''}
-                    onChange={(e) => setFormData({ ...formData, fields: { ...formData.fields, [f.field]: e.target.value } })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        fields: { ...formData.fields, [f.field]: e.target.value },
+                      })
+                    }
                   />
                 </div>
               ))}

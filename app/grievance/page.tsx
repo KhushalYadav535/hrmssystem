@@ -49,7 +49,7 @@ export default function GrievancePage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      
+
       if (currentUser?.role === 'Employee') {
         const res = await apiService.getMyGrievances(filters);
         if (res.success && res.data) {
@@ -60,7 +60,7 @@ export default function GrievancePage() {
           apiService.getAllGrievances({ ...filters, limit: 50 }),
           apiService.getGrievanceDashboardStats(),
         ]);
-        
+
         if (grievancesRes.success && grievancesRes.data) {
           setGrievances(grievancesRes.data);
         }
@@ -124,7 +124,7 @@ export default function GrievancePage() {
               Submit and track employee grievances (BR-P1-004)
             </p>
           </div>
-          {currentUser?.role === 'Employee' && (
+          {currentUser?.role !== 'Super Admin' && (
             <Link href="/grievance/submit">
               <Button>
                 <Plus className="w-4 h-4 mr-2" />

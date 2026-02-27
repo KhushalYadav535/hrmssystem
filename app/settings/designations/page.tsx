@@ -30,7 +30,7 @@ interface Designation {
 }
 
 export default function DesignationManagementPage() {
-  const { isAuthenticated, hasPermission } = useAuth();
+  const { isAuthenticated, hasPermission, currentUser } = useAuth();
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -52,7 +52,12 @@ export default function DesignationManagementPage() {
     }
   }, [isAuthenticated]);
 
-  if (!isAuthenticated || !hasPermission('manage_settings')) {
+  const canAccess =
+    hasPermission('manage_settings') ||
+    currentUser?.role === 'Tenant Admin' ||
+    currentUser?.role === 'HR Administrator';
+
+  if (!isAuthenticated || !canAccess) {
     redirect('/dashboard');
   }
 

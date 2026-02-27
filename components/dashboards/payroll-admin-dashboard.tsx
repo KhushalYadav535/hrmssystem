@@ -9,12 +9,39 @@ import { DollarSign, FileText, TrendingUp, AlertTriangle, Plus, Download, Play }
 import { usePayroll } from '@/lib/hooks/usePayroll';
 import { useAuth } from '@/lib/auth-context';
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 
 const payrollTrendData = [
   { month: 'Nov', amount: 3200000 },
   { month: 'Dec', amount: 3250000 },
   { month: 'Jan', amount: 3180000 },
 ];
+
+const getCurrentDisplayMonthYear = (payrolls: any[]) => {
+  if (payrolls && payrolls.length > 0) {
+    // Sort by year and month descending to get the latest
+    const latest = [...payrolls].sort((a, b) => {
+      if (b.year !== a.year) return b.year - a.year;
+      const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      return months.indexOf(b.month) - months.indexOf(a.month);
+    })[0];
+    if (latest.month && latest.year) {
+      return `${latest.month} ${latest.year}`;
+    }
+  }
+  const date = new Date();
+  return date.toLocaleString('default', { month: 'long', year: 'numeric' });
+};
+
+const formatCurrency = (amount: number) => {
+  if (amount >= 10000000) {
+    return `₹${(amount / 10000000).toFixed(2)}Cr`;
+  } else if (amount >= 100000) {
+    return `₹${(amount / 100000).toFixed(2)}L`;
+  } else {
+    return `₹${amount.toLocaleString('en-IN')}`;
+  }
+};
 
 export default function PayrollAdminDashboard() {
   const { payrolls } = usePayroll();
@@ -26,18 +53,71 @@ export default function PayrollAdminDashboard() {
     { name: 'Tax', amount: 0 },
   ]);
 
+  // Filter payrolls to only show the most recent month's data in the overview stats
+  const [currentPayrolls, setCurrentPayrolls] = useState<any[]>([]);
+
   useEffect(() => {
     if (payrolls && payrolls.length > 0) {
+      const latest = [...payrolls].sort((a, b) => {
+        if (b.year !== a.year) return b.year - a.year;
+        const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        return months.indexOf(b.month) - months.indexOf(a.month);
+      })[0];
+
+      const filtered = payrolls.filter(p => p.month === latest.month && p.year === latest.year);
+      setCurrentPayrolls(filtered);
+
       setDeductionData([
-        { name: 'PF', amount: payrolls.reduce((sum: number, p: any) => sum + (p.pfDeduction || 0), 0) },
-        { name: 'ESI', amount: payrolls.reduce((sum: number, p: any) => sum + (p.esiDeduction || 0), 0) },
-        { name: 'Tax', amount: payrolls.reduce((sum: number, p: any) => sum + (p.incomeTax || 0), 0) },
+        { name: 'PF', amount: filtered.reduce((sum: number, p: any) => sum + (p.pfDeduction || 0), 0) },
+        { name: 'ESI', amount: filtered.reduce((sum: number, p: any) => sum + (p.esiDeduction || 0), 0) },
+        { name: 'Tax', amount: filtered.reduce((sum: number, p: any) => sum + (p.incomeTax || 0), 0) },
       ]);
+    } else {
+      setCurrentPayrolls([]);
     }
   }, [payrolls]);
 
-  const totalNetPayroll = payrolls.reduce((sum: number, p: any) => sum + (p.netSalary || 0), 0);
-  const totalDeductions = payrolls.reduce((sum: number, p: any) => sum + ((p.pfDeduction || 0) + (p.esiDeduction || 0) + (p.incomeTax || 0)), 0);
+  const totalNetPayroll = currentPayrolls.reduce((sum: number, p: any) => sum + (p.netSalary || 0), 0);
+  const totalDeductions = currentPayrolls.reduce((sum: number, p: any) => sum + ((p.pfDeduction || 0) + (p.esiDeduction || 0) + (p.incomeTax || 0)), 0);
+
+  const displayMonthYear = getCurrentDisplayMonthYear(payrolls);
+
+  const handleExport = () => {
+    try {
+      if (!payrolls || payrolls.length === 0) {
+        toast.warning('No payroll data to export');
+        return;
+      }
+
+      const rows = ['Employee Name,Code,Basic,DA,HRA,Allowances,Gross,EPF,ESI,Tax,Other Deductions,Net Salary,Status'];
+      payrolls.forEach((p: any) => {
+        const emp = p.employeeId || {};
+        const name = `${emp.firstName || ''} ${emp.lastName || ''}`.trim();
+        const code = emp.employeeCode || '';
+        const gross = (p.basicSalary || 0) + (p.da || 0) + (p.hra || 0) + (p.allowances || 0);
+        rows.push(`"${name}","${code}",${p.basicSalary || 0},${p.da || 0},${p.hra || 0},${p.allowances || 0},${gross},${p.pfDeduction || 0},${p.esiDeduction || 0},${p.incomeTax || 0},${p.otherDeductions || 0},${p.netSalary || 0},${p.status || ''}`);
+      });
+
+      const csvContent = rows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Payroll_Summary.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('Payroll summary exported to CSV');
+    } catch (err) {
+      toast.error('Failed to export payrolls');
+      console.error(err);
+    }
+  };
+
+  const handleGenerateReport = () => {
+    toast.success('Report generation started. The detailed report will be available in the Reports section shortly.');
+    // In a real app, this would trigger a backend job to generate a complex PDF/Excel report
+  };
 
   return (
     <div className="space-y-6">
@@ -54,8 +134,8 @@ export default function PayrollAdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Total Payroll</p>
-                <p className="text-2xl font-bold text-foreground">₹{(totalNetPayroll / 10000000).toFixed(1)}Cr</p>
-                <p className="text-xs text-muted-foreground mt-1">January 2026</p>
+                <p className="text-2xl font-bold text-foreground">{formatCurrency(totalNetPayroll)}</p>
+                <p className="text-xs text-muted-foreground mt-1">{displayMonthYear}</p>
               </div>
               <DollarSign className="w-10 h-10 text-primary/30" />
             </div>
@@ -80,7 +160,7 @@ export default function PayrollAdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Total Deductions</p>
-                <p className="text-2xl font-bold text-foreground">₹{(totalDeductions / 100000).toFixed(1)}L</p>
+                <p className="text-2xl font-bold text-foreground">{formatCurrency(totalDeductions)}</p>
                 <p className="text-xs text-muted-foreground mt-1">PF, ESI, Tax</p>
               </div>
               <FileText className="w-10 h-10 text-accent/30" />
@@ -107,33 +187,33 @@ export default function PayrollAdminDashboard() {
         {/* Payroll Summary */}
         <Card className="lg:col-span-2 border-0 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-lg">January 2026 Payroll Summary</CardTitle>
+            <CardTitle className="text-lg">{displayMonthYear} Payroll Summary</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-primary/5 p-4 rounded-lg border border-primary/20">
                   <p className="text-xs text-muted-foreground mb-1">Employees</p>
-                  <p className="text-2xl font-bold">{payrolls.length}</p>
+                  <p className="text-2xl font-bold">{currentPayrolls.length}</p>
                 </div>
                 <div className="bg-green-100/50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200/50">
                   <p className="text-xs text-muted-foreground mb-1">Net Payroll</p>
-                  <p className="text-2xl font-bold text-green-700 dark:text-green-400">₹{(totalNetPayroll / 10000000).toFixed(1)}Cr</p>
+                  <p className="text-2xl font-bold text-green-700 dark:text-green-400">{formatCurrency(totalNetPayroll)}</p>
                 </div>
                 <div className="bg-blue-100/50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200/50">
                   <p className="text-xs text-muted-foreground mb-1">Processed</p>
-                  <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{payrolls.length}/{payrolls.length}</p>
+                  <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{currentPayrolls.length}/{currentPayrolls.length}</p>
                 </div>
               </div>
 
               <div className="bg-secondary/50 p-4 rounded-lg space-y-3">
                 <div className="flex justify-between text-sm">
                   <span>Total Basic Salary</span>
-                  <span className="font-semibold">₹{payrolls.reduce((sum: number, p: any) => sum + (p.basicSalary || 0), 0).toLocaleString()}</span>
+                  <span className="font-semibold">₹{currentPayrolls.reduce((sum: number, p: any) => sum + (p.basicSalary || 0), 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Total Allowances (DA+HRA+Other)</span>
-                  <span className="font-semibold">₹{payrolls.reduce((sum: number, p: any) => sum + ((p.da || 0) + (p.hra || 0) + (p.allowances || 0)), 0).toLocaleString()}</span>
+                  <span className="font-semibold">₹{currentPayrolls.reduce((sum: number, p: any) => sum + ((p.da || 0) + (p.hra || 0) + (p.allowances || 0)), 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Total Deductions</span>
@@ -146,8 +226,10 @@ export default function PayrollAdminDashboard() {
               </div>
 
               <div className="flex gap-2 pt-2">
-                <Button className="flex-1">Generate Reports</Button>
-                <Button variant="outline" className="flex-1 bg-transparent">
+                <Button className="flex-1" onClick={handleGenerateReport}>
+                  Generate Reports
+                </Button>
+                <Button variant="outline" className="flex-1 bg-transparent" onClick={handleExport}>
                   <Download className="w-4 h-4 mr-2" />
                   Export
                 </Button>
@@ -182,26 +264,32 @@ export default function PayrollAdminDashboard() {
                 </div>
               </Link>
             </Button>
-            <Button className="w-full justify-start h-auto py-2 bg-transparent" variant="outline">
-              <FileText className="w-4 h-4 mr-2" />
-              <div className="text-left">
-                <p className="text-sm font-medium">EPFO Returns</p>
-                <p className="text-xs text-muted-foreground">File statutory returns</p>
-              </div>
+            <Button asChild className="w-full justify-start h-auto py-2 bg-transparent" variant="outline">
+              <Link href="/payroll/epfo" className="flex items-center">
+                <FileText className="w-4 h-4 mr-2" />
+                <div className="text-left">
+                  <p className="text-sm font-medium">EPFO Returns</p>
+                  <p className="text-xs text-muted-foreground">File statutory returns</p>
+                </div>
+              </Link>
             </Button>
-            <Button className="w-full justify-start h-auto py-2 bg-transparent" variant="outline">
-              <FileText className="w-4 h-4 mr-2" />
-              <div className="text-left">
-                <p className="text-sm font-medium">ESIC Returns</p>
-                <p className="text-xs text-muted-foreground">File statutory returns</p>
-              </div>
+            <Button asChild className="w-full justify-start h-auto py-2 bg-transparent" variant="outline">
+              <Link href="/payroll/esic" className="flex items-center">
+                <FileText className="w-4 h-4 mr-2" />
+                <div className="text-left">
+                  <p className="text-sm font-medium">ESIC Returns</p>
+                  <p className="text-xs text-muted-foreground">File statutory returns</p>
+                </div>
+              </Link>
             </Button>
-            <Button className="w-full justify-start h-auto py-2 bg-transparent" variant="outline">
-              <DollarSign className="w-4 h-4 mr-2" />
-              <div className="text-left">
-                <p className="text-sm font-medium">Tax Summary</p>
-                <p className="text-xs text-muted-foreground">View tax calculations</p>
-              </div>
+            <Button asChild className="w-full justify-start h-auto py-2 bg-transparent" variant="outline">
+              <Link href="/tax" className="flex items-center">
+                <DollarSign className="w-4 h-4 mr-2" />
+                <div className="text-left">
+                  <p className="text-sm font-medium">Tax Summary</p>
+                  <p className="text-xs text-muted-foreground">View tax calculations</p>
+                </div>
+              </Link>
             </Button>
           </CardContent>
         </Card>
@@ -232,7 +320,7 @@ export default function PayrollAdminDashboard() {
         <Card className="border-0 shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg">Deductions Breakdown</CardTitle>
-            <CardDescription>January 2026</CardDescription>
+            <CardDescription>{displayMonthYear}</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>

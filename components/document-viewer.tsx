@@ -1,6 +1,6 @@
 'use client';
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Download, X } from 'lucide-react';
 
@@ -15,13 +15,13 @@ interface DocumentViewerProps {
   } | null;
 }
 
-export default function DocumentViewer({ open, onOpenChange, document }: DocumentViewerProps) {
-  if (!document) return null;
+export default function DocumentViewer({ open, onOpenChange, document: doc }: DocumentViewerProps) {
+  if (!doc) return null;
 
   const handleDownload = () => {
     const link = document.createElement('a');
-    link.href = document.url;
-    link.download = document.name;
+    link.href = doc.url;
+    link.download = doc.name;
     link.click();
   };
 
@@ -30,7 +30,8 @@ export default function DocumentViewer({ open, onOpenChange, document }: Documen
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <div className="flex items-center justify-between">
-            <DialogTitle>{document.name}</DialogTitle>
+            <DialogTitle>{doc.name}</DialogTitle>
+            <DialogDescription className="sr-only">Viewing document {doc.name}</DialogDescription>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={handleDownload}>
                 <Download className="w-4 h-4 mr-2" />
@@ -43,26 +44,26 @@ export default function DocumentViewer({ open, onOpenChange, document }: Documen
           </div>
         </DialogHeader>
         <div className="flex-1 overflow-auto border rounded-lg bg-secondary/50">
-          {document.type === 'pdf' ? (
+          {doc.type === 'pdf' ? (
             <iframe
-              src={document.url}
+              src={doc.url}
               className="w-full h-full min-h-[600px]"
-              title={document.name}
+              title={doc.name}
             />
-          ) : document.type === 'image' ? (
-            <img src={document.url} alt={document.name} className="w-full h-auto" />
+          ) : doc.type === 'image' ? (
+            <img src={doc.url} alt={doc.name} className="w-full h-auto" />
           ) : (
             <div className="p-8 text-center">
               <p className="text-muted-foreground">Preview not available for this file type</p>
               <Button onClick={handleDownload} className="mt-4">
                 <Download className="w-4 h-4 mr-2" />
-                Download {document.name}
+                Download {doc.name}
               </Button>
             </div>
           )}
         </div>
-        {document.size && (
-          <p className="text-xs text-muted-foreground text-center mt-2">File size: {document.size}</p>
+        {doc.size && (
+          <p className="text-xs text-muted-foreground text-center mt-2">File size: {doc.size}</p>
         )}
       </DialogContent>
     </Dialog>

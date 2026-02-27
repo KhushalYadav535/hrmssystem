@@ -42,8 +42,8 @@ export default function TaxPage() {
     redirect('/login');
   }
 
-  const handleDownload = async (declarationId: string, docUrl: string) => {
-    if (!docUrl) {
+  const handleDownload = async (docName: string, docUrl: string) => {
+    if (!docUrl || docUrl === '#') {
       toast.error('Document URL not available');
       return;
     }
@@ -51,7 +51,7 @@ export default function TaxPage() {
       // Create a temporary link and trigger download
       const link = document.createElement('a');
       link.href = docUrl;
-      link.download = `tax-document-${declarationId}.pdf`;
+      link.download = `${docName.replace(/\s+/g, '-').toLowerCase()}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -62,13 +62,17 @@ export default function TaxPage() {
     }
   };
 
-  const handleViewDocument = async (docUrl: string) => {
-    if (!docUrl) {
-      toast.error('Document URL not available');
+  const handleViewDocument = async (docUrl: string, docName: string = 'Document') => {
+    if (!docUrl || docUrl === '#') {
+      toast.error('Document not available for viewing');
       return;
     }
     try {
-      setSelectedDocument({ url: docUrl });
+      setSelectedDocument({
+        name: docName,
+        url: docUrl,
+        type: docUrl.toLowerCase().endsWith('.pdf') ? 'pdf' : 'image'
+      });
     } catch (error: any) {
       toast.error('Failed to load document');
       console.error('View document error:', error);
@@ -95,7 +99,7 @@ export default function TaxPage() {
             // Calculate totals from declarations array
             const totalDeclarations = tax.declarations?.reduce((sum: number, dec: any) => sum + (dec.amount || 0), 0) || 0;
             const approvedDeclarations = tax.declarations?.filter((dec: any) => dec.status === 'Approved').reduce((sum: number, dec: any) => sum + (dec.amount || 0), 0) || 0;
-            
+
             return (
               <Card key={taxId} className="border-0 shadow-sm">
                 <CardHeader>
@@ -172,15 +176,15 @@ export default function TaxPage() {
                       <div className="space-y-2">
                         {tax.declarations && tax.declarations.some((dec: any) => dec.proofUrl) && (
                           <Button variant="outline" className="w-full gap-2" size="sm" onClick={() => {
-                            const docUrl = tax.declarations.find((dec: any) => dec.proofUrl)?.proofUrl;
-                            if (docUrl) handleViewDocument(docUrl);
+                            const proofDec = tax.declarations.find((dec: any) => dec.proofUrl);
+                            if (proofDec) handleViewDocument(proofDec.proofUrl, proofDec.section || 'Proof Document');
                           }}>
                             <Eye className="w-4 h-4" />
                             View Documents
                           </Button>
                         )}
                         {hasPermission('process_payroll') && tax.status === 'Verified' && (
-                          <Button variant="outline" className="w-full gap-2" size="sm" onClick={() => handleDownload(taxId, 'form16')}>
+                          <Button variant="outline" className="w-full gap-2" size="sm" onClick={() => handleDownload('Form 16', `/api/tax/form16/download/${taxId}`)}>
                             <Download className="w-4 h-4" />
                             Download Form 16
                           </Button>
@@ -196,8 +200,8 @@ export default function TaxPage() {
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer" asChild>
-            <Link href="/tax/declarations">
+          <Link href="/tax/declarations">
+            <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
               <CardContent className="p-6">
                 <div className="flex items-center gap-4">
                   <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
@@ -209,11 +213,11 @@ export default function TaxPage() {
                   </div>
                 </div>
               </CardContent>
-            </Link>
-          </Card>
+            </Card>
+          </Link>
 
-          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer" asChild>
-            <Link href="/tax/regime-comparison">
+          <Link href="/tax/regime-comparison">
+            <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
               <CardContent className="p-6">
                 <div className="flex items-center gap-4">
                   <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
@@ -225,11 +229,11 @@ export default function TaxPage() {
                   </div>
                 </div>
               </CardContent>
-            </Link>
-          </Card>
+            </Card>
+          </Link>
 
-          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer" asChild>
-            <Link href="/tax/form16">
+          <Link href="/tax/form16">
+            <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
               <CardContent className="p-6">
                 <div className="flex items-center gap-4">
                   <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
@@ -241,12 +245,12 @@ export default function TaxPage() {
                   </div>
                 </div>
               </CardContent>
-            </Link>
-          </Card>
+            </Card>
+          </Link>
 
           {hasPermission('process_payroll') && (
-            <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer" asChild>
-              <Link href="/tax/form24q">
+            <Link href="/tax/form24q">
+              <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
                 <CardContent className="p-6">
                   <div className="flex items-center gap-4">
                     <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
@@ -258,12 +262,12 @@ export default function TaxPage() {
                     </div>
                   </div>
                 </CardContent>
-              </Link>
-            </Card>
+              </Card>
+            </Link>
           )}
 
-          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer" asChild>
-            <Link href="/tax/proof-uploads">
+          <Link href="/tax/proof-uploads">
+            <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
               <CardContent className="p-6">
                 <div className="flex items-center gap-4">
                   <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
@@ -275,8 +279,8 @@ export default function TaxPage() {
                   </div>
                 </div>
               </CardContent>
-            </Link>
-          </Card>
+            </Card>
+          </Link>
         </div>
 
         {/* Tax Documents */}
@@ -298,11 +302,11 @@ export default function TaxPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     <Badge className="bg-green-100 text-green-700">{doc.status}</Badge>
-                    <Button size="sm" variant="outline" onClick={() => handleViewDocument(doc.name)}>
+                    <Button size="sm" variant="outline" onClick={() => handleViewDocument(doc.link, doc.name)}>
                       <Eye className="w-4 h-4 mr-1" />
                       View
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleDownload(doc.name)}>
+                    <Button size="sm" variant="outline" onClick={() => handleDownload(doc.name, doc.link)}>
                       <Download className="w-4 h-4" />
                     </Button>
                   </div>

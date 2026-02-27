@@ -1506,22 +1506,22 @@ class ApiService {
     if (params?.financialYear) query.append('financialYear', params.financialYear);
     if (params?.status) query.append('status', params.status);
 
-    return this.request(`/tax-declarations?${query.toString()}`);
+    return this.request(`/tax/declarations?${query.toString()}`);
   }
 
   async getTaxDeclaration(id: string) {
-    return this.request(`/tax-declarations/${id}`);
+    return this.request(`/tax/declarations/${id}`);
   }
 
   async createTaxDeclaration(data: any) {
-    return this.request('/tax-declarations', {
+    return this.request('/tax/declarations', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
   async updateTaxDeclarationStatus(id: string, data: any) {
-    return this.request(`/tax-declarations/${id}/status`, {
+    return this.request(`/tax/declarations/${id}/status`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });

@@ -25,7 +25,8 @@ export default function TopBar({ onToggleSidebar }: TopBarProps) {
   const { theme, setTheme } = useTheme();
   const router = useRouter();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const unreadCount = mockNotifications.filter((n) => !n.read).length;
+  const [notifications, setNotifications] = useState(mockNotifications);
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   // BR-P0-001 Bug 1: Enhanced logout handler - use full navigation to avoid hydration/transition issues
   const handleLogout = async () => {
@@ -36,6 +37,30 @@ export default function TopBar({ onToggleSidebar }: TopBarProps) {
     } finally {
       window.location.href = '/login';
     }
+  };
+
+  const handleNotificationClick = (notif: any) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n))
+    );
+    setNotificationsOpen(false);
+
+    let target = '/dashboard';
+    switch (notif.type) {
+      case 'leave_approval':
+        target = '/approvals/leave';
+        break;
+      case 'payslip':
+        target = '/payroll';
+        break;
+      case 'appraisal':
+        target = '/performance';
+        break;
+      default:
+        break;
+    }
+
+    router.push(target);
   };
 
   return (
@@ -114,12 +139,17 @@ export default function TopBar({ onToggleSidebar }: TopBarProps) {
                   <h3 className="font-semibold text-sm">Notifications</h3>
                 </div>
                 <div className="max-h-96 overflow-y-auto">
-                  {mockNotifications.length > 0 ? (
-                    mockNotifications.map((notif) => (
+                  {notifications.length > 0 ? (
+                    notifications.map((notif) => (
                       <div
                         key={notif.id}
                         className={`p-4 border-b border-border last:border-0 hover:bg-secondary/50 cursor-pointer transition-colors ${!notif.read ? 'bg-primary/5' : ''
                           }`}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleNotificationClick(notif);
+                        }}
                       >
                         <div className="flex justify-between items-start gap-2">
                           <div className="flex-1 min-w-0">
@@ -164,7 +194,17 @@ export default function TopBar({ onToggleSidebar }: TopBarProps) {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push(currentUser?.role === 'Super Admin' ? '/admin/profile' : `/employee/${currentUser?.id}`)}>
+              <DropdownMenuItem onClick={() => {
+                if (currentUser?.role === 'Super Admin') {
+                  router.push('/admin/profile');
+                } else if (currentUser?.role === 'Tenant Admin') {
+                  router.push('/admin/tenant-profile');
+                } else {
+                  // Employee, Manager, and all other roles → self-service profile page
+                  // /employee/[id] expects Employee _id; currentUser.id is auth User id - use my-profile instead
+                  router.push('/settings/my-profile');
+                }
+              }}>
                 <User className="w-4 h-4 mr-2" />
                 <span>My Profile</span>
               </DropdownMenuItem>

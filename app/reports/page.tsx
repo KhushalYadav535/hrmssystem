@@ -108,10 +108,33 @@ export default function ReportsPage() {
   };
 
   const handleExport = () => {
-    toast.success('Exporting report...');
-    setTimeout(() => {
+    try {
+      const rows: string[] = [];
+      rows.push('Section,Metric,Value');
+      rows.push(`Headcount,Total Employees,${metrics.totalEmployees}`);
+      rows.push(`Headcount,Attrition Rate,${metrics.attritionRate}%`);
+      rows.push(`Performance,Average Rating,${metrics.avgRating}`);
+      rows.push(`Leave,Leave Utilization,${metrics.leaveUtilization}%`);
+      rows.push(`Payroll,Total Payroll,${payrollSummary.totalPayroll}`);
+      rows.push(`Payroll,Average Salary,${payrollSummary.averageSalary}`);
+      rows.push(`Payroll,Total Deductions,${payrollSummary.totalDeductions}`);
+
+      const csvContent = rows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const today = new Date().toISOString().split('T')[0];
+      a.href = url;
+      a.download = `hrms-reports-${today}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
       toast.success('Report exported successfully!');
-    }, 1500);
+    } catch (error) {
+      console.error('Export error', error);
+      toast.error('Failed to export report');
+    }
   };
 
   const handlePreview = () => {

@@ -74,6 +74,20 @@ export default function RecruitmentPage() {
   const openPositions = jobs.filter((j) => j.status === 'Open');
   const totalApplications = jobs.reduce((sum, j) => sum + (j.applications || 0), 0);
 
+  const normalizeTitle = (title: string) =>
+    title
+      .split(' ')
+      .filter(Boolean)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+
+  const normalizeDepartment = (department: string) =>
+    department
+      .split(' ')
+      .filter(Boolean)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+
   const handleCreateJob = async () => {
     if (!formData.title || !formData.department || !formData.openPositions) {
       toast.error('Please fill all required fields (Title, Department, Open Positions)');
@@ -84,9 +98,12 @@ export default function RecruitmentPage() {
       return;
     }
     try {
+      const normalizedTitle = normalizeTitle(formData.title!);
+      const normalizedDepartment = normalizeDepartment(formData.department!);
+
       const response = await apiService.createJob({
-        title: formData.title!.trim(),
-        department: formData.department!.trim(),
+        title: normalizedTitle,
+        department: normalizedDepartment,
         status: formData.status || 'Open',
         openPositions: Number(formData.openPositions) || 1,
         description: formData.description?.trim() || '',
@@ -128,8 +145,15 @@ export default function RecruitmentPage() {
     try {
       const jobId = selectedJob._id || selectedJob.id;
       if (!jobId) return;
-      
-      const response = await apiService.updateJob(jobId, formData);
+
+      const normalizedTitle = normalizeTitle(formData.title);
+      const normalizedDepartment = normalizeDepartment(formData.department);
+
+      const response = await apiService.updateJob(jobId, {
+        ...formData,
+        title: normalizedTitle,
+        department: normalizedDepartment,
+      });
       if (response.success) {
         toast.success('Job updated successfully!');
         setShowEditDialog(false);
@@ -324,7 +348,7 @@ export default function RecruitmentPage() {
                     <div key={jobId} className="p-4 border border-border rounded-lg hover:bg-secondary/50 transition-colors">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
-                          <h3 className="font-semibold text-base">{job.title}</h3>
+                          <h3 className="font-semibold text-base capitalize">{job.title}</h3>
                           <p className="text-sm text-muted-foreground">{job.department}</p>
                         </div>
                         <Badge className={job.status === 'Open' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}>

@@ -40,6 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             password: '', // Don't store password
             name: user.name,
             role: user.role,
+            employeeId: user.employeeId || null,
             payrollSubRole: user.payrollSubRole || null,
             designation: user.designation || '',
             department: user.department || '',
@@ -97,6 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           password: '', // Don't store password
           name: user.name,
           role: user.role,
+          employeeId: user.employeeId || null,
           payrollSubRole: user.payrollSubRole || null,
           designation: user.designation || '',
           department: user.department || '',
@@ -141,6 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           password: '',
           name: user.name,
           role: user.role,
+          employeeId: user.employeeId || null,
           designation: user.designation || '',
           department: user.department || '',
           status: user.status,
@@ -307,6 +310,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'approve_appraisal', 'view_team', 'manage_finance', 'view_financial_reports',
           'manage_departments', 'manage_designations', 'view_audit_logs',
           'manage_attendance', 'view_attendance',
+          // Employee-level permissions for Tenant Admin
+          'apply_leave', 'submit_expense', 'view_profile', 'view_payslip', 'view_tax', 'submit_appraisal', 'view_own_data',
           // Merged System Administrator permissions
           'configure_system', 'manage_users', 'manage_roles', 'manage_integrations',
           'manage_settings', 'manage_sms', 'manage_whatsapp', 'system_maintenance'

@@ -4,7 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
-import { useEmployees } from '@/lib/hooks/useEmployees';
 import { useJobs } from '@/lib/hooks/useJobs';
 import { Users, BarChart3, TrendingUp, Briefcase, AlertCircle, Plus, Calendar } from 'lucide-react';
 import { useState, useEffect } from 'react';
@@ -12,7 +11,6 @@ import Link from 'next/link';
 import apiService from '@/lib/api';
 
 export default function HRAdminDashboard() {
-  const { employees, isLoading: employeesLoading } = useEmployees();
   const { jobs, isLoading: jobsLoading } = useJobs({ status: 'Open' });
   const [dashboardStats, setDashboardStats] = useState({
     totalEmployees: 0,
@@ -26,14 +24,13 @@ export default function HRAdminDashboard() {
   const [isLoadingStats, setIsLoadingStats] = useState(true);
 
   useEffect(() => {
+    // Load stats on component mount
     loadDashboardStats();
-  }, [employees]);
 
-  // Also reload stats when component mounts or when user navigates back
-  useEffect(() => {
+    // Set up interval to refresh every 30 seconds
     const interval = setInterval(() => {
       loadDashboardStats();
-    }, 30000); // Refresh every 30 seconds
+    }, 30000);
 
     return () => clearInterval(interval);
   }, []);
@@ -42,70 +39,20 @@ export default function HRAdminDashboard() {
     try {
       setIsLoadingStats(true);
       
-      // Calculate employee stats from loaded employees
-      if (employees && employees.length > 0) {
-        const totalEmployees = employees.length;
-        const activeEmployees = employees.filter((e: any) => e.status === 'Active').length;
-        const inactiveEmployees = employees.filter((e: any) => e.status === 'Inactive' || e.status === 'Retired').length;
-        const onLeaveToday = employees.filter((e: any) => e.status === 'On Leave').length;
-        
-        // Calculate attrition rate
-        const attritionRate = totalEmployees > 0 
-          ? ((inactiveEmployees / totalEmployees) * 100).toFixed(1)
-          : '0.0';
-
-        // Fetch pending onboarding
-        const onboardingResponse = await apiService.getOnboardings({ status: 'pending' });
-        const pendingOnboarding = onboardingResponse.success && onboardingResponse.data 
-          ? onboardingResponse.data.length 
-          : 0;
-
-        // Fetch pending leave approvals
-        const leavesResponse = await apiService.getLeaves({ status: 'Pending' });
-        console.log('HR Admin Dashboard - Pending leaves API response:', {
-          success: leavesResponse.success,
-          dataLength: leavesResponse.data ? (Array.isArray(leavesResponse.data) ? leavesResponse.data.length : 'not array') : 'no data',
-          data: leavesResponse.data,
-          message: leavesResponse.message
-        });
-        const pendingLeaveApprovals = leavesResponse.success && leavesResponse.data 
-          ? (Array.isArray(leavesResponse.data) ? leavesResponse.data.length : 0)
-          : 0;
-
-        // Fetch pending expense approvals
-        const expensesResponse = await apiService.getExpenses({ status: 'Pending' });
-        const pendingExpenseApprovals = expensesResponse.success && expensesResponse.data 
-          ? expensesResponse.data.length 
-          : 0;
-
+      const response = await apiService.getDashboardStats();
+      if (response.success && response.data) {
         setDashboardStats({
-          totalEmployees,
-          activeEmployees,
-          onLeaveToday,
-          pendingOnboarding,
-          pendingLeaveApprovals,
-          pendingExpenseApprovals,
-          attritionRate: parseFloat(attritionRate),
+          totalEmployees: response.data.activeEmployees || 0,
+          activeEmployees: response.data.activeEmployees || 0,
+          onLeaveToday: response.data.onLeaveToday || 0,
+          pendingOnboarding: response.data.pendingApprovals?.onboarding || 0,
+          pendingLeaveApprovals: response.data.pendingApprovals?.leaves || 0,
+          pendingExpenseApprovals: response.data.pendingApprovals?.expenses || 0,
+          attritionRate: response.data.totalEmployees > 0 
+            ? parseFloat(((response.data.inactiveEmployees / (response.data.totalEmployees + response.data.inactiveEmployees)) * 100).toFixed(1))
+            : 0,
         });
-      } else {
-        // If no employees, still fetch other stats
-        const onboardingResponse = await apiService.getOnboardings({ status: 'pending' });
-        const leavesResponse = await apiService.getLeaves({ status: 'Pending' });
-        console.log('HR Admin Dashboard (no employees) - Pending leaves response:', {
-          success: leavesResponse.success,
-          dataLength: leavesResponse.data ? (Array.isArray(leavesResponse.data) ? leavesResponse.data.length : 'not array') : 'no data',
-        });
-        const expensesResponse = await apiService.getExpenses({ status: 'Pending' });
-        
-        setDashboardStats({
-          totalEmployees: 0,
-          activeEmployees: 0,
-          onLeaveToday: 0,
-          pendingOnboarding: onboardingResponse.success && onboardingResponse.data ? (Array.isArray(onboardingResponse.data) ? onboardingResponse.data.length : 0) : 0,
-          pendingLeaveApprovals: leavesResponse.success && leavesResponse.data ? (Array.isArray(leavesResponse.data) ? leavesResponse.data.length : 0) : 0,
-          pendingExpenseApprovals: expensesResponse.success && expensesResponse.data ? (Array.isArray(expensesResponse.data) ? expensesResponse.data.length : 0) : 0,
-          attritionRate: 0,
-        });
+        setDepartmentData(response.data.departmentData || []);
       }
     } catch (error) {
       console.error('Failed to load dashboard stats:', error);
@@ -115,18 +62,7 @@ export default function HRAdminDashboard() {
   };
 
   const openPositions = jobs.length;
-  
-  // Calculate department distribution from employees
-  const departmentData = employees && employees.length > 0 ? employees.reduce((acc: any[], emp: any) => {
-    const dept = emp.department || 'Other';
-    const existing = acc.find(d => d.name === dept);
-    if (existing) {
-      existing.value += 1;
-    } else {
-      acc.push({ name: dept, value: 1, fill: `var(--color-chart-${(acc.length % 5) + 1})` });
-    }
-    return acc;
-  }, []) : [];
+  const [departmentData, setDepartmentData] = useState<any[]>([]);
 
   // Calculate recruitment pipeline data from jobs
   const recruitmentData = jobs.reduce((acc: any[], job: any) => {
@@ -161,16 +97,19 @@ export default function HRAdminDashboard() {
 
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+        <Card
+          className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+          onClick={() => window.location.href = '/onboarding'}
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Total Employees</p>
                 <p className="text-2xl font-bold text-foreground">
-                  {isLoadingStats ? '...' : dashboardStats.totalEmployees.toLocaleString()}
+                  {dashboardStats.totalEmployees.toLocaleString()}
                 </p>
                 <p className="text-xs text-green-600 mt-1">
-                  {isLoadingStats ? '...' : `${dashboardStats.activeEmployees} active`}
+                  {`${dashboardStats.activeEmployees} active`}
                 </p>
               </div>
               <Users className="w-10 h-10 text-primary/30" />
@@ -184,10 +123,10 @@ export default function HRAdminDashboard() {
               <div>
                 <p className="text-sm text-muted-foreground">Open Positions</p>
                 <p className="text-2xl font-bold text-foreground">
-                  {isLoadingStats ? '...' : jobs.reduce((sum: number, j: any) => sum + (j.openPositions || 0), 0)}
+                  {jobs.reduce((sum: number, j: any) => sum + (j.openPositions || 0), 0)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {isLoadingStats ? '...' : `${jobs.reduce((sum: number, j: any) => sum + (j.applications || 0), 0)} applications`}
+                  {`${jobs.reduce((sum: number, j: any) => sum + (j.applications || 0), 0)} applications`}
                 </p>
               </div>
               <Briefcase className="w-10 h-10 text-accent/30" />
@@ -201,7 +140,7 @@ export default function HRAdminDashboard() {
               <div>
                 <p className="text-sm text-muted-foreground">Attrition Rate</p>
                 <p className="text-2xl font-bold text-foreground">
-                  {isLoadingStats ? '...' : `${dashboardStats.attritionRate}%`}
+                  {`${dashboardStats.attritionRate}%`}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">Based on inactive employees</p>
               </div>
@@ -216,7 +155,7 @@ export default function HRAdminDashboard() {
               <div>
                 <p className="text-sm text-muted-foreground">Pending Onboarding</p>
                 <p className="text-2xl font-bold text-foreground">
-                  {isLoadingStats ? '...' : dashboardStats.pendingOnboarding}
+                  {dashboardStats.pendingOnboarding}
                 </p>
                 <p className="text-xs text-yellow-600 mt-1">⚠️ Action required</p>
               </div>
@@ -317,7 +256,7 @@ export default function HRAdminDashboard() {
                   return (
                     <div key={jobId} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg border border-border">
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm text-foreground">{job.title}</p>
+                        <p className="font-medium text-sm text-foreground capitalize">{job.title}</p>
                         <p className="text-xs text-muted-foreground">
                           {job.department} • Posted {job.postedDate ? new Date(job.postedDate).toLocaleDateString() : 'N/A'}
                         </p>
@@ -341,11 +280,13 @@ export default function HRAdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <Button variant="outline" className="w-full justify-start h-auto py-3 bg-transparent">
-                <div className="text-left">
-                  <p className="font-medium text-sm">Leave Policies</p>
-                  <p className="text-xs text-muted-foreground">Configure leave types and balances</p>
-                </div>
+              <Button variant="outline" className="w-full justify-start h-auto py-3 bg-transparent" asChild>
+                <Link href="/settings/leave-policies">
+                  <div className="text-left">
+                    <p className="font-medium text-sm">Leave Policies</p>
+                    <p className="text-xs text-muted-foreground">Configure leave types and balances</p>
+                  </div>
+                </Link>
               </Button>
               <Button variant="outline" className="w-full justify-start h-auto py-3 bg-transparent" asChild>
                 <Link href="/settings/departments">
@@ -355,17 +296,21 @@ export default function HRAdminDashboard() {
                   </div>
                 </Link>
               </Button>
-              <Button variant="outline" className="w-full justify-start h-auto py-3 bg-transparent">
-                <div className="text-left">
-                  <p className="font-medium text-sm">Statutory Compliance</p>
-                  <p className="text-xs text-muted-foreground">EPFO, ESIC, and tax configurations</p>
-                </div>
+              <Button variant="outline" className="w-full justify-start h-auto py-3 bg-transparent" asChild>
+                <Link href="/settings/compliance">
+                  <div className="text-left">
+                    <p className="font-medium text-sm">Statutory Compliance</p>
+                    <p className="text-xs text-muted-foreground">EPFO, ESIC, and tax configurations</p>
+                  </div>
+                </Link>
               </Button>
-              <Button variant="outline" className="w-full justify-start h-auto py-3 bg-transparent">
-                <div className="text-left">
-                  <p className="font-medium text-sm">Workflow Rules</p>
-                  <p className="text-xs text-muted-foreground">Setup approval workflows</p>
-                </div>
+              <Button variant="outline" className="w-full justify-start h-auto py-3 bg-transparent" asChild>
+                <Link href="/settings/workflows">
+                  <div className="text-left">
+                    <p className="font-medium text-sm">Workflow Rules</p>
+                    <p className="text-xs text-muted-foreground">Setup approval workflows</p>
+                  </div>
+                </Link>
               </Button>
             </div>
           </CardContent>

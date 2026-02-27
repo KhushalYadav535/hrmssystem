@@ -84,14 +84,14 @@ export default function TravelPage() {
 
   // Check if user is Tenant Admin - they should see approval dashboard, not create options
   const isTenantAdmin = currentUser?.role === 'Tenant Admin' || currentUser?.role === 'Super Admin';
-  const canSubmitTravel = hasPermission('submit_expense') && !isTenantAdmin;
-  const canSubmitExpense = hasPermission('submit_expense') && !isTenantAdmin;
+  const canSubmitTravel = hasPermission('submit_expense') && currentUser?.role !== 'Super Admin';
+  const canSubmitExpense = hasPermission('submit_expense') && currentUser?.role !== 'Super Admin';
 
   // Calculate derived data from loaded travel data
   const pendingRequests = travelRequests.filter((r) => r.status === 'Pending' || r.status === 'Submitted');
   const pendingAdvances = travelAdvances.filter((a) => a.status === 'Pending' || a.status === 'Submitted');
   const pendingClaims = travelClaims.filter((c) => c.status === 'Pending' || c.status === 'Submitted');
-  
+
   const totalAdvanceAmount = travelAdvances.reduce((sum, a) => sum + (a.advanceAmount || 0), 0);
   const totalPendingAmount = pendingClaims.reduce((sum, c) => sum + (c.totalClaimAmount || 0), 0);
 

@@ -219,15 +219,26 @@ export default function AdminPage() {
       const response = await apiService.getDepartments();
       if (response.success && response.data) {
         const depts = Array.isArray(response.data) ? response.data : [];
-        // Calculate employee count for each department
-        const deptsWithCounts = await Promise.all(
-          depts.map(async (dept: Department) => {
-            const empResponse = await apiService.getEmployees({ department: dept.name });
-            const empCount = empResponse.success && empResponse.data ? (Array.isArray(empResponse.data) ? empResponse.data.length : 0) : 0;
-            return { ...dept, employees: empCount };
-          })
-        );
-        setDepartments(deptsWithCounts);
+        // Get all employees at once and count by department to avoid N+1 queries
+        try {
+          const empResponse = await apiService.getEmployees({});
+          if (empResponse.success && empResponse.data) {
+            const employees = Array.isArray(empResponse.data) ? empResponse.data : [];
+            // Count employees by department locally
+            const deptsWithCounts = depts.map((dept: Department) => {
+              const empCount = employees.filter((emp: any) => emp.department === dept.name).length;
+              return { ...dept, employees: empCount };
+            });
+            setDepartments(deptsWithCounts);
+          } else {
+            // Fallback: set departments without employee count
+            setDepartments(depts);
+          }
+        } catch (error) {
+          console.error('Error loading employees for department count:', error);
+          // Fallback: set departments without employee count
+          setDepartments(depts);
+        }
       }
     } catch (error: any) {
       console.error('Load departments error:', error);
@@ -239,9 +250,22 @@ export default function AdminPage() {
       const response = await apiService.getSystemStatus();
       if (response.success && response.data) {
         setSystemStatus(response.data);
+      } else {
+        setSystemStatus({
+          systemStatus: 'Unknown',
+          database: 'Unknown',
+          activeUsers: '0',
+          pendingTasks: '0',
+        });
       }
     } catch (error: any) {
       console.error('Load system status error:', error);
+      setSystemStatus({
+        systemStatus: 'Unknown',
+        database: 'Unknown',
+        activeUsers: '0',
+        pendingTasks: '0',
+      });
     }
   };
 

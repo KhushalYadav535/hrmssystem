@@ -34,7 +34,7 @@ interface ESICData {
 }
 
 export default function ESICPage() {
-  const { isAuthenticated, hasPermission } = useAuth();
+  const { isAuthenticated, hasPermission, currentUser } = useAuth();
   const [selectedMonth, setSelectedMonth] = useState('January');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [esicData, setEsicData] = useState<ESICData>({
@@ -65,13 +65,17 @@ export default function ESICPage() {
       setIsGenerating(true);
       toast.info('Generating ESIC return file...');
 
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const apiUrl = baseUrl.endsWith('/api') ? baseUrl.replace(/\/api$/, '') : baseUrl;
+
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/payroll/esic/generate?month=${selectedMonth}&year=${selectedYear}`,
+        `${apiUrl}/api/payroll/esic/generate?month=${selectedMonth}&year=${selectedYear}`,
         {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
           },
+          credentials: 'include',
         }
       );
 
@@ -132,8 +136,8 @@ export default function ESICPage() {
           ...prev,
           status: 'Uploaded',
           uploaded: true,
-          returnNumber: response.data?.returnNumber,
-          acknowledgmentNumber: response.data?.acknowledgmentNumber,
+          returnNumber: (response.data as any)?.returnNumber,
+          acknowledgmentNumber: (response.data as any)?.acknowledgmentNumber,
         }));
 
         toast.success('ESIC return uploaded successfully');
@@ -175,12 +179,12 @@ export default function ESICPage() {
       if (response.success && response.data) {
         setEsicData(prev => ({
           ...prev,
-          paymentStatus: response.data,
+          paymentStatus: response.data as any,
         }));
 
         toast.success('Payment status retrieved');
       } else {
-        toast.warning(response.data?.message || 'Payment status unavailable');
+        toast.warning((response.data as any)?.message || 'Payment status unavailable');
       }
     } catch (error: any) {
       console.error('Payment status error:', error);
@@ -240,9 +244,9 @@ export default function ESICPage() {
                   </p>
                   {esicData.generatedDate && (
                     <p className="text-sm text-muted-foreground">
-                      Generated on: {new Date(esicData.generatedDate).toLocaleDateString('en-IN', { 
-                        year: 'numeric', 
-                        month: 'long', 
+                      Generated on: {new Date(esicData.generatedDate).toLocaleDateString('en-IN', {
+                        year: 'numeric',
+                        month: 'long',
                         day: 'numeric',
                         hour: '2-digit',
                         minute: '2-digit',
@@ -307,73 +311,75 @@ export default function ESICPage() {
         )}
 
         {/* Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle>ESIC Return Actions</CardTitle>
-            <CardDescription>Generate and upload ESIC monthly return file</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-3 flex-wrap">
-              {esicData.status === 'Not Generated' && (
-                <Button onClick={handleGenerate} disabled={isGenerating} className="gap-2">
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="w-4 h-4" />
-                      Generate ESIC Return
-                    </>
-                  )}
-                </Button>
-              )}
-              {esicData.status === 'Generated' && (
-                <>
-                  <Button onClick={handleUpload} disabled={isUploading} className="gap-2">
-                    {isUploading ? (
+        {(currentUser?.role === 'Payroll Administrator' || currentUser?.role === 'Super Admin') && (
+          <Card>
+            <CardHeader>
+              <CardTitle>ESIC Return Actions</CardTitle>
+              <CardDescription>Generate and upload ESIC monthly return file</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-3 flex-wrap">
+                {esicData.status === 'Not Generated' && (
+                  <Button onClick={handleGenerate} disabled={isGenerating} className="gap-2">
+                    {isGenerating ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        Uploading...
+                        Generating...
                       </>
                     ) : (
                       <>
-                        <Upload className="w-4 h-4" />
-                        Upload to ESIC Portal
+                        <FileText className="w-4 h-4" />
+                        Generate ESIC Return
                       </>
                     )}
                   </Button>
-                  <Button onClick={handleDownload} variant="outline" className="gap-2">
-                    <Download className="w-4 h-4" />
-                    Download Return File
-                  </Button>
-                </>
-              )}
-              {esicData.status === 'Uploaded' && (
-                <>
-                  <Button onClick={handleCheckPaymentStatus} disabled={isLoading} variant="outline" className="gap-2">
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Checking...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="w-4 h-4" />
-                        Check Payment Status
-                      </>
-                    )}
-                  </Button>
-                  <Button onClick={handleDownload} variant="outline" className="gap-2">
-                    <Download className="w-4 h-4" />
-                    Download Return File
-                  </Button>
-                </>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                )}
+                {esicData.status === 'Generated' && (
+                  <>
+                    <Button onClick={handleUpload} disabled={isUploading} className="gap-2">
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4" />
+                          Upload to ESIC Portal
+                        </>
+                      )}
+                    </Button>
+                    <Button onClick={handleDownload} variant="outline" className="gap-2">
+                      <Download className="w-4 h-4" />
+                      Download Return File
+                    </Button>
+                  </>
+                )}
+                {esicData.status === 'Uploaded' && (
+                  <>
+                    <Button onClick={handleCheckPaymentStatus} disabled={isLoading} variant="outline" className="gap-2">
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Checking...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-4 h-4" />
+                          Check Payment Status
+                        </>
+                      )}
+                    </Button>
+                    <Button onClick={handleDownload} variant="outline" className="gap-2">
+                      <Download className="w-4 h-4" />
+                      Download Return File
+                    </Button>
+                  </>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Payment Status */}
         {esicData.paymentStatus && (

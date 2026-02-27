@@ -36,7 +36,7 @@ interface ECRData {
 }
 
 export default function EPFOPage() {
-  const { isAuthenticated, hasPermission } = useAuth();
+  const { isAuthenticated, hasPermission, currentUser } = useAuth();
   const [selectedMonth, setSelectedMonth] = useState('January');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [ecrData, setEcrData] = useState<ECRData>({
@@ -74,13 +74,17 @@ export default function EPFOPage() {
       toast.info('Generating ECR file... This may take a few minutes.');
 
       // Generate ECR file - this will download the file
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const apiUrl = baseUrl.endsWith('/api') ? baseUrl.replace(/\/api$/, '') : baseUrl;
+
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/payroll/ecr/generate?month=${selectedMonth}&year=${selectedYear}`,
+        `${apiUrl}/api/payroll/ecr/generate?month=${selectedMonth}&year=${selectedYear}`,
         {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
           },
+          credentials: 'include',
         }
       );
 
@@ -151,8 +155,8 @@ export default function EPFOPage() {
       const response = await apiService.bulkValidateUANs(uans);
 
       if (response.success && response.data) {
-        const validCount = response.data.valid || 0;
-        const invalidCount = response.data.invalid || 0;
+        const validCount = (response.data as any).valid || 0;
+        const invalidCount = (response.data as any).invalid || 0;
 
         setEcrData(prev => ({
           ...prev,
@@ -237,12 +241,12 @@ export default function EPFOPage() {
       if (response.success && response.data) {
         setEcrData(prev => ({
           ...prev,
-          acknowledgment: response.data,
+          acknowledgment: response.data as any,
         }));
 
         toast.success('Acknowledgment downloaded successfully');
       } else {
-        toast.warning(response.data?.message || 'Acknowledgment not yet available');
+        toast.warning((response.data as any)?.message || 'Acknowledgment not yet available');
       }
     } catch (error: any) {
       console.error('Acknowledgment download error:', error);
@@ -302,9 +306,9 @@ export default function EPFOPage() {
                   </p>
                   {ecrData.generatedDate && (
                     <p className="text-sm text-muted-foreground">
-                      Generated on: {new Date(ecrData.generatedDate).toLocaleDateString('en-IN', { 
-                        year: 'numeric', 
-                        month: 'long', 
+                      Generated on: {new Date(ecrData.generatedDate).toLocaleDateString('en-IN', {
+                        year: 'numeric',
+                        month: 'long',
                         day: 'numeric',
                         hour: '2-digit',
                         minute: '2-digit',
@@ -369,94 +373,96 @@ export default function EPFOPage() {
           </div>
         )}
 
-        {/* Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle>ECR Actions</CardTitle>
-            <CardDescription>Generate, validate, and upload ECR file to EPFO portal</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-3 flex-wrap">
-              {ecrData.status === 'Not Generated' && (
-                <Button onClick={handleGenerate} disabled={isGenerating} className="gap-2">
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="w-4 h-4" />
-                      Generate ECR
-                    </>
-                  )}
-                </Button>
-              )}
-              {ecrData.status === 'Generated' && (
-                <>
-                  <Button onClick={handleValidate} disabled={isValidating} variant="outline" className="gap-2">
-                    {isValidating ? (
+        {/* Actions - Only visible to authorized roles */}
+        {(currentUser?.role === 'Payroll Administrator' || currentUser?.role === 'Super Admin') && (
+          <Card>
+            <CardHeader>
+              <CardTitle>ECR Actions</CardTitle>
+              <CardDescription>Generate, validate, and upload ECR file to EPFO portal</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-3 flex-wrap">
+                {ecrData.status === 'Not Generated' && (
+                  <Button onClick={handleGenerate} disabled={isGenerating} className="gap-2">
+                    {isGenerating ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        Validating...
+                        Generating...
                       </>
                     ) : (
                       <>
-                        <RefreshCw className="w-4 h-4" />
-                        Validate UAN
+                        <FileText className="w-4 h-4" />
+                        Generate ECR
                       </>
                     )}
                   </Button>
-                  <Button onClick={handleUpload} disabled={isUploading || (ecrData.uanPending && ecrData.uanPending > 0)} className="gap-2">
-                    {isUploading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Uploading...
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="w-4 h-4" />
-                        Upload to EPFO
-                      </>
-                    )}
-                  </Button>
-                  <Button onClick={handleDownload} variant="outline" className="gap-2">
-                    <Download className="w-4 h-4" />
-                    Download ECR File
-                  </Button>
-                </>
-              )}
-              {ecrData.status === 'Uploaded' && (
-                <>
-                  <Button onClick={handleDownloadAcknowledgment} disabled={isLoading} variant="outline" className="gap-2">
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Loading...
-                      </>
-                    ) : (
-                      <>
-                        <Download className="w-4 h-4" />
-                        Download Acknowledgment
-                      </>
-                    )}
-                  </Button>
-                  <Button onClick={handleDownload} variant="outline" className="gap-2">
-                    <Download className="w-4 h-4" />
-                    Download ECR File
-                  </Button>
-                </>
-              )}
-            </div>
-            {ecrData.uanPending && ecrData.uanPending > 0 && (
-              <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 rounded-lg">
-                <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                  ⚠️ {ecrData.uanPending} UANs are pending validation. Please validate before uploading.
-                </p>
+                )}
+                {ecrData.status === 'Generated' && (
+                  <>
+                    <Button onClick={handleValidate} disabled={isValidating} variant="outline" className="gap-2">
+                      {isValidating ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Validating...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="w-4 h-4" />
+                          Validate UAN
+                        </>
+                      )}
+                    </Button>
+                    <Button onClick={handleUpload} disabled={isUploading || !!(ecrData.uanPending && ecrData.uanPending > 0)} className="gap-2">
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4" />
+                          Upload to EPFO
+                        </>
+                      )}
+                    </Button>
+                    <Button onClick={handleDownload} variant="outline" className="gap-2">
+                      <Download className="w-4 h-4" />
+                      Download ECR File
+                    </Button>
+                  </>
+                )}
+                {ecrData.status === 'Uploaded' && (
+                  <>
+                    <Button onClick={handleDownloadAcknowledgment} disabled={isLoading} variant="outline" className="gap-2">
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Loading...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4" />
+                          Download Acknowledgment
+                        </>
+                      )}
+                    </Button>
+                    <Button onClick={handleDownload} variant="outline" className="gap-2">
+                      <Download className="w-4 h-4" />
+                      Download ECR File
+                    </Button>
+                  </>
+                )}
               </div>
-            )}
-          </CardContent>
-        </Card>
+              {ecrData.uanPending && ecrData.uanPending > 0 && (
+                <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                    ⚠️ {ecrData.uanPending} UANs are pending validation. Please validate before uploading.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* ECR Details */}
         {ecrData.status !== 'Not Generated' && (

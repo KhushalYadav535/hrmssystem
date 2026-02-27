@@ -94,6 +94,7 @@ export default function EmployeeDashboard() {
   };
 
   const recentPayroll = payrolls && payrolls.length > 0 ? payrolls[0] : null;
+  const netSalaryLabel = recentPayroll ? `Net Salary (${recentPayroll.month} ${recentPayroll.year})` : 'Net Salary';
   const pendingLeaves = leaves.filter((l: any) => l.status === 'Pending');
   const pendingExpenses = expenses.filter((e: any) => e.status === 'Pending');
   const approvedLeaves = leaves.filter((l: any) => l.status === 'Approved');
@@ -151,9 +152,13 @@ export default function EmployeeDashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Net Salary (Jan 2026)</p>
+                <p className="text-sm text-muted-foreground">{netSalaryLabel}</p>
                 <p className="text-2xl font-bold text-foreground">
-                  {recentPayroll?.netSalary ? `₹${(recentPayroll.netSalary / 100000).toFixed(1)}L` : 'N/A'}
+                  {payrollLoading
+                    ? 'Loading...'
+                    : recentPayroll?.netSalary
+                    ? `₹${(recentPayroll.netSalary / 100000).toFixed(1)}L`
+                    : 'N/A'}
                 </p>
               </div>
               <DollarSign className="w-10 h-10 text-primary/30" />
@@ -167,10 +172,10 @@ export default function EmployeeDashboard() {
               <div>
                 <p className="text-sm text-muted-foreground">Leave Balance</p>
                 <p className="text-2xl font-bold text-foreground">
-                  {isLoading ? '...' : `${totalLeaveBalance} Days`}
+                  {`${totalLeaveBalance} Days`}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {isLoading ? '...' : `Used: ${totalLeaveUsed} days`}
+                  {`Used: ${totalLeaveUsed} days`}
                 </p>
               </div>
               <Calendar className="w-10 h-10 text-accent/30" />
@@ -184,10 +189,10 @@ export default function EmployeeDashboard() {
               <div>
                 <p className="text-sm text-muted-foreground">Pending Approvals</p>
                 <p className="text-2xl font-bold text-foreground">
-                  {isLoading ? '...' : pendingLeaves.length + pendingExpenses.length}
+                  {pendingLeaves.length + pendingExpenses.length}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {isLoading ? '...' : `${pendingLeaves.length} Leave, ${pendingExpenses.length} Expense`}
+                  {`${pendingLeaves.length} Leave, ${pendingExpenses.length} Expense`}
                 </p>
               </div>
               <Clock className="w-10 h-10 text-yellow-500/30" />
@@ -201,10 +206,10 @@ export default function EmployeeDashboard() {
               <div>
                 <p className="text-sm text-muted-foreground">Performance Rating</p>
                 <p className="text-2xl font-bold text-foreground">
-                  {isLoading ? '...' : performance?.overallRating ? `${performance.overallRating}/5` : 'N/A'}
+                  {performance?.overallRating ? `${performance.overallRating}/5` : 'N/A'}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {isLoading ? '...' : performance?.period || 'No rating yet'}
+                  {performance?.period || 'No rating yet'}
                 </p>
               </div>
               <TrendingUp className="w-10 h-10 text-green-500/30" />
@@ -219,7 +224,7 @@ export default function EmployeeDashboard() {
         <Card className="lg:col-span-2 border-0 shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg">Recent Payslip</CardTitle>
-            <CardDescription>January 2026</CardDescription>
+            <CardDescription>{recentPayroll ? `${recentPayroll.month} ${recentPayroll.year}` : 'No payslip'}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">

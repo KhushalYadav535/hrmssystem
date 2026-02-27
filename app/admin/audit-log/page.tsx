@@ -183,7 +183,9 @@ export default function AuditLogPage() {
     });
   };
 
-  const modules = ['all', ...Array.from(new Set(auditLogs.map(log => log.module)))];
+  const dynamicModules = Array.from(new Set(auditLogs.map(log => log.module))).filter(Boolean);
+  const defaultModules = ['Authentication', 'User Management', 'Employees', 'Payroll', 'Leave', 'Attendance', 'Tax', 'Reports', 'Settings'];
+  const modules = ['all', ...new Set([...dynamicModules, ...defaultModules])];
   const actions = ['all', ...Array.from(new Set(auditLogs.map(log => log.action)))];
 
   const filteredLogs = auditLogs.filter((log) => {
