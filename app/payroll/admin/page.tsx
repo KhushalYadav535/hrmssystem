@@ -337,75 +337,6 @@ export default function PayrollAdminDashboard() {
     }
   };
 
-  const handleExportExcel = () => {
-    toast.info('Downloading Excel report...');
-    try {
-      if (payrolls.length === 0) {
-        toast.warning('No payroll data to export');
-        return;
-      }
-
-      const rows = ['Employee Name,Code,Basic,DA,HRA,Allowances,Gross,EPF,ESI,Tax,Other Deductions,Net Salary,Status'];
-      payrolls.forEach(p => {
-        const emp = p.employeeId || {};
-        const name = `${emp.firstName || ''} ${emp.lastName || ''}`.trim();
-        const code = emp.employeeCode || '';
-        const gross = (p.basicSalary || 0) + (p.da || 0) + (p.hra || 0) + (p.allowances || 0);
-        rows.push(`"${name}","${code}",${p.basicSalary || 0},${p.da || 0},${p.hra || 0},${p.allowances || 0},${gross},${p.pfDeduction || 0},${p.esiDeduction || 0},${p.incomeTax || 0},${p.otherDeductions || 0},${p.netSalary || 0},${p.status || ''}`);
-      });
-
-      const csvContent = rows.join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `Payroll_Report_${selectedMonth}_${selectedYear}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success('Excel report downloaded');
-    } catch (err) {
-      toast.error('Failed to export report');
-      console.error(err);
-    }
-  };
-
-  const handleExportPDF = () => {
-    toast.info('Downloading PDF report...');
-    setTimeout(() => {
-      toast.success('PDF report downloaded');
-    }, 1500);
-  };
-
-  const handleGenerateBankFile = () => {
-    toast.info('Generating Bank Transfer File...');
-    setTimeout(() => {
-      toast.success('Bank NEFT file downloaded');
-    }, 1500);
-  };
-
-  const handleGenerateECRFile = () => {
-    toast.info('Generating EPFO ECR File...');
-    setTimeout(() => {
-      toast.success('EPFO ECR file downloaded');
-    }, 1500);
-  };
-
-  const handleGenerateESICFile = () => {
-    toast.info('Generating ESIC Return File...');
-    setTimeout(() => {
-      toast.success('ESIC Return file downloaded');
-    }, 1500);
-  };
-
-  const handleGenerateForm24Q = () => {
-    toast.info('Generating Form 24Q...');
-    setTimeout(() => {
-      toast.success('TDS Form 24Q downloaded');
-    }, 1500);
-  };
-
-
   if (!isAuthenticated) {
     redirect('/login');
   }
@@ -913,28 +844,27 @@ export default function PayrollAdminDashboard() {
                       const displayGross = (data.totalGross && data.totalGross > 0) ? data.totalGross : computedGross;
 
                       return (
-                        <Card key={designation} className="border-2">
-                          <CardHeader className="pb-3">
-                            <CardTitle className="text-base">{designation}</CardTitle>
-                            <CardDescription>{data.count} employees</CardDescription>
-                          </CardHeader>
-                          <CardContent className="space-y-2">
-                            <div className="flex justify-between text-sm">
-                              <span>Gross Salary:</span>
-                              <span className="font-semibold">₹{displayGross.toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                              <span>Deductions:</span>
-                              <span className="font-semibold text-red-600">-₹{data.totalDeductions.toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between text-sm border-t pt-2 font-bold">
-                              <span>Net Salary:</span>
-                              <span className="text-green-600">₹{data.totalNet.toLocaleString()}</span>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )
-                    })}
+                      <Card key={designation} className="border-2">
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-base">{designation}</CardTitle>
+                          <CardDescription>{data.count} employees</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Gross Salary:</span>
+                            <span className="font-semibold">₹{displayGross.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>Deductions:</span>
+                            <span className="font-semibold text-red-600">-₹{data.totalDeductions.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between text-sm border-t pt-2 font-bold">
+                            <span>Net Salary:</span>
+                            <span className="text-green-600">₹{data.totalNet.toLocaleString()}</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )})}
                   </div>
                 </CardContent>
               </Card>
@@ -1629,8 +1559,8 @@ export default function PayrollAdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <Button
-                    variant="outline"
+                  <Button 
+                    variant="outline" 
                     className="h-auto py-4 flex-col gap-2 bg-transparent"
                     onClick={() => handleExportExcel()}
                   >
@@ -1640,8 +1570,8 @@ export default function PayrollAdminDashboard() {
                       <p className="text-xs text-muted-foreground">Payroll summary</p>
                     </div>
                   </Button>
-                  <Button
-                    variant="outline"
+                  <Button 
+                    variant="outline" 
                     className="h-auto py-4 flex-col gap-2 bg-transparent"
                     onClick={() => handleExportPDF()}
                   >
@@ -1651,8 +1581,8 @@ export default function PayrollAdminDashboard() {
                       <p className="text-xs text-muted-foreground">Detailed report</p>
                     </div>
                   </Button>
-                  <Button
-                    variant="outline"
+                  <Button 
+                    variant="outline" 
                     className="h-auto py-4 flex-col gap-2 bg-transparent"
                     onClick={() => handleGenerateBankFile()}
                   >
@@ -1662,8 +1592,8 @@ export default function PayrollAdminDashboard() {
                       <p className="text-xs text-muted-foreground">Salary transfer file</p>
                     </div>
                   </Button>
-                  <Button
-                    variant="outline"
+                  <Button 
+                    variant="outline" 
                     className="h-auto py-4 flex-col gap-2 bg-transparent"
                     onClick={() => handleGenerateECRFile()}
                   >
@@ -1673,8 +1603,8 @@ export default function PayrollAdminDashboard() {
                       <p className="text-xs text-muted-foreground">EPF contribution</p>
                     </div>
                   </Button>
-                  <Button
-                    variant="outline"
+                  <Button 
+                    variant="outline" 
                     className="h-auto py-4 flex-col gap-2 bg-transparent"
                     onClick={() => handleGenerateESICFile()}
                   >
@@ -1684,8 +1614,8 @@ export default function PayrollAdminDashboard() {
                       <p className="text-xs text-muted-foreground">ESI contribution</p>
                     </div>
                   </Button>
-                  <Button
-                    variant="outline"
+                  <Button 
+                    variant="outline" 
                     className="h-auto py-4 flex-col gap-2 bg-transparent"
                     onClick={() => handleGenerateForm24Q()}
                   >

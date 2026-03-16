@@ -963,15 +963,8 @@ export default function AdminPage() {
                   placeholder="e.g., Finance"
                 />
               </div>
-              <div>
-                <Label htmlFor="deptHead">Department Head *</Label>
-                <Input
-                  id="deptHead"
-                  value={departmentForm.head}
-                  onChange={(e) => setDepartmentForm({ ...departmentForm, head: e.target.value })}
-                  placeholder="e.g., John Doe"
-                />
-              </div>
+              {/* Spec C2-01: Department Head REMOVED from Create form (BR-C2-01) */}
+              {/* Head can be assigned via Edit Department form */}
               <div>
                 <Label htmlFor="costCenter">Cost Center *</Label>
                 <Input

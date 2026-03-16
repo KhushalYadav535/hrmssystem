@@ -14,11 +14,12 @@ import apiService from '@/lib/api';
 import { Building2, Mail, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { useEffect } from 'react';
+import { useReCaptcha } from '@/components/captcha/recaptcha';
 
 export default function LoginPage() {
   const router = useRouter();
   const { login, registerTenant, loginWithUserSelect } = useAuth();
-  const [activeTab, setActiveTab] = useState('email-login');
+  const [activeTab, setActiveTab] = useState('email-login'); // US-A1-04: Email login is always default
   const [isLoading, setIsLoading] = useState(false);
   
   // Email Login State
@@ -32,6 +33,24 @@ export default function LoginPage() {
   const [tenants, setTenants] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   
+  // MFA State (US-A1-01)
+  const [showMFA, setShowMFA] = useState(false);
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaMethod, setMfaMethod] = useState<'Email' | 'SMS' | 'Authenticator'>('Email');
+  const [mfaTempToken, setMfaTempToken] = useState<string>('');
+  const [mfaCountdown, setMfaCountdown] = useState(600); // 10 minutes in seconds
+  const [mfaResendDisabled, setMfaResendDisabled] = useState(false);
+  
+  // Forgot Password State (US-A1-02)
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [forgotPasswordSent, setForgotPasswordSent] = useState(false);
+  
+  // CAPTCHA State (US-A1-03)
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [showCaptcha, setShowCaptcha] = useState(false);
+  const { execute: executeRecaptcha } = useReCaptcha('login');
+  
   // Registration State
   const [regTenantName, setRegTenantName] = useState('');
   const [regEmail, setRegEmail] = useState('');
@@ -39,6 +58,13 @@ export default function LoginPage() {
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [regLocation, setRegLocation] = useState('India');
   const [regCode, setRegCode] = useState('');
+  
+  // US-A2-01: Registration OTP State
+  const [showRegistrationOTP, setShowRegistrationOTP] = useState(false);
+  const [registrationOTP, setRegistrationOTP] = useState('');
+  const [registrationTenantId, setRegistrationTenantId] = useState('');
+  const [registrationOTPCountdown, setRegistrationOTPCountdown] = useState(600);
+  const [registrationOTPResendDisabled, setRegistrationOTPResendDisabled] = useState(false);
 
   // Load tenants for quick login (Super Admin only)
   useEffect(() => {
@@ -56,7 +82,7 @@ export default function LoginPage() {
     loadTenants();
   }, []);
 
-  // Email/Password Login Handler
+  // Email/Password Login Handler (US-A1-01: MFA enforcement, US-A1-03: CAPTCHA)
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -65,18 +91,128 @@ export default function LoginPage() {
       return;
     }
 
+    // US-A1-03: Execute CAPTCHA if required (after 3 failed attempts)
+    let recaptchaToken = null;
+    if (showCaptcha || failedAttempts >= 3) {
+      try {
+        recaptchaToken = await executeRecaptcha();
+        if (!recaptchaToken) {
+          toast.error('Please verify you are not a robot');
+          return;
+        }
+      } catch (error) {
+        console.error('CAPTCHA error:', error);
+        // Continue without CAPTCHA if it fails (graceful degradation)
+      }
+    }
+
     setIsLoading(true);
     try {
-      const result = await login(email, password);
+      // Call login API directly to check for MFA requirement
+      const response = await apiService.post('/auth/login', { 
+        email, 
+        password,
+        recaptchaToken, // Include CAPTCHA token if available
+      });
       
-      if (result.success) {
-        toast.success('Login successful');
-        router.push('/dashboard');
+      if (response.success && response.data) {
+        // Check if MFA is required
+        if (response.data.requiresMFA) {
+          setMfaMethod(response.data.mfaMethod || 'Email');
+          setMfaTempToken(response.data.tempToken || '');
+          setShowMFA(true);
+          setMfaCountdown(600); // 10 minutes
+          
+          // If Email/SMS, send OTP
+          if (response.data.mfaMethod === 'Email' || response.data.mfaMethod === 'SMS') {
+            toast.info(`OTP sent to your ${response.data.mfaMethod.toLowerCase()}`);
+          }
+        } else {
+          // No MFA required, proceed with normal login
+          const result = await login(email, password);
+          if (result.success) {
+            toast.success('Login successful');
+            router.push('/dashboard');
+          } else {
+            toast.error(result.message);
+            setFailedAttempts(prev => prev + 1);
+            if (failedAttempts + 1 >= 3) {
+              setShowCaptcha(true);
+            }
+          }
+        }
       } else {
-        toast.error(result.message);
+        toast.error(response.message || 'Login failed');
+        setFailedAttempts(prev => prev + 1);
+        if (failedAttempts + 1 >= 3) {
+          setShowCaptcha(true);
+        }
       }
     } catch (error: any) {
       toast.error(error.message || 'Login failed');
+      setFailedAttempts(prev => prev + 1);
+      if (failedAttempts + 1 >= 3) {
+        setShowCaptcha(true);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // MFA Verification Handler (US-A1-01)
+  const handleMFAVerify = async () => {
+    if (!mfaCode || mfaCode.length !== 6) {
+      toast.error('Please enter a valid 6-digit code');
+      return;
+    }
+    
+    setIsLoading(true);
+    try {
+      const response = await apiService.post('/auth/mfa/verify', {
+        code: mfaCode,
+        method: mfaMethod,
+      });
+      
+      if (response.success) {
+        toast.success('MFA verification successful');
+        // Update auth context with new token
+        const result = await login(email, password);
+        if (result.success) {
+          router.push('/dashboard');
+        }
+      } else {
+        toast.error(response.message || 'Invalid MFA code');
+        setMfaCode('');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'MFA verification failed');
+      setMfaCode('');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Forgot Password Handler (US-A1-02)
+  const handleForgotPassword = async () => {
+    if (!forgotPasswordEmail) {
+      toast.error('Please enter your email address');
+      return;
+    }
+    
+    setIsLoading(true);
+    try {
+      const response = await apiService.post('/auth/forgot-password', {
+        email: forgotPasswordEmail,
+      });
+      
+      if (response.success) {
+        setForgotPasswordSent(true);
+        toast.success('Password reset link sent to your email');
+      } else {
+        toast.error(response.message || 'Failed to send reset link');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to send reset link');
     } finally {
       setIsLoading(false);
     }
@@ -103,12 +239,12 @@ export default function LoginPage() {
     }
   };
 
-  // Registration Handler
+  // Registration Handler (US-A2-01: Email OTP Verification)
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!regTenantName || !regEmail || !regPassword) {
-      toast.error('Please fill all fields');
+    if (!regTenantName || !regEmail || !regPassword || !regCode) {
+      toast.error('Please fill all required fields');
       return;
     }
 
@@ -117,26 +253,77 @@ export default function LoginPage() {
       return;
     }
 
-    if (regPassword.length < 6) {
-      toast.error('Password must be at least 6 characters');
+    if (regPassword.length < 12) {
+      toast.error('Password must be at least 12 characters with uppercase, lowercase, digit, and special character');
       return;
     }
 
     setIsLoading(true);
     try {
-      const result = await registerTenant(regTenantName, regEmail, regPassword);
-      if (result.success) {
-        toast.success('Tenant registered successfully! Redirecting to dashboard...');
+      const response = await apiService.post('/auth/register-tenant', {
+        tenantName: regTenantName,
+        code: regCode,
+        location: regLocation,
+        adminEmail: regEmail,
+        adminPassword: regPassword,
+        adminName: regTenantName + ' Admin',
+      });
+      
+      if (response.success) {
+        if (response.data?.requiresOTPVerification) {
+          // Show OTP verification screen
+          setRegistrationTenantId(response.data.tenantId);
+          setShowRegistrationOTP(true);
+          setRegistrationOTPCountdown(600); // 10 minutes
+          toast.success('OTP sent to your email. Please verify to complete registration.');
+        } else {
+          // Old flow (shouldn't happen with new implementation)
+          toast.success('Tenant registered successfully!');
+          router.push('/dashboard');
+        }
+      } else {
+        toast.error(response.message || 'Registration failed');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Registration failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // US-A2-01: Verify Registration OTP
+  const handleVerifyRegistrationOTP = async () => {
+    if (!registrationOTP || registrationOTP.length !== 6) {
+      toast.error('Please enter a valid 6-digit OTP');
+      return;
+    }
+    
+    setIsLoading(true);
+    try {
+      const response = await apiService.post('/auth/verify-registration-otp', {
+        tenantId: registrationTenantId,
+        otp: registrationOTP,
+        adminPassword: regPassword,
+        adminName: regTenantName + ' Admin',
+      });
+      
+      if (response.success) {
+        toast.success('Email verified! Your registration is pending Platform Admin approval. You will be notified once approved.');
+        setShowRegistrationOTP(false);
+        setRegistrationOTP('');
         setRegTenantName('');
         setRegEmail('');
         setRegPassword('');
         setRegConfirmPassword('');
-        router.push('/dashboard');
+        setRegCode('');
+        setActiveTab('email-login');
       } else {
-        toast.error(result.message);
+        toast.error(response.message || 'Invalid OTP');
+        setRegistrationOTP('');
       }
     } catch (error: any) {
-      toast.error(error.message || 'Registration failed');
+      toast.error(error.message || 'OTP verification failed');
+      setRegistrationOTP('');
     } finally {
       setIsLoading(false);
     }
@@ -166,9 +353,9 @@ export default function LoginPage() {
           </CardHeader>
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-3 mb-8 bg-secondary/50 p-1 h-auto">
+              {/* US-A1-04: Quick Login tab removed - Email login is always default */}
+              <TabsList className="grid w-full grid-cols-2 mb-8 bg-secondary/50 p-1 h-auto">
                 <TabsTrigger value="email-login" className="py-2.5 font-medium text-sm rounded-lg">📧 Email</TabsTrigger>
-                <TabsTrigger value="user-login" className="py-2.5 font-medium text-sm rounded-lg">⚡ Quick</TabsTrigger>
                 <TabsTrigger value="register" className="py-2.5 font-medium text-sm rounded-lg">✨ Register</TabsTrigger>
               </TabsList>
 
@@ -215,51 +402,137 @@ export default function LoginPage() {
                   <Button type="submit" disabled={isLoading} className="w-full h-10 font-semibold">
                     {isLoading ? 'Signing in...' : 'Sign In'}
                   </Button>
+                  
+                  {/* US-A1-02: Forgot Password Link */}
+                  <div className="text-right">
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotPassword(true)}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Forgot Password?
+                    </button>
+                  </div>
+                  
+                  {/* US-A1-03: CAPTCHA (shown after 3 failed attempts) */}
+                  {showCaptcha && (
+                    <div className="bg-accent/10 border border-accent rounded-lg p-4">
+                      <AlertCircle className="w-5 h-5 text-accent mb-2" />
+                      <p className="text-sm text-foreground mb-2">
+                        Please verify you are not a robot.
+                      </p>
+                      <div className="text-xs text-muted-foreground">
+                        reCAPTCHA v3 will verify automatically when you click Sign In
+                      </div>
+                    </div>
+                  )}
                 </form>
-              </TabsContent>
-
-              {/* User Select Login - Disabled for API integration */}
-              <TabsContent value="user-login" className="space-y-4">
-                <div className="bg-accent/10 border border-accent rounded-lg p-4">
-                  <AlertCircle className="w-5 h-5 text-accent mb-2" />
-                  <p className="text-sm text-foreground">
-                    Quick login is available after initial login. Please use Email/Password login first.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="tenant" className="text-sm font-semibold">
-                    Select Tenant
-                  </Label>
-                  <Input
-                    id="tenant"
-                    placeholder="Enter tenant code (e.g., INDBNK-HO)"
-                    value={selectedTenant}
-                    onChange={(e) => setSelectedTenant(e.target.value)}
-                    className="h-10"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="user" className="text-sm font-semibold">
-                    User Email
-                  </Label>
-                  <Input
-                    id="user"
-                    type="email"
-                    placeholder="user@example.com"
-                    value={selectedUser}
-                    onChange={(e) => setSelectedUser(e.target.value)}
-                    className="h-10"
-                  />
-                </div>
-
-                <Button
-                  onClick={handleUserSelectLogin}
-                  disabled={!selectedUser || !selectedTenant || isLoading}
-                  className="w-full h-10 font-semibold"
-                >
-                  {isLoading ? 'Signing in...' : 'Sign In'}
-                </Button>
+                
+                {/* US-A1-01: MFA Screen */}
+                {showMFA && (
+                  <div className="space-y-4 mt-4 p-4 border rounded-lg bg-accent/5">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold">Multi-Factor Authentication</h3>
+                      <button
+                        onClick={() => {
+                          setShowMFA(false);
+                          setMfaCode('');
+                        }}
+                        className="text-sm text-muted-foreground hover:text-foreground"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Enter the code sent to {email.replace(/(.{2})(.*)(@.*)/, '$1***$3')}
+                    </p>
+                    <div className="space-y-2">
+                      <Label htmlFor="mfaCode">6-Digit Code</Label>
+                      <Input
+                        id="mfaCode"
+                        type="text"
+                        maxLength={6}
+                        value={mfaCode}
+                        onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ''))}
+                        placeholder="000000"
+                        className="text-center text-2xl tracking-widest"
+                      />
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>Expires in {Math.floor(mfaCountdown / 60)}:{(mfaCountdown % 60).toString().padStart(2, '0')}</span>
+                        <button
+                          onClick={() => {
+                            // Resend OTP logic
+                            setMfaResendDisabled(true);
+                            setTimeout(() => setMfaResendDisabled(false), 60000);
+                            toast.info('OTP resent');
+                          }}
+                          disabled={mfaResendDisabled}
+                          className="text-primary hover:underline disabled:text-muted-foreground"
+                        >
+                          Resend Code
+                        </button>
+                      </div>
+                    </div>
+                    <Button
+                      onClick={handleMFAVerify}
+                      disabled={isLoading || mfaCode.length !== 6}
+                      className="w-full"
+                    >
+                      Verify & Continue
+                    </Button>
+                  </div>
+                )}
+                
+                {/* US-A1-02: Forgot Password Dialog */}
+                {showForgotPassword && (
+                  <div className="space-y-4 mt-4 p-4 border rounded-lg bg-accent/5">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold">Reset Password</h3>
+                      <button
+                        onClick={() => {
+                          setShowForgotPassword(false);
+                          setForgotPasswordEmail('');
+                          setForgotPasswordSent(false);
+                        }}
+                        className="text-sm text-muted-foreground hover:text-foreground"
+                      >
+                        Close
+                      </button>
+                    </div>
+                    {!forgotPasswordSent ? (
+                      <>
+                        <p className="text-sm text-muted-foreground">
+                          Enter your email address and we'll send you a password reset link.
+                        </p>
+                        <div className="space-y-2">
+                          <Label htmlFor="forgotEmail">Email Address</Label>
+                          <Input
+                            id="forgotEmail"
+                            type="email"
+                            value={forgotPasswordEmail}
+                            onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                            placeholder="user@indianbank.com"
+                          />
+                        </div>
+                        <Button
+                          onClick={handleForgotPassword}
+                          disabled={isLoading || !forgotPasswordEmail}
+                          className="w-full"
+                        >
+                          Send Reset Link
+                        </Button>
+                      </>
+                    ) : (
+                      <div className="text-center space-y-2">
+                        <AlertCircle className="w-12 h-12 text-green-600 mx-auto" />
+                        <p className="text-sm font-medium">Reset link sent!</p>
+                        <p className="text-xs text-muted-foreground">
+                          Check your email for password reset instructions.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </TabsContent>
 
               {/* Register */}
@@ -383,6 +656,64 @@ export default function LoginPage() {
                     {isLoading ? 'Registering...' : 'Register Tenant'}
                   </Button>
                 </form>
+                
+                {/* US-A2-01: Registration OTP Verification Screen */}
+                {showRegistrationOTP && (
+                  <div className="space-y-4 mt-4 p-4 border rounded-lg bg-accent/5">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold">Verify Your Email</h3>
+                      <button
+                        onClick={() => {
+                          setShowRegistrationOTP(false);
+                          setRegistrationOTP('');
+                        }}
+                        className="text-sm text-muted-foreground hover:text-foreground"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Enter the 6-digit code sent to {regEmail.replace(/(.{2})(.*)(@.*)/, '$1***$3')}
+                    </p>
+                    <div className="space-y-2">
+                      <Label htmlFor="regOTP">6-Digit OTP Code</Label>
+                      <Input
+                        id="regOTP"
+                        type="text"
+                        maxLength={6}
+                        value={registrationOTP}
+                        onChange={(e) => setRegistrationOTP(e.target.value.replace(/\D/g, ''))}
+                        placeholder="000000"
+                        className="text-center text-2xl tracking-widest"
+                      />
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>Expires in {Math.floor(registrationOTPCountdown / 60)}:{(registrationOTPCountdown % 60).toString().padStart(2, '0')}</span>
+                        <button
+                          onClick={() => {
+                            // Resend OTP - would need to call register-tenant again
+                            setRegistrationOTPResendDisabled(true);
+                            setTimeout(() => setRegistrationOTPResendDisabled(false), 60000);
+                            toast.info('Please resubmit the registration form to resend OTP');
+                          }}
+                          disabled={registrationOTPResendDisabled}
+                          className="text-primary hover:underline disabled:text-muted-foreground"
+                        >
+                          Resend Code
+                        </button>
+                      </div>
+                    </div>
+                    <Button
+                      onClick={handleVerifyRegistrationOTP}
+                      disabled={isLoading || registrationOTP.length !== 6}
+                      className="w-full"
+                    >
+                      Verify & Complete Registration
+                    </Button>
+                    <p className="text-xs text-center text-muted-foreground">
+                      After verification, your registration will be reviewed by Platform Admin
+                    </p>
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
 

@@ -143,6 +143,22 @@ class ApiService {
     });
   }
 
+  // US-A1-02: Forgot Password
+  async forgotPassword(email: string) {
+    return this.request('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  // US-A1-02: Reset Password
+  async resetPassword(token: string, email: string, newPassword: string) {
+    return this.request('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, email, newPassword }),
+    });
+  }
+
   // BR-P0-001 Bug 1: Logout endpoint
   async logout() {
     return this.request('/auth/logout', {
@@ -1122,10 +1138,12 @@ class ApiService {
 
   // ==================== JOBS ====================
 
-  async getJobs(params?: { status?: string; department?: string }) {
+  async getJobs(params?: { status?: string; department?: string; postingUnitId?: string; jobType?: string }) {
     const query = new URLSearchParams();
     if (params?.status) query.append('status', params.status);
     if (params?.department) query.append('department', params.department);
+    if (params?.postingUnitId) query.append('postingUnitId', params.postingUnitId);
+    if (params?.jobType) query.append('jobType', params.jobType);
 
     return this.request(`/jobs?${query.toString()}`);
   }
@@ -1152,6 +1170,160 @@ class ApiService {
     return this.request(`/jobs/${id}`, {
       method: 'DELETE',
     });
+  }
+
+  // ==================== PROMOTIONS ====================
+  async getPromotions(params?: {
+    employeeId?: string;
+    status?: string;
+    fromDate?: string;
+    toDate?: string;
+    postingUnitId?: string;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.employeeId) query.append('employeeId', params.employeeId);
+    if (params?.status) query.append('status', params.status);
+    if (params?.fromDate) query.append('fromDate', params.fromDate);
+    if (params?.toDate) query.append('toDate', params.toDate);
+    if (params?.postingUnitId) query.append('postingUnitId', params.postingUnitId);
+    return this.request(`/promotions?${query.toString()}`);
+  }
+
+  async getPromotion(id: string) {
+    return this.request(`/promotions/${id}`);
+  }
+
+  async createPromotion(data: {
+    employeeId: string;
+    promotionType: string;
+    newDesignation: string;
+    newGrade?: string;
+    newSalary?: number;
+    newDepartment?: string;
+    effectiveDate: string;
+    justification: string;
+    newPostingUnitId?: string;
+    includesTransfer?: boolean;
+    newLocation?: string;
+  }) {
+    return this.request('/promotions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async approvePromotion(id: string, comments?: string) {
+    return this.request(`/promotions/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ comments }),
+    });
+  }
+
+  async rejectPromotion(id: string, reason: string) {
+    return this.request(`/promotions/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async generatePromotionLetter(id: string) {
+    return this.request(`/promotions/${id}/letter`, { method: 'GET' });
+  }
+
+  async getEmployeePromotionHistory(employeeId: string) {
+    return this.request(`/promotions/employee/${employeeId}`);
+  }
+
+  // ==================== POSITIONS ====================
+  async getPositions(params?: {
+    status?: string;
+    postingUnitId?: string;
+    designation?: string;
+    department?: string;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.status) query.append('status', params.status);
+    if (params?.postingUnitId) query.append('postingUnitId', params.postingUnitId);
+    if (params?.designation) query.append('designation', params.designation);
+    if (params?.department) query.append('department', params.department);
+    return this.request(`/positions?${query.toString()}`);
+  }
+
+  async getPosition(id: string) {
+    return this.request(`/positions/${id}`);
+  }
+
+  async createPosition(data: {
+    positionCode: string;
+    title: string;
+    designation: string;
+    grade?: string;
+    department: string;
+    postingUnitId: string;
+    locationId?: string;
+    reportingManagerId?: string;
+    minExperience?: number;
+    minSalary?: number;
+    maxSalary?: number;
+    description?: string;
+    requirements?: string;
+  }) {
+    return this.request('/positions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async fillPosition(id: string, data: {
+    employeeId: string;
+    startDate: string;
+    reason?: string;
+  }) {
+    return this.request(`/positions/${id}/fill`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async vacatePosition(id: string, data: {
+    endDate?: string;
+    reason?: string;
+  }) {
+    return this.request(`/positions/${id}/vacate`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getVacantPositionsByBranch(branchId?: string) {
+    const query = branchId ? `?branchId=${branchId}` : '';
+    return this.request(`/positions/vacant/by-branch${query}`);
+  }
+
+  async getBranchPositionSummary(branchId?: string) {
+    const query = branchId ? `?branchId=${branchId}` : '';
+    return this.request(`/positions/summary/by-branch${query}`);
+  }
+
+  // ==================== BRANCH REPORTS ====================
+  async getBranchReport(branchId: string, params?: { fromDate?: string; toDate?: string }) {
+    const query = new URLSearchParams();
+    if (params?.fromDate) query.append('fromDate', params.fromDate);
+    if (params?.toDate) query.append('toDate', params.toDate);
+    const queryString = query.toString();
+    return this.request(`/reports/branch/${branchId}${queryString ? `?${queryString}` : ''}`);
+  }
+
+  async compareBranches(branchIds: string[], params?: { fromDate?: string; toDate?: string }) {
+    const query = new URLSearchParams();
+    branchIds.forEach((id) => query.append('branchIds', id));
+    if (params?.fromDate) query.append('fromDate', params.fromDate);
+    if (params?.toDate) query.append('toDate', params.toDate);
+    return this.request(`/reports/branch/compare?${query.toString()}`);
+  }
+
+  async getAllBranchesSummary() {
+    return this.request('/reports/branch/summary/all');
   }
 
   // ==================== DEPARTMENTS ====================
@@ -1187,6 +1359,114 @@ class ApiService {
     });
   }
 
+  // ==================== DESIGNATIONS (Spec C1-01) ====================
+
+  async getDesignations(params?: { status?: string }) {
+    const query = new URLSearchParams();
+    if (params?.status) query.append('status', params.status);
+    return this.request(`/designations?${query.toString()}`);
+  }
+
+  async getActiveDesignations() {
+    return this.request('/designations?status=Active');
+  }
+
+  async getDesignation(id: string) {
+    return this.request(`/designations/${id}`);
+  }
+
+  async createDesignation(data: any) {
+    return this.request('/designations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateDesignation(id: string, data: any) {
+    return this.request(`/designations/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteDesignation(id: string) {
+    return this.request(`/designations/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== LOCATIONS (Spec C1-02) ====================
+
+  async getLocations(params?: { status?: string }) {
+    const query = new URLSearchParams();
+    if (params?.status) query.append('status', params.status);
+    return this.request(`/locations?${query.toString()}`);
+  }
+
+  async getActiveLocations() {
+    return this.request('/locations/active');
+  }
+
+  async getLocation(id: string) {
+    return this.request(`/locations/${id}`);
+  }
+
+  async createLocation(data: any) {
+    return this.request('/locations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateLocation(id: string, data: any) {
+    return this.request(`/locations/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteLocation(id: string) {
+    return this.request(`/locations/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== GRADES (Spec C1-03) ====================
+
+  async getGrades(params?: { status?: string }) {
+    const query = new URLSearchParams();
+    if (params?.status) query.append('status', params.status);
+    return this.request(`/grades?${query.toString()}`);
+  }
+
+  async getActiveGrades() {
+    return this.request('/grades/active');
+  }
+
+  async getGrade(id: string) {
+    return this.request(`/grades/${id}`);
+  }
+
+  async createGrade(data: any) {
+    return this.request('/grades', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateGrade(id: string, data: any) {
+    return this.request(`/grades/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteGrade(id: string) {
+    return this.request(`/grades/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   // ==================== ORGANIZATION UNITS ====================
 
   async getOrganizationHierarchy() {
@@ -1213,6 +1493,9 @@ class ApiService {
     return this.request(`/org/units/${id}`);
   }
 
+  async getOrganizationUnitChildren(id: string) {
+    return this.request(`/org/units/${id}/children`);
+  }
   async getUnitChildren(id: string) {
     return this.request(`/org/units/${id}/children`);
   }
@@ -1224,7 +1507,7 @@ class ApiService {
   async createOrganizationUnit(data: {
     unitCode: string;
     unitName: string;
-    unitType: 'HO' | 'ZO' | 'RO' | 'BRANCH';
+    unitType: 'HO' | 'ZO' | 'RO' | 'BRANCH' | 'DEPARTMENT';
     parentUnitId?: string;
     unitHeadId?: string;
     state?: string;
@@ -1232,6 +1515,11 @@ class ApiService {
     address?: string;
     pinCode?: string;
     isActive?: boolean;
+    branchCode?: string;
+    branchType?: 'Urban' | 'Semi-Urban' | 'Rural';
+    openingDate?: string;
+    headquartersCity?: string;
+    effectiveDate?: string;
   }) {
     return this.request('/org/units', {
       method: 'POST',
@@ -1242,7 +1530,7 @@ class ApiService {
   async updateOrganizationUnit(id: string, data: {
     unitCode?: string;
     unitName?: string;
-    unitType?: 'HO' | 'ZO' | 'RO' | 'BRANCH';
+    unitType?: 'HO' | 'ZO' | 'RO' | 'BRANCH' | 'DEPARTMENT';
     parentUnitId?: string;
     unitHeadId?: string;
     state?: string;
@@ -1250,6 +1538,11 @@ class ApiService {
     address?: string;
     pinCode?: string;
     isActive?: boolean;
+    branchCode?: string;
+    branchType?: 'Urban' | 'Semi-Urban' | 'Rural';
+    openingDate?: string;
+    headquartersCity?: string;
+    effectiveDate?: string;
   }) {
     return this.request(`/org/units/${id}`, {
       method: 'PATCH',
@@ -1261,6 +1554,72 @@ class ApiService {
     return this.request(`/org/units/${id}`, {
       method: 'DELETE',
     });
+  }
+  async mergeOrganizationUnits(sourceUnitId: string, targetUnitId: string) {
+    return this.request(`/org/units/${sourceUnitId}/merge`, {
+      method: 'POST',
+      body: JSON.stringify({ targetUnitId }),
+    });
+  }
+  async getOrganizationHierarchy() {
+    return this.request('/org/hierarchy');
+  }
+  async seedOrganizationSampleData() {
+    return this.request('/org/units/seed', {
+      method: 'POST',
+    });
+  }
+  async deleteSeedData() {
+    return this.request('/org/units/seed', {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== EMPLOYEE TRANSFERS ====================
+  async createEmployeeTransfer(data: {
+    employeeId: string;
+    toUnitId: string;
+    transferType?: 'Permanent' | 'Temporary' | 'Deputation';
+    effectiveDate: string;
+    reason?: string;
+    remarks?: string;
+    isTemporary?: boolean;
+    temporaryEndDate?: string;
+  }) {
+    return this.request('/employee-transfers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+  async getEmployeeTransfers(params?: {
+    status?: string;
+    employeeId?: string;
+    fromUnitId?: string;
+    toUnitId?: string;
+    transferType?: string;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.status) query.append('status', params.status);
+    if (params?.employeeId) query.append('employeeId', params.employeeId);
+    if (params?.fromUnitId) query.append('fromUnitId', params.fromUnitId);
+    if (params?.toUnitId) query.append('toUnitId', params.toUnitId);
+    if (params?.transferType) query.append('transferType', params.transferType);
+    return this.request(`/employee-transfers?${query.toString()}`);
+  }
+  async getEmployeeTransfer(id: string) {
+    return this.request(`/employee-transfers/${id}`);
+  }
+  async approveEmployeeTransfer(id: string) {
+    return this.request(`/employee-transfers/${id}/approve`, { method: 'POST' });
+  }
+  async rejectEmployeeTransfer(id: string, rejectionReason: string) {
+    return this.request(`/employee-transfers/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ rejectionReason }),
+    });
+  }
+  async getEmployeeTransferHistory(employeeId: string) {
+    return this.request(`/employee-transfers/employee/${employeeId}`);
   }
 
   // ==================== BONUSES ====================
@@ -1477,6 +1836,40 @@ class ApiService {
 
   async getCurrentTenant() {
     return this.request('/tenants/current');
+  }
+
+  // US-A2-02: Platform Admin approval workflow
+  async approveTenant(tenantId: string) {
+    return this.request(`/tenants/${tenantId}/approve`, {
+      method: 'POST',
+    });
+  }
+
+  async rejectTenant(tenantId: string, reason: string) {
+    return this.request(`/tenants/${tenantId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async suspendTenant(tenantId: string, reason: string) {
+    return this.request(`/tenants/${tenantId}/suspend`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async deactivateTenant(tenantId: string, reason: string) {
+    return this.request(`/tenants/${tenantId}/deactivate`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async reactivateTenant(tenantId: string) {
+    return this.request(`/tenants/${tenantId}/reactivate`, {
+      method: 'POST',
+    });
   }
 
   async updateTenantSettings(settings: any) {
@@ -2704,6 +3097,9 @@ class ApiService {
   async deleteSubscriptionPackage(id: string) {
     return this.request(`/platform-admin/subscription-packages/${id}`, { method: 'DELETE' });
   }
+  async archiveSubscriptionPackage(id: string) {
+    return this.request(`/platform-admin/subscription-packages/${id}/archive`, { method: 'POST' });
+  }
 
   // Platform Admin - Create/Update Platform Modules
   async createPlatformModule(data: any) {
@@ -2720,6 +3116,12 @@ class ApiService {
   async updateIntegration(id: string, data: { isEnabled?: boolean; config?: Record<string, any> }) {
     return this.request(`/platform-admin/integrations/${id}`, { method: 'PUT', body: JSON.stringify(data) });
   }
+  async testIntegrationConnection(id: string) {
+    return this.request(`/platform-admin/integrations/${id}/test-connection`, { method: 'POST' });
+  }
+  async getIntegrationHealth() {
+    return this.request('/platform-admin/integrations/health');
+  }
 
   // Platform Admin - Settings
   async getPlatformSettings() {
@@ -2732,6 +3134,23 @@ class ApiService {
   // Platform Admin - Analytics
   async getPlatformAnalytics() {
     return this.request('/platform-admin/analytics');
+  }
+  async exportAnalyticsReport(params: { format?: 'csv' | 'pdf'; timeRange?: string; filters?: any }) {
+    const query = new URLSearchParams();
+    if (params.format) query.append('format', params.format);
+    if (params.timeRange) query.append('timeRange', params.timeRange);
+    const response = await fetch(`${API_BASE_URL}/platform-admin/analytics/export?${query.toString()}`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!response.ok) throw new Error('Export failed');
+    return {
+      success: true,
+      data: params.format === 'csv' ? await response.text() : await response.blob(),
+    };
   }
 
   // Platform Admin - Create Tenant (same as register-tenant: creates tenant + Tenant Admin user)
@@ -3319,7 +3738,7 @@ class ApiService {
 
   // ==================== PLATFORM ADMIN: AUDIT LOGS ====================
 
-  async getAuditLogs(params?: {
+  async getPlatformAuditLogs(params?: {
     module?: string;
     action?: string;
     status?: string;
@@ -3337,7 +3756,7 @@ class ApiService {
     return this.request(`/platform-admin/audit-logs?${query.toString()}`);
   }
 
-  async exportAuditLogs(params?: {
+  async exportPlatformAuditLogs(params?: {
     module?: string;
     action?: string;
     status?: string;

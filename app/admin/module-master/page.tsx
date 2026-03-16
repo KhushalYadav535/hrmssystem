@@ -17,7 +17,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, Pencil, Settings } from 'lucide-react';
+import { Loader2, Plus, Pencil, Settings, Trash2 } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 
 const CATEGORIES = ['CORE', 'STANDARD', 'ADVANCED', 'INTEGRATION'];
 const PRICING_MODELS = ['FLAT_FEE', 'PER_USER', 'PER_TRANSACTION', 'BUNDLED'];
@@ -33,6 +34,7 @@ export default function ModuleMasterPage() {
     moduleName: '',
     moduleCategory: 'STANDARD',
     description: '',
+    keyFeatures: [] as string[],
     isCore: false,
     pricingModel: 'FLAT_FEE',
     basePrice: 0,
@@ -65,6 +67,7 @@ export default function ModuleMasterPage() {
       moduleName: '',
       moduleCategory: 'STANDARD',
       description: '',
+      keyFeatures: [],
       isCore: false,
       pricingModel: 'FLAT_FEE',
       basePrice: 0,
@@ -86,6 +89,7 @@ export default function ModuleMasterPage() {
       moduleName: m.moduleName || '',
       moduleCategory: m.moduleCategory || 'STANDARD',
       description: m.description || '',
+      keyFeatures: m.keyFeatures || [],
       isCore: m.isCore || false,
       pricingModel: m.pricingModel || 'FLAT_FEE',
       basePrice: m.basePrice || 0,
@@ -98,6 +102,24 @@ export default function ModuleMasterPage() {
   const handleSubmit = async () => {
     if (!form.moduleCode?.trim() || !form.moduleName?.trim()) {
       toast({ title: 'Error', description: 'Code and name required', variant: 'destructive' });
+      return;
+    }
+    // US-A5-01: BR-A5-01: Description required, min 50 chars, max 500 chars
+    if (!form.description || form.description.trim().length < 50 || form.description.trim().length > 500) {
+      toast({ 
+        title: 'Error', 
+        description: 'Description is required and must be between 50 and 500 characters', 
+        variant: 'destructive' 
+      });
+      return;
+    }
+    // BR-A5-02: No module can be toggled Active if description is empty
+    if (form.isActive && !form.description) {
+      toast({ 
+        title: 'Error', 
+        description: 'Active modules must have a description', 
+        variant: 'destructive' 
+      });
       return;
     }
     try {
@@ -154,7 +176,17 @@ export default function ModuleMasterPage() {
                     <Badge variant={m.isCore ? 'secondary' : 'outline'}>{m.moduleCategory}</Badge>
                     {m.isCore && <Badge variant="secondary">Core</Badge>}
                   </CardTitle>
-                  <CardDescription>{m.description || m.moduleCode}</CardDescription>
+                  <CardDescription className="line-clamp-2">
+                    {m.description || 'No description available'}
+                  </CardDescription>
+                  {m.keyFeatures && m.keyFeatures.length > 0 && (
+                    <ul className="text-xs text-muted-foreground mt-2 list-disc list-inside">
+                      {m.keyFeatures.slice(0, 3).map((feature: string, idx: number) => (
+                        <li key={idx}>{feature}</li>
+                      ))}
+                      {m.keyFeatures.length > 3 && <li>+{m.keyFeatures.length - 3} more</li>}
+                    </ul>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <span className="text-sm text-muted-foreground">
@@ -209,11 +241,65 @@ export default function ModuleMasterPage() {
               </select>
             </div>
             <div>
-              <Label>Description</Label>
-              <Input
+              <Label>Description * (50-500 characters)</Label>
+              <Textarea
                 value={form.description}
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Enter a detailed description of this module (minimum 50 characters)..."
+                rows={4}
+                minLength={50}
+                maxLength={500}
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                {form.description.length}/500 characters
+                {form.description.length > 0 && form.description.length < 50 && (
+                  <span className="text-red-600"> (minimum 50 characters required)</span>
+                )}
+              </p>
+            </div>
+            <div>
+              <Label>Key Features (max 5)</Label>
+              <div className="space-y-2">
+                {form.keyFeatures.map((feature, idx) => (
+                  <div key={idx} className="flex gap-2">
+                    <Input
+                      value={feature}
+                      onChange={e => {
+                        const updated = [...form.keyFeatures];
+                        updated[idx] = e.target.value;
+                        setForm(f => ({ ...f, keyFeatures: updated }));
+                      }}
+                      placeholder={`Feature ${idx + 1}`}
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setForm(f => ({
+                          ...f,
+                          keyFeatures: f.keyFeatures.filter((_, i) => i !== idx)
+                        }));
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                {form.keyFeatures.length < 5 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setForm(f => ({ ...f, keyFeatures: [...f.keyFeatures, ''] }));
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Feature
+                  </Button>
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>

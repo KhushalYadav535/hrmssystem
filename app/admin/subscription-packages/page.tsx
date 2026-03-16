@@ -17,7 +17,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, Pencil, Trash2, Package } from 'lucide-react';
+import { Loader2, Plus, Pencil, Trash2, Package, Archive } from 'lucide-react';
 
 const TIERS = ['BASIC', 'STANDARD', 'PREMIUM', 'ENTERPRISE', 'CUSTOM'];
 
@@ -142,8 +142,21 @@ export default function SubscriptionPackagesPage() {
     }
   };
 
+  const handleArchive = async (id: string) => {
+    if (!confirm('Archive this package? It will be hidden from new assignments but preserved for history.')) return;
+    try {
+      const res = await apiService.archiveSubscriptionPackage(id);
+      if (res.success) {
+        toast({ title: 'Success', description: 'Package archived' });
+        loadData();
+      }
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    }
+  };
+
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this package?')) return;
+    if (!confirm('Delete this package? This action cannot be undone.')) return;
     try {
       const res = await apiService.deleteSubscriptionPackage(id);
       if (res.success) {
@@ -177,8 +190,11 @@ export default function SubscriptionPackagesPage() {
           </Button>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {packages.map((pkg) => (
+        {/* Active Packages */}
+        <div>
+          <h2 className="text-xl font-semibold mb-4">Active Packages</h2>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {packages.filter((pkg: any) => !pkg.isArchived).map((pkg) => (
             <Card key={pkg._id}>
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-start">
@@ -202,14 +218,51 @@ export default function SubscriptionPackagesPage() {
                   <Button size="sm" variant="outline" onClick={() => openEdit(pkg)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleArchive(pkg._id)}>
+                    <Archive className="h-4 w-4" />
+                  </Button>
                   <Button size="sm" variant="destructive" onClick={() => handleDelete(pkg._id)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </CardContent>
             </Card>
-          ))}
+            ))}
+          </div>
         </div>
+
+        {/* Archived Packages */}
+        {packages.filter((pkg: any) => pkg.isArchived).length > 0 && (
+          <details className="mt-6">
+            <summary className="text-lg font-semibold cursor-pointer mb-4">
+              Archived Packages ({packages.filter((pkg: any) => pkg.isArchived).length})
+            </summary>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {packages.filter((pkg: any) => pkg.isArchived).map((pkg) => (
+                <Card key={pkg._id} className="opacity-60">
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <Package className="h-5 w-5" />
+                          {pkg.packageName}
+                        </CardTitle>
+                        <CardDescription>{pkg.description || pkg.packageTier}</CardDescription>
+                      </div>
+                      <Badge variant="secondary">Archived</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-bold">₹{Number(pkg.monthlyPrice || 0).toLocaleString()}/mo</p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Archived on {new Date(pkg.archivedAt).toLocaleDateString()}
+                    </p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </details>
+        )}
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">

@@ -18,6 +18,9 @@ export default function EmployeeCreatePage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isCreating, setIsCreating] = useState(false);
   const [departments, setDepartments] = useState<any[]>([]);
+  const [designations, setDesignations] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
+  const [grades, setGrades] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     employeeCode: '',
     firstName: '',
@@ -29,6 +32,7 @@ export default function EmployeeCreatePage() {
     gender: 'Male',
     department: '',
     designation: '',
+    grade: '',
     joinDate: new Date().toISOString().split('T')[0],
     employmentType: 'Permanent',
     reportingManager: '',
@@ -41,17 +45,46 @@ export default function EmployeeCreatePage() {
   });
 
   useEffect(() => {
-    loadDepartments();
+    loadMasterData();
   }, []);
 
-  const loadDepartments = async () => {
+  const loadMasterData = async () => {
     try {
-      const response = await apiService.getDepartments();
-      if (response.success && response.data) {
-        setDepartments(Array.isArray(response.data) ? response.data : []);
+      const [deptRes, desigRes, locRes, gradeRes] = await Promise.all([
+        apiService.getDepartments(),
+        apiService.getActiveDesignations(),
+        apiService.getActiveLocations(),
+        apiService.getActiveGrades(),
+      ]);
+
+      if (deptRes.success && deptRes.data) {
+        setDepartments(Array.isArray(deptRes.data) ? deptRes.data : []);
+      }
+      if (desigRes.success && desigRes.data) {
+        setDesignations(Array.isArray(desigRes.data) ? desigRes.data : []);
+      }
+      if (locRes.success && locRes.data) {
+        setLocations(Array.isArray(locRes.data) ? locRes.data : []);
+      }
+      if (gradeRes.success && gradeRes.data) {
+        setGrades(Array.isArray(gradeRes.data) ? gradeRes.data : []);
       }
     } catch (error: any) {
-      console.error('Failed to load departments:', error);
+      console.error('Failed to load master data:', error);
+    }
+  };
+
+  // BR-C1-14: Auto-fill Grade from Designation mapping
+  const handleDesignationChange = (designationId: string) => {
+    setFormData(prev => ({ ...prev, designation: designationId }));
+
+    // Find the selected designation and check for default grade mapping
+    const selectedDesig = designations.find((d: any) => (d._id || d.id) === designationId);
+    if (selectedDesig?.defaultGradeId) {
+      const gradeId = typeof selectedDesig.defaultGradeId === 'object'
+        ? selectedDesig.defaultGradeId._id || selectedDesig.defaultGradeId
+        : selectedDesig.defaultGradeId;
+      setFormData(prev => ({ ...prev, designation: designationId, grade: gradeId }));
     }
   };
 
@@ -71,9 +104,9 @@ export default function EmployeeCreatePage() {
     // Final validation
     if (!formData.employeeCode || !formData.firstName || !formData.lastName || !formData.email || 
         !formData.password || !formData.phone || !formData.department || !formData.designation ||
-        !formData.dateOfBirth || !formData.joinDate || !formData.location ||
+        !formData.grade || !formData.dateOfBirth || !formData.joinDate || !formData.location ||
         !formData.salary || !formData.ctc) {
-      toast.error('Please fill all required fields');
+      toast.error('Please fill all required fields including Designation, Grade, and Location');
       return;
     }
 
@@ -98,11 +131,12 @@ export default function EmployeeCreatePage() {
         phone: formData.phone.trim(),
         dateOfBirth: formData.dateOfBirth,
         gender: formData.gender,
-        designation: formData.designation.trim(),
+        designation: formData.designation, // Now it's an ID, not text
         department: formData.department.trim(),
+        grade: formData.grade, // Spec C1-03: Grade field added
         status: formData.status,
         joinDate: formData.joinDate,
-        location: formData.location.trim(),
+        location: formData.location, // Now it's an ID, not text
         salary: parseFloat(formData.salary),
         ctc: parseFloat(formData.ctc),
         bankAccount: formData.accountNumber || undefined,
@@ -296,16 +330,65 @@ export default function EmployeeCreatePage() {
                       <p className="text-xs text-muted-foreground mt-1">Selected: {formData.department}</p>
                     )}
                   </div>
+                  {/* Spec C1-01: Designation dropdown from Designation Master */}
                   <div>
                     <Label htmlFor="designation">Designation *</Label>
-                    <Input
-                      id="designation"
-                      name="designation"
+                    <Select
                       value={formData.designation}
-                      onChange={handleInputChange}
-                      placeholder="e.g., Senior Accountant"
-                      className="mt-2"
-                    />
+                      onValueChange={handleDesignationChange}
+                    >
+                      <SelectTrigger className="mt-2">
+                        <SelectValue placeholder="Select designation">
+                          {formData.designation
+                            ? designations.find((d: any) => (d._id || d.id) === formData.designation)?.name || formData.designation
+                            : 'Select designation'}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {designations.length > 0 ? (
+                          designations.map((desig: any) => (
+                            <SelectItem key={desig._id || desig.id} value={desig._id || desig.id}>
+                              {desig.name} {desig.grade ? `(${desig.grade})` : ''}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="no_designations" disabled>No designations available — add in Settings</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Populated from Designation Master
+                    </p>
+                  </div>
+                  {/* Spec C1-03: Grade dropdown from Grade Master */}
+                  <div>
+                    <Label htmlFor="grade">Grade *</Label>
+                    <Select
+                      value={formData.grade}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, grade: value }))}
+                    >
+                      <SelectTrigger className="mt-2">
+                        <SelectValue placeholder="Select grade">
+                          {formData.grade
+                            ? grades.find((g: any) => (g._id || g.id) === formData.grade)?.name || formData.grade
+                            : 'Select grade'}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {grades.length > 0 ? (
+                          grades.map((g: any) => (
+                            <SelectItem key={g._id || g.id} value={g._id || g.id}>
+                              {g.name} {g.level ? `(Level ${g.level})` : ''}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="no_grades" disabled>No grades available — add in Settings</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Auto-fills from Designation if mapping exists
+                    </p>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -338,16 +421,35 @@ export default function EmployeeCreatePage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Spec C1-02: Location dropdown from Location Master */}
                   <div>
                     <Label htmlFor="location">Location *</Label>
-                    <Input
-                      id="location"
-                      name="location"
+                    <Select
                       value={formData.location}
-                      onChange={handleInputChange}
-                      placeholder="Mumbai"
-                      className="mt-2"
-                    />
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, location: value }))}
+                    >
+                      <SelectTrigger className="mt-2">
+                        <SelectValue placeholder="Select location">
+                          {formData.location
+                            ? locations.find((l: any) => (l._id || l.id) === formData.location)?.name || formData.location
+                            : 'Select location'}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {locations.length > 0 ? (
+                          locations.map((loc: any) => (
+                            <SelectItem key={loc._id || loc.id} value={loc._id || loc.id}>
+                              {loc.name} {loc.state ? `(${loc.state})` : ''}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="no_locations" disabled>No locations available — add in Settings</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Populated from Location Master
+                    </p>
                   </div>
                   <div>
                     <Label htmlFor="status">Status *</Label>
@@ -456,7 +558,19 @@ export default function EmployeeCreatePage() {
                     </div>
                     <div>
                       <p className="text-muted-foreground">Designation</p>
-                      <p className="font-medium">{formData.designation || 'Not specified'}</p>
+                      <p className="font-medium">
+                        {formData.designation
+                          ? designations.find((d: any) => (d._id || d.id) === formData.designation)?.name || 'Not specified'
+                          : 'Not specified'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Grade</p>
+                      <p className="font-medium">
+                        {formData.grade
+                          ? grades.find((g: any) => (g._id || g.id) === formData.grade)?.name || 'Not specified'
+                          : 'Not specified'}
+                      </p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Join Date</p>
@@ -464,7 +578,11 @@ export default function EmployeeCreatePage() {
                     </div>
                     <div>
                       <p className="text-muted-foreground">Location</p>
-                      <p className="font-medium">{formData.location || 'Not specified'}</p>
+                      <p className="font-medium">
+                        {formData.location
+                          ? locations.find((l: any) => (l._id || l.id) === formData.location)?.name || 'Not specified'
+                          : 'Not specified'}
+                      </p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Salary</p>
@@ -506,8 +624,8 @@ export default function EmployeeCreatePage() {
                         return;
                       }
                     } else if (currentStep === 2) {
-                      if (!formData.department || !formData.designation || !formData.joinDate || !formData.location) {
-                        toast.error('Please fill all required fields in Job Details');
+                      if (!formData.department || !formData.designation || !formData.grade || !formData.joinDate || !formData.location) {
+                        toast.error('Please fill all required fields in Job Details (including Designation, Grade, and Location)');
                         return;
                       }
                     } else if (currentStep === 3) {

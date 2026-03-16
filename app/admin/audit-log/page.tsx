@@ -34,7 +34,7 @@ interface AuditLogEntry {
 }
 
 export default function AuditLogPage() {
-  const { isAuthenticated, hasPermission } = useAuth();
+  const { isAuthenticated, hasPermission, currentUser } = useAuth();
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -55,7 +55,10 @@ export default function AuditLogPage() {
       if (dateTo) params.dateTo = dateTo;
       if (searchTerm) params.search = searchTerm;
 
-      const response = await apiService.getAuditLogs(params);
+      // Use correct endpoint based on user role
+      const response = currentUser?.role === 'Super Admin' 
+        ? await apiService.getPlatformAuditLogs(params)
+        : await apiService.getAuditLogs(params);
       if (response.success && response.data) {
         const logs = Array.isArray(response.data) ? response.data : [];
         setAuditLogs(logs);
@@ -131,7 +134,10 @@ export default function AuditLogPage() {
       if (dateFrom) params.dateFrom = dateFrom;
       if (dateTo) params.dateTo = dateTo;
 
-      const response = await apiService.exportAuditLogs(params);
+      // Use correct endpoint based on user role
+      const response = currentUser?.role === 'Super Admin'
+        ? await apiService.exportPlatformAuditLogs(params)
+        : await apiService.exportAuditLogs(params);
       if (response.success && response.data) {
         // Convert to CSV
         const logs = Array.isArray(response.data) ? response.data : [];

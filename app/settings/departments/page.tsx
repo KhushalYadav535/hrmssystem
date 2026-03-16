@@ -19,11 +19,12 @@ interface Department {
   _id?: string;
   id?: string;
   name: string;
-  head: string;
+  head: any; // Spec C2: ObjectId ref or null
   employees: number;
   costCenter: string;
+  description?: string;
   status: 'Active' | 'Inactive';
-  parentDepartment?: string;
+  parentDepartment?: any;
 }
 
 export default function DepartmentManagementPage() {
@@ -68,9 +69,10 @@ export default function DepartmentManagementPage() {
     redirect('/dashboard');
   }
 
+  // Spec C2: Only name is required for department creation (BR-C2-01)
   const handleCreate = async () => {
-    if (!formData.name || !formData.head || !formData.costCenter) {
-      toast.error('Please fill all required fields');
+    if (!formData.name) {
+      toast.error('Please provide a department name');
       return;
     }
     try {
@@ -105,8 +107,8 @@ export default function DepartmentManagementPage() {
   };
 
   const handleUpdate = async () => {
-    if (!selectedDept || !formData.name || !formData.head || !formData.costCenter) {
-      toast.error('Please fill all required fields');
+    if (!selectedDept || !formData.name) {
+      toast.error('Please provide a department name');
       return;
     }
     try {
@@ -176,16 +178,10 @@ export default function DepartmentManagementPage() {
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   />
                 </div>
+                {/* Spec C2: Department Head REMOVED from Create form (BR-C2-01) */}
+                {/* Head can be assigned via Edit Department form */}
                 <div className="space-y-2">
-                  <Label>Department Head *</Label>
-                  <Input
-                    placeholder="Enter head name"
-                    value={formData.head}
-                    onChange={(e) => setFormData({ ...formData, head: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Cost Center *</Label>
+                  <Label>Cost Center</Label>
                   <Input
                     placeholder="e.g., CC005"
                     value={formData.costCenter}
@@ -221,6 +217,7 @@ export default function DepartmentManagementPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                <p className="text-xs text-muted-foreground">💡 Department Head can be assigned later via the Edit form.</p>
                 <Button onClick={handleCreate} className="w-full">Create Department</Button>
               </div>
             </DialogContent>
@@ -277,7 +274,7 @@ export default function DepartmentManagementPage() {
                       <div className="flex-1">
                         <h3 className="font-semibold text-lg">{dept.name}</h3>
                         <div className="flex items-center gap-2 mt-1">
-                          <Badge variant="outline">Head: {dept.head}</Badge>
+                          <Badge variant="outline">Head: {dept.head && typeof dept.head === 'object' ? `${dept.head.firstName || ''} ${dept.head.lastName || ''}`.trim() : (dept.head || 'Not Assigned')}</Badge>
                           <Badge variant="outline">{dept.costCenter}</Badge>
                           <Badge className="bg-green-600">{dept.status}</Badge>
                         </div>
@@ -320,11 +317,13 @@ export default function DepartmentManagementPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Department Head *</Label>
+                <Label>Department Head (Optional)</Label>
                 <Input
+                  placeholder="Enter head name or leave blank"
                   value={formData.head}
                   onChange={(e) => setFormData({ ...formData, head: e.target.value })}
                 />
+                <p className="text-xs text-muted-foreground">Optional — can be left blank</p>
               </div>
               <div className="space-y-2">
                 <Label>Cost Center *</Label>

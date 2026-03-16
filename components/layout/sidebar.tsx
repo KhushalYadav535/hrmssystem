@@ -29,6 +29,9 @@ import {
   AlertCircle,
   Globe,
   Sliders,
+  ShieldCheck,
+  Puzzle,
+  Link2,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -86,6 +89,17 @@ const platformAdminNavItems: NavItem[] = [
     href: '/admin/platform-settings',
     icon: <Sliders className="w-5 h-5" />,
     roles: ['Super Admin'],
+    subItems: [
+      { label: 'General Settings', href: '/admin/platform-settings', roles: ['Super Admin'] },
+      { label: 'Compliance', href: '/admin/platform-settings/compliance', roles: ['Super Admin'] },
+      { label: 'White-Label', href: '/admin/platform-settings/white-label', roles: ['Super Admin'] },
+    ],
+  },
+  {
+    label: 'Platform Team',
+    href: '/admin/platform-team',
+    icon: <Users className="w-5 h-5" />,
+    roles: ['Super Admin'],
   },
   {
     label: 'Analytics & Usage',
@@ -99,6 +113,18 @@ const platformAdminNavItems: NavItem[] = [
     icon: <Settings className="w-5 h-5" />,
     roles: ['Super Admin'],
   },
+  {
+    label: 'Login Activity',
+    href: '/admin/login-activity',
+    icon: <AlertCircle className="w-5 h-5" />,
+    roles: ['Super Admin'],
+  },
+  {
+    label: 'IP Whitelist',
+    href: '/admin/ip-whitelist',
+    icon: <ShieldCheck className="w-5 h-5" />,
+    roles: ['Super Admin'],
+  },
 ];
 
 const navigationItems: NavItem[] = [
@@ -109,8 +135,16 @@ const navigationItems: NavItem[] = [
     // All roles can see dashboard - Core module, no moduleCode
   },
   {
-    label: 'Personnel',
-    href: '/personnel',
+    label: 'Workforce',
+    href: '/workforce',
+    subItems: [
+      { label: 'Employee List', href: '/workforce/employees', roles: ['Tenant Admin', 'HR Administrator'] },
+      { label: 'Add Employee', href: '/workforce/add-employee', roles: ['Tenant Admin', 'HR Administrator'] },
+      { label: 'Branch Promotions', href: '/workforce/promotions/branch-promotion', roles: ['Tenant Admin', 'HR Administrator'] },
+      { label: 'Vacant Positions', href: '/workforce/positions/vacant-positions', roles: ['Tenant Admin', 'HR Administrator'] },
+      { label: 'Branch Reports', href: '/workforce/reports/branch-report', roles: ['Tenant Admin', 'HR Administrator'] },
+      { label: 'Org Chart', href: '/org/chart', roles: ['Tenant Admin', 'HR Administrator'] },
+    ],
     icon: <Users className="w-5 h-5" />,
     roles: ['Tenant Admin', 'Manager', 'HR Administrator', 'Auditor'],
     moduleCode: 'PIS', // BRD: Dynamic Module Management - matches seed script
@@ -292,35 +326,85 @@ const navigationItems: NavItem[] = [
       { label: 'Profile Update Approvals', href: '/approvals/profile-update' },
     ],
   },
+  // US-B3-01: New System Admin Hub Navigation Structure
+  // For Tenant Admin (System Admin), show only system administration menus
+  // These menus replace the HR operational menus for Tenant Admin role
+  {
+    label: 'Security & Access',
+    href: '/admin/users',
+    icon: <ShieldCheck className="w-5 h-5" />,
+    roles: ['Tenant Admin'],
+    subItems: [
+      { label: 'Users', href: '/admin/users', roles: ['Tenant Admin'] },
+      { label: 'Roles & Permissions', href: '/admin/users/role-permissions', roles: ['Tenant Admin'] },
+      { label: 'Access Policies', href: '/admin/access-certification', roles: ['Tenant Admin'] },
+      { label: 'Session Management', href: '/admin/sessions', roles: ['Tenant Admin'] },
+      { label: 'Audit & Logs', href: '/admin/audit-log', roles: ['Tenant Admin'] },
+    ],
+  },
+  {
+    label: 'Configuration',
+    href: '/settings',
+    icon: <Settings className="w-5 h-5" />,
+    roles: ['Tenant Admin'],
+    subItems: [
+      { label: 'Tenant Settings', href: '/settings', roles: ['Tenant Admin'] },
+      { label: 'Organization Structure', href: '/settings/org-structure/org-tree', roles: ['Tenant Admin'] },
+      { label: 'Zone Master', href: '/settings/org-structure/zone-master', roles: ['Tenant Admin'] },
+      { label: 'Branch Master', href: '/settings/org-structure/branch-master', roles: ['Tenant Admin'] },
+      { label: 'Org Tree Builder', href: '/settings/org-structure/org-tree', roles: ['Tenant Admin'] },
+      { label: 'Employee Transfer', href: '/settings/org-structure/employee-transfer', roles: ['Tenant Admin'] },
+      { label: 'Transfer Log', href: '/settings/org-structure/transfer-log', roles: ['Tenant Admin'] },
+      { label: 'Workflow Settings', href: '/settings/workflows', roles: ['Tenant Admin'] },
+      { label: 'Global HR Parameters', href: '/settings/leave-policies', roles: ['Tenant Admin'] },
+      { label: 'Designations', href: '/settings/designations', roles: ['Tenant Admin'] },
+      { label: 'Permissions', href: '/settings/permissions', roles: ['Tenant Admin'] },
+      { label: 'Modules', href: '/company/modules', roles: ['Tenant Admin'] },
+    ],
+  },
+  {
+    label: 'Integrations',
+    href: '/admin/integrations',
+    icon: <Link2 className="w-5 h-5" />,
+    roles: ['Tenant Admin'],
+    subItems: [
+      { label: 'API & Webhooks', href: '/admin/integrations', roles: ['Tenant Admin'] },
+      { label: 'SSO & Identity', href: '/admin/ldap-config', roles: ['Tenant Admin'] },
+    ],
+  },
+  {
+    label: 'Analytics & Reports',
+    href: '/reports',
+    icon: <BarChart3 className="w-5 h-5" />,
+    roles: ['Tenant Admin'],
+    subItems: [
+      { label: 'Security Reports', href: '/admin/audit-log', roles: ['Tenant Admin'] },
+      { label: 'Configuration Changes', href: '/admin/audit-log', roles: ['Tenant Admin'] },
+      { label: 'HR Overview KPIs', href: '/reports', roles: ['Tenant Admin'] },
+    ],
+  },
   {
     label: 'Administration',
     href: '/admin',
     icon: <Settings className="w-5 h-5" />,
-    roles: ['Tenant Admin', 'HR Administrator'],
+    roles: ['HR Administrator'], // HR Admin sees this, not System Admin
     // Administration is a core feature, no moduleCode
     subItems: [
-      { label: 'Users', href: '/admin/users', roles: ['Tenant Admin', 'HR Administrator'] },
-      { label: 'Role & Permissions', href: '/admin/users/role-permissions', roles: ['Tenant Admin'] },
-      { label: 'Access Certification', href: '/admin/access-certification', roles: ['Tenant Admin'] },
-      { label: 'Session Management', href: '/admin/sessions', roles: ['Tenant Admin'] },
-      { label: 'Promotions', href: '/employee/promotions', roles: ['Tenant Admin', 'HR Administrator', 'Manager'] },
-      { label: 'Disciplinary Records', href: '/employee/disciplinary', roles: ['Tenant Admin', 'HR Administrator', 'Manager'] },
-      { label: 'LDAP Config', href: '/admin/ldap-config', roles: ['Tenant Admin'] },
-      { label: 'Organization Chart', href: '/org/chart', roles: ['Tenant Admin', 'Manager'] },
-      { label: 'Bulk Import/Export', href: '/admin/employees/bulk-import', roles: ['Tenant Admin', 'HR Administrator'] },
-      { label: 'Departments', href: '/settings/departments', roles: ['Tenant Admin', 'HR Administrator'] },
-      { label: 'Designations', href: '/settings/designations', roles: ['Tenant Admin', 'HR Administrator'] },
-      { label: 'Permissions', href: '/settings/permissions', roles: ['Tenant Admin'] },
-      { label: 'Audit Log', href: '/admin/audit-log', roles: ['Tenant Admin'] },
-      { label: 'Settings', href: '/settings', roles: ['Tenant Admin'] },
+      { label: 'Users', href: '/admin/users', roles: ['HR Administrator'] },
+      { label: 'Role & Permissions', href: '/admin/users/role-permissions', roles: ['HR Administrator'] },
+      { label: 'Access Certification', href: '/admin/access-certification', roles: ['HR Administrator'] },
+      { label: 'Session Management', href: '/admin/sessions', roles: ['HR Administrator'] },
+      { label: 'Promotions', href: '/employee/promotions', roles: ['HR Administrator', 'Manager'] },
+      { label: 'Disciplinary Records', href: '/employee/disciplinary', roles: ['HR Administrator', 'Manager'] },
+      { label: 'LDAP Config', href: '/admin/ldap-config', roles: ['HR Administrator'] },
+      { label: 'Organization Chart', href: '/org/chart', roles: ['HR Administrator', 'Manager'] },
+      { label: 'Bulk Import/Export', href: '/admin/employees/bulk-import', roles: ['HR Administrator'] },
+      { label: 'Departments', href: '/settings/departments', roles: ['HR Administrator'] },
+      { label: 'Designations', href: '/settings/designations', roles: ['HR Administrator'] },
+      { label: 'Permissions', href: '/settings/permissions', roles: ['HR Administrator'] },
+      { label: 'Audit Log', href: '/admin/audit-log', roles: ['HR Administrator'] },
+      { label: 'Settings', href: '/settings', roles: ['HR Administrator'] },
     ],
-  },
-  {
-    label: 'Module Management',
-    href: '/company/modules',
-    icon: <Package className="w-5 h-5" />,
-    roles: ['Tenant Admin'],
-    // Company Admin can request modules - no moduleCode (core feature for Tenant Admin)
   },
   // NOTE: Super Admin (Platform Admin) uses platformAdminNavItems below - NOT these operational modules
   {
@@ -419,11 +503,28 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
 
   // BRD: Super Admin (Platform Admin) sees ONLY platform-level nav - NOT Personnel, Payroll, Leave, etc.
   // Platform Admin manages: Tenants, Modules, Subscriptions - Company Admin does operational HR
+  
+  // US-B2-01: Hide HR operational menus from System Admin (Tenant Admin) nav
+  // US-B3-01: System Admin should only see system administration menus
+  const hrOperationalMenus = [
+    'Workforce', 'Payroll', 'Leave Management', 'Travel & Expenses', 
+    'Loans & Advances', 'Exit Management', 'Profile Updates', 'Grievance Management',
+    'Performance', 'Attendance', 'Tax Management', 'Recruitment', 'Onboarding',
+    'Learning & Development', 'Approvals'
+  ];
+  
   const isAdminRole = ['Tenant Admin', 'HR Administrator'].includes(currentUser?.role || '');
+  const isSystemAdmin = currentUser?.role === 'Tenant Admin';
+  
   const visibleItems =
     currentUser?.role === 'Super Admin'
       ? platformAdminNavItems.filter((item) => !item.roles || item.roles.includes('Super Admin'))
       : navigationItems.filter((item) => {
+        // US-B2-01: Hide HR operational menus from System Admin (Tenant Admin)
+        if (isSystemAdmin && hrOperationalMenus.includes(item.label)) {
+          return false;
+        }
+        
         // Module filtering: only applies when we fetched enabled modules (Tenant Admin, HR Admin)
         // Employee, Manager, etc. don't call getMyCompanyModules - show all items matching their role
         if (item.moduleCode && isAdminRole) {
@@ -478,15 +579,21 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
         </Button>
       </div>
 
-      {/* Header Section */}
+      {/* Header Section - US-B1-01: System Admin Hub label */}
       <div className="p-6 border-b border-sidebar-border bg-gradient-to-b from-sidebar-primary/15 to-transparent flex-shrink-0">
         <div className="flex items-center gap-3 mb-2">
           <div className="w-10 h-10 bg-gradient-to-br from-sidebar-primary to-sidebar-primary/80 rounded-xl flex items-center justify-center shadow-md shadow-sidebar-primary/30">
             <Building2 className="w-5 h-5 text-sidebar-primary-foreground" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-sidebar-foreground leading-tight">Indian Bank</h2>
-            <p className="text-xs text-sidebar-foreground/70">{currentTenant?.code}</p>
+            <h2 className="text-base font-bold text-sidebar-foreground leading-tight">
+              {currentUser?.role === 'Tenant Admin' ? 'System Admin Hub' : 'Indian Bank'}
+            </h2>
+            <p className="text-xs text-sidebar-foreground/70">
+              {currentUser?.role === 'Tenant Admin' 
+                ? `${currentTenant?.name || 'System Configuration'}`
+                : currentTenant?.code}
+            </p>
           </div>
         </div>
       </div>
@@ -590,7 +697,9 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold text-sidebar-foreground truncate">{currentUser?.name}</p>
-            <p className="text-xs text-sidebar-foreground/70 truncate">{currentUser?.role}</p>
+            <p className="text-xs text-sidebar-foreground/70 truncate">
+              {currentUser?.role === 'Tenant Admin' ? 'System Admin' : currentUser?.role}
+            </p>
           </div>
         </div>
       </div>

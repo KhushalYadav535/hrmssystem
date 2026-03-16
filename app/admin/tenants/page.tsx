@@ -1,482 +1,376 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
-import apiService from '@/lib/api';
-import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, Building2, Pencil, Package, Eye, EyeOff } from 'lucide-react';
+import { Search, Building2, AlertCircle, CheckCircle2, XCircle, Pause, Play, Ban } from 'lucide-react';
+import apiService from '@/lib/api';
+import { toast } from 'sonner';
+import { useAuth } from '@/lib/auth-context';
 
+/**
+ * US-A4-01: Suspend / Deactivate Tenant Capability
+ * US-A4-02: Tenant Search and Filter
+ */
 export default function TenantsPage() {
-  const { toast } = useToast();
+  const { currentUser } = useAuth();
   const [tenants, setTenants] = useState<any[]>([]);
-  const [packages, setPackages] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [filteredTenants, setFilteredTenants] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [showSuspendDialog, setShowSuspendDialog] = useState(false);
+  const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
+  const [showReactivateDialog, setShowReactivateDialog] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<any>(null);
-  const [assignPackageId, setAssignPackageId] = useState('');
-  const [editForm, setEditForm] = useState({ name: '', location: '', status: 'active', adminEmail: '', adminName: '' });
-  const [editLoading, setEditLoading] = useState(false);
-  const [form, setForm] = useState({
-    name: '',
-    code: '',
-    location: 'India',
-    adminEmail: '',
-    adminPassword: '',
-    adminName: 'Tenant Administrator',
-  });
-  const [adminConfirmPassword, setAdminConfirmPassword] = useState('');
-  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [reason, setReason] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
-    loadData();
+    loadTenants();
   }, []);
 
-  const loadData = async () => {
+  useEffect(() => {
+    filterTenants();
+  }, [tenants, searchQuery, statusFilter]);
+
+  const loadTenants = async () => {
+    setIsLoading(true);
     try {
-      setLoading(true);
-      const [tRes, pRes] = await Promise.all([
-        apiService.getTenants(),
-        apiService.getSubscriptionPackages(),
-      ]);
-      if (tRes.success && tRes.data) {
-        setTenants(Array.isArray(tRes.data) ? tRes.data : []);
+      const response = await apiService.getTenants();
+      if (response.success && response.data) {
+        const list = Array.isArray(response.data) ? response.data : [];
+        setTenants(list);
       }
-      if (pRes.success && pRes.data) {
-        setPackages(Array.isArray(pRes.data) ? pRes.data : []);
-      }
-    } catch (e: any) {
-      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } catch (error: any) {
+      toast.error('Failed to load tenants');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const openCreate = () => {
-    setForm({
-      name: '',
-      code: '',
-      location: 'India',
-      adminEmail: '',
-      adminPassword: '',
-      adminName: 'Tenant Administrator',
-    });
-    setAdminConfirmPassword('');
-    setDialogOpen(true);
+  const filterTenants = () => {
+    let filtered = [...tenants];
+
+    // Status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(t => t.status === statusFilter);
+    }
+
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(t =>
+        t.name?.toLowerCase().includes(query) ||
+        t.code?.toLowerCase().includes(query) ||
+        t.location?.toLowerCase().includes(query) ||
+        t.registrationEmail?.toLowerCase().includes(query)
+      );
+    }
+
+    setFilteredTenants(filtered);
   };
 
-  const handleCreate = async () => {
-    if (!form.name?.trim() || !form.code?.trim()) {
-      toast({ title: 'Error', description: 'Name and code required', variant: 'destructive' });
+  const handleSuspend = async () => {
+    if (!reason || reason.trim().length < 20) {
+      toast.error('Please provide a reason (minimum 20 characters)');
       return;
     }
-    if (!form.adminEmail?.trim()) {
-      toast({ title: 'Error', description: 'Admin email required', variant: 'destructive' });
-      return;
-    }
-    if (!form.adminPassword) {
-      toast({ title: 'Error', description: 'Admin password required', variant: 'destructive' });
-      return;
-    }
-    if (form.adminPassword !== adminConfirmPassword) {
-      toast({ title: 'Error', description: 'Passwords do not match', variant: 'destructive' });
-      return;
-    }
-    if (form.adminPassword.length < 12) {
-      toast({ title: 'Error', description: 'Password must be at least 12 characters (uppercase, lowercase, digit, special char)', variant: 'destructive' });
-      return;
-    }
+
+    setIsProcessing(true);
     try {
-      const res = await apiService.createTenant({
-        name: form.name,
-        code: form.code,
-        location: form.location,
-        adminEmail: form.adminEmail,
-        adminPassword: form.adminPassword,
-        adminName: form.adminName,
-      });
-      if (res.success) {
-        toast({ title: 'Success', description: 'Tenant and admin user created successfully' });
-        setDialogOpen(false);
-        loadData();
-      } else {
-        toast({
-          title: 'Error',
-          description: (res as any).message || (res as any).error || 'Failed to create tenant',
-          variant: 'destructive',
-        });
-      }
-    } catch (e: any) {
-      toast({ title: 'Error', description: e.message, variant: 'destructive' });
-    }
-  };
-
-  const handleAssignPackage = async () => {
-    if (!selectedTenant?.id || !assignPackageId) return;
-    try {
-      const res = await apiService.applySubscriptionPackage(selectedTenant.id, assignPackageId);
-      if (res.success) {
-        toast({ title: 'Success', description: 'Package assigned' });
-        setAssignDialogOpen(false);
+      const response = await apiService.suspendTenant(selectedTenant._id || selectedTenant.id, reason);
+      if (response.success) {
+        toast.success('Tenant suspended successfully');
+        setShowSuspendDialog(false);
+        setReason('');
         setSelectedTenant(null);
-        setAssignPackageId('');
-        loadData();
-      } else {
-        toast({
-          title: 'Error',
-          description: (res as any).error || (res as any).message || 'Failed to assign package',
-          variant: 'destructive',
-        });
+        loadTenants();
       }
-    } catch (e: any) {
-      toast({ title: 'Error', description: e.message || 'Failed to assign package', variant: 'destructive' });
-    }
-  };
-
-  const updateTenant = async (tenant: any, updates: any) => {
-    try {
-      const res = await apiService.updateTenant(tenant.id, updates);
-      if (res.success) {
-        toast({ title: 'Success', description: 'Updated' });
-        loadData();
-      }
-    } catch (e: any) {
-      toast({ title: 'Error', description: e.message, variant: 'destructive' });
-    }
-  };
-
-  const openEdit = (tenant: any) => {
-    setSelectedTenant(tenant);
-    setEditForm({
-      name: tenant.name || '',
-      location: tenant.location || '',
-      status: tenant.status || 'active',
-      adminEmail: tenant.adminEmail || '',
-      adminName: tenant.adminName || '',
-    });
-    setEditDialogOpen(true);
-  };
-
-  const handleEdit = async () => {
-    if (!editForm.name?.trim()) {
-      toast({ title: 'Error', description: 'Company name is required', variant: 'destructive' });
-      return;
-    }
-    try {
-      setEditLoading(true);
-      const res = await apiService.updateTenant(selectedTenant.id, {
-        name: editForm.name.trim(),
-        location: editForm.location.trim(),
-        status: editForm.status,
-        adminEmail: editForm.adminEmail.trim() || undefined,
-        adminName: editForm.adminName.trim() || undefined,
-      });
-      if (res.success) {
-        toast({ title: 'Success', description: 'Tenant updated successfully' });
-        setEditDialogOpen(false);
-        setSelectedTenant(null);
-        loadData();
-      } else {
-        toast({
-          title: 'Error',
-          description: (res as any).message || (res as any).error || 'Failed to update tenant',
-          variant: 'destructive',
-        });
-      }
-    } catch (e: any) {
-      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to suspend tenant');
     } finally {
-      setEditLoading(false);
+      setIsProcessing(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
+  const handleDeactivate = async () => {
+    if (!reason || reason.trim().length < 20) {
+      toast.error('Please provide a reason (minimum 20 characters)');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const response = await apiService.deactivateTenant(selectedTenant._id || selectedTenant.id, reason);
+      if (response.success) {
+        toast.success('Tenant deactivated successfully');
+        setShowDeactivateDialog(false);
+        setReason('');
+        setSelectedTenant(null);
+        loadTenants();
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to deactivate tenant');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleReactivate = async () => {
+    setIsProcessing(true);
+    try {
+      const response = await apiService.reactivateTenant(selectedTenant._id || selectedTenant.id);
+      if (response.success) {
+        toast.success('Tenant reactivated successfully');
+        setShowReactivateDialog(false);
+        setSelectedTenant(null);
+        loadTenants();
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to reactivate tenant');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    const statusMap: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string }> = {
+      active: { variant: 'default', label: 'Active' },
+      inactive: { variant: 'secondary', label: 'Inactive' },
+      suspended: { variant: 'destructive', label: 'Suspended' },
+      pending: { variant: 'outline', label: 'Pending' },
+      rejected: { variant: 'destructive', label: 'Rejected' },
+    };
+    const config = statusMap[status] || { variant: 'outline' as const, label: status };
+    return <Badge variant={config.variant}>{config.label}</Badge>;
+  };
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-3xl font-bold">Tenant Management</h1>
-            <p className="text-muted-foreground">Add and manage companies</p>
+            <h1 className="text-3xl font-bold text-foreground">Tenant Management</h1>
+            <p className="text-muted-foreground mt-2">
+              Manage all organization tenants, including suspension and deactivation
+            </p>
           </div>
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Company
-          </Button>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {tenants.map((t) => (
-            <Card key={t.id}>
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-start">
-                  <div className="flex gap-2">
-                    <Building2 className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <CardTitle>{t.name}</CardTitle>
-                      <CardDescription>{t.code} {t.location ? `• ${t.location}` : ''}</CardDescription>
-                    </div>
-                  </div>
-                  <Badge variant={t.status === 'active' ? 'default' : 'secondary'}>{t.status || 'active'}</Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">{t.employees || 0} employees</p>
-                <div className="flex gap-2 mt-4 flex-wrap">
-                  <Button size="sm" variant="default" asChild>
-                    <Link href={`/admin/modules?tenant=${t.id}`}>
-                      <Package className="h-4 w-4 mr-1" />
-                      Manage Modules
-                    </Link>
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => openEdit(t)}
-                  >
-                    <Pencil className="h-4 w-4 mr-1" />
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setSelectedTenant(t);
-                      setAssignPackageId('');
-                      setAssignDialogOpen(true);
-                    }}
-                  >
-                    <Package className="h-4 w-4 mr-1" />
-                    Assign Package
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Add Company</DialogTitle>
-              <DialogDescription>Create a new tenant/company. Admin user will become Tenant Administrator.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
-              <div>
-                <Label>Company Name *</Label>
+        {/* Filters */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  value={form.name}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g., Acme Corp"
+                  placeholder="Search by name, code, location, or email..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
                 />
               </div>
-              <div>
-                <Label>Code (unique) *</Label>
-                <Input
-                  value={form.code}
-                  onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
-                  placeholder="e.g., ACME"
-                />
-              </div>
-              <div>
-                <Label>Location *</Label>
-                <Input
-                  value={form.location}
-                  onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
-                  placeholder="e.g., India"
-                />
-              </div>
-              <div className="border-t pt-4 mt-2">
-                <p className="text-sm font-medium text-muted-foreground mb-3">Tenant Administrator</p>
-                <div className="space-y-4">
-                  <div>
-                    <Label>Admin Email Address *</Label>
-                    <Input
-                      type="email"
-                      value={form.adminEmail}
-                      onChange={e => setForm(f => ({ ...f, adminEmail: e.target.value }))}
-                      placeholder="admin@example.com"
-                    />
-                  </div>
-                  <div>
-                    <Label>Admin Name</Label>
-                    <Input
-                      value={form.adminName}
-                      onChange={e => setForm(f => ({ ...f, adminName: e.target.value }))}
-                      placeholder="Tenant Administrator"
-                    />
-                  </div>
-                  <div>
-                    <Label>Password *</Label>
-                    <div className="relative">
-                      <Input
-                        type={showAdminPassword ? 'text' : 'password'}
-                        value={form.adminPassword}
-                        onChange={e => setForm(f => ({ ...f, adminPassword: e.target.value }))}
-                        placeholder="••••••••"
-                        className="pr-10"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowAdminPassword(!showAdminPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        {showAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">Min 12 chars, uppercase, lowercase, digit, special char</p>
-                  </div>
-                  <div>
-                    <Label>Confirm Password *</Label>
-                    <Input
-                      type="password"
-                      value={adminConfirmPassword}
-                      onChange={e => setAdminConfirmPassword(e.target.value)}
-                      placeholder="••••••••"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleCreate}>Create</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Assign Package</DialogTitle>
-              <DialogDescription>Assign subscription package to {selectedTenant?.name}</DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-              <Label>Select Package</Label>
-              <Select value={assignPackageId} onValueChange={setAssignPackageId}>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose package" />
+                  <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
                 <SelectContent>
-                  {packages.filter(p => p.isActive !== false).map((p) => (
-                    <SelectItem key={p._id} value={p._id}>
-                      {p.packageName} – ₹{Number(p.monthlyPrice || 0).toLocaleString()}/mo
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="suspended">Suspended</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleAssignPackage} disabled={!assignPackageId}>Assign</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-        {/* Edit Tenant Dialog */}
-        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-          <DialogContent className="sm:max-w-[500px]">
+          </CardContent>
+        </Card>
+
+        {/* Tenants List */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Tenants ({filteredTenants.length})</CardTitle>
+            <CardDescription>
+              Showing {filteredTenants.length} of {tenants.length} tenants
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">Loading tenants...</p>
+              </div>
+            ) : filteredTenants.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">No tenants found</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredTenants.map((tenant: any) => (
+                  <div
+                    key={tenant._id || tenant.id}
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-secondary/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-4">
+                      <Building2 className="w-8 h-8 text-muted-foreground" />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-lg">{tenant.name}</p>
+                          {getStatusBadge(tenant.status)}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Code: {tenant.code} • Location: {tenant.location || 'N/A'}
+                        </p>
+                        {tenant.registrationEmail && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Email: {tenant.registrationEmail}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Employees: {tenant.employeeCount || tenant.employees || 0}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {tenant.status === 'active' && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedTenant(tenant);
+                              setShowSuspendDialog(true);
+                            }}
+                          >
+                            <Pause className="w-4 h-4 mr-2" />
+                            Suspend
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedTenant(tenant);
+                              setShowDeactivateDialog(true);
+                            }}
+                          >
+                            <Ban className="w-4 h-4 mr-2" />
+                            Deactivate
+                          </Button>
+                        </>
+                      )}
+                      {(tenant.status === 'suspended' || tenant.status === 'inactive') && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedTenant(tenant);
+                            setShowReactivateDialog(true);
+                          }}
+                        >
+                          <Play className="w-4 h-4 mr-2" />
+                          Reactivate
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Suspend Dialog */}
+        <Dialog open={showSuspendDialog} onOpenChange={setShowSuspendDialog}>
+          <DialogContent>
             <DialogHeader>
-              <DialogTitle>Edit Tenant</DialogTitle>
-              <DialogDescription>Update details for {selectedTenant?.name}</DialogDescription>
+              <DialogTitle>Suspend Tenant</DialogTitle>
+              <DialogDescription>
+                Suspend tenant "{selectedTenant?.name}". All user accounts will be locked.
+              </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4 max-h-[65vh] overflow-y-auto pr-2">
+            <div className="space-y-4">
               <div>
-                <Label>Code</Label>
-                <Input
-                  value={selectedTenant?.code || ''}
-                  disabled
-                  className="bg-muted text-muted-foreground cursor-not-allowed"
-                />
-                <p className="text-xs text-muted-foreground mt-1">Tenant code cannot be changed</p>
-              </div>
-              <div>
-                <Label>Company Name *</Label>
-                <Input
-                  value={editForm.name}
-                  onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g., Acme Corp"
+                <Label>Reason (minimum 20 characters) *</Label>
+                <Textarea
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Enter reason for suspension..."
+                  rows={4}
                 />
               </div>
-              <div>
-                <Label>Location</Label>
-                <Input
-                  value={editForm.location}
-                  onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))}
-                  placeholder="e.g., India"
-                />
-              </div>
-              <div>
-                <Label>Status</Label>
-                <Select value={editForm.status} onValueChange={v => setEditForm(f => ({ ...f, status: v }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                    <SelectItem value="suspended">Suspended</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="border-t pt-4 mt-2">
-                <p className="text-sm font-medium text-muted-foreground mb-3">Tenant Administrator</p>
-                <div className="space-y-4">
-                  <div>
-                    <Label>Admin Email Address</Label>
-                    <Input
-                      type="email"
-                      value={editForm.adminEmail}
-                      onChange={e => setEditForm(f => ({ ...f, adminEmail: e.target.value }))}
-                      placeholder="admin@example.com"
-                    />
-                  </div>
-                  <div>
-                    <Label>Admin Name</Label>
-                    <Input
-                      value={editForm.adminName}
-                      onChange={e => setEditForm(f => ({ ...f, adminName: e.target.value }))}
-                      placeholder="Tenant Administrator"
-                    />
-                  </div>
-                </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowSuspendDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSuspend} disabled={isProcessing || reason.trim().length < 20}>
+                  {isProcessing ? 'Suspending...' : 'Suspend Tenant'}
+                </Button>
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleEdit} disabled={editLoading}>
-                {editLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Save Changes
-              </Button>
-            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Deactivate Dialog */}
+        <Dialog open={showDeactivateDialog} onOpenChange={setShowDeactivateDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Deactivate Tenant</DialogTitle>
+              <DialogDescription>
+                Deactivate tenant "{selectedTenant?.name}". All user accounts will be locked.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Reason (minimum 20 characters) *</Label>
+                <Textarea
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Enter reason for deactivation..."
+                  rows={4}
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowDeactivateDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleDeactivate} disabled={isProcessing || reason.trim().length < 20} variant="destructive">
+                  {isProcessing ? 'Deactivating...' : 'Deactivate Tenant'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Reactivate Dialog */}
+        <Dialog open={showReactivateDialog} onOpenChange={setShowReactivateDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Reactivate Tenant</DialogTitle>
+              <DialogDescription>
+                Reactivate tenant "{selectedTenant?.name}". All user accounts will be unlocked.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Are you sure you want to reactivate this tenant? All user accounts will be unlocked and the tenant will be able to access the system again.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowReactivateDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleReactivate} disabled={isProcessing}>
+                  {isProcessing ? 'Reactivating...' : 'Reactivate Tenant'}
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
