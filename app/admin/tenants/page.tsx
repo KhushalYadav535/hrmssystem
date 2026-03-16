@@ -93,6 +93,8 @@ export default function TenantsPage() {
         setReason('');
         setSelectedTenant(null);
         loadTenants();
+      } else {
+        toast.error(response.message || 'Failed to suspend tenant');
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to suspend tenant');
@@ -116,6 +118,8 @@ export default function TenantsPage() {
         setReason('');
         setSelectedTenant(null);
         loadTenants();
+      } else {
+        toast.error(response.message || 'Failed to deactivate tenant');
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to deactivate tenant');
@@ -133,6 +137,8 @@ export default function TenantsPage() {
         setShowReactivateDialog(false);
         setSelectedTenant(null);
         loadTenants();
+      } else {
+        toast.error(response.message || 'Failed to reactivate tenant');
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to reactivate tenant');
