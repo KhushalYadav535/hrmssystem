@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Search, Building2, AlertCircle, CheckCircle2, XCircle, Pause, Play, Ban } from 'lucide-react';
+import { Search, Building2, AlertCircle, CheckCircle2, XCircle, Pause, Play, Ban, Plus } from 'lucide-react';
 import apiService from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth-context';
@@ -29,9 +29,20 @@ export default function TenantsPage() {
   const [showSuspendDialog, setShowSuspendDialog] = useState(false);
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
   const [showReactivateDialog, setShowReactivateDialog] = useState(false);
+  const [showAddTenantDialog, setShowAddTenantDialog] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<any>(null);
   const [reason, setReason] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Add Tenant form state
+  const [addTenantForm, setAddTenantForm] = useState({
+    name: '',
+    code: '',
+    location: '',
+    adminName: '',
+    adminEmail: '',
+    adminPassword: '',
+  });
 
   useEffect(() => {
     loadTenants();
@@ -147,6 +158,46 @@ export default function TenantsPage() {
     }
   };
 
+  const handleAddTenant = async () => {
+    const { name, code, location, adminName, adminEmail, adminPassword } = addTenantForm;
+    if (!name?.trim() || !code?.trim()) {
+      toast.error('Tenant name and code are required');
+      return;
+    }
+    if (!adminEmail?.trim() || !adminPassword) {
+      toast.error('Admin email and password are required');
+      return;
+    }
+    if (adminPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const response = await apiService.createTenant({
+        name: name.trim(),
+        code: code.trim().toUpperCase(),
+        location: location?.trim() || undefined,
+        adminName: adminName?.trim() || undefined,
+        adminEmail: adminEmail.trim().toLowerCase(),
+        adminPassword,
+      });
+      if (response.success) {
+        toast.success('Tenant created successfully');
+        setShowAddTenantDialog(false);
+        setAddTenantForm({ name: '', code: '', location: '', adminName: '', adminEmail: '', adminPassword: '' });
+        loadTenants();
+      } else {
+        toast.error(response.message || 'Failed to create tenant');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to create tenant');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string }> = {
       active: { variant: 'default', label: 'Active' },
@@ -169,6 +220,10 @@ export default function TenantsPage() {
               Manage all organization tenants, including suspension and deactivation
             </p>
           </div>
+          <Button onClick={() => setShowAddTenantDialog(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Tenant
+          </Button>
         </div>
 
         {/* Filters */}
@@ -349,6 +404,90 @@ export default function TenantsPage() {
                 </Button>
                 <Button onClick={handleDeactivate} disabled={isProcessing || reason.trim().length < 20} variant="destructive">
                   {isProcessing ? 'Deactivating...' : 'Deactivate Tenant'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add Tenant Dialog */}
+        <Dialog open={showAddTenantDialog} onOpenChange={(open) => {
+          setShowAddTenantDialog(open);
+          if (!open) setAddTenantForm({ name: '', code: '', location: '', adminName: '', adminEmail: '', adminPassword: '' });
+        }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Add Tenant</DialogTitle>
+              <DialogDescription>
+                Create a new tenant organization with a Tenant Admin user. The admin can log in and manage their organization.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Tenant Name *</Label>
+                <Input
+                  placeholder="e.g. Acme Corporation"
+                  value={addTenantForm.name}
+                  onChange={(e) => setAddTenantForm(f => ({ ...f, name: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Tenant Code *</Label>
+                <Input
+                  placeholder="e.g. ACME-CORP"
+                  value={addTenantForm.code}
+                  onChange={(e) => setAddTenantForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
+                />
+                <p className="text-xs text-muted-foreground mt-1">Unique code (letters/numbers, will be uppercased)</p>
+              </div>
+              <div>
+                <Label>Location</Label>
+                <Input
+                  placeholder="e.g. Mumbai, India"
+                  value={addTenantForm.location}
+                  onChange={(e) => setAddTenantForm(f => ({ ...f, location: e.target.value }))}
+                />
+              </div>
+              <div className="border-t pt-4">
+                <p className="text-sm font-medium mb-2">Tenant Admin User</p>
+                <div className="space-y-3">
+                  <div>
+                    <Label>Admin Name</Label>
+                    <Input
+                      placeholder="e.g. John Doe"
+                      value={addTenantForm.adminName}
+                      onChange={(e) => setAddTenantForm(f => ({ ...f, adminName: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Admin Email *</Label>
+                    <Input
+                      type="email"
+                      placeholder="admin@company.com"
+                      value={addTenantForm.adminEmail}
+                      onChange={(e) => setAddTenantForm(f => ({ ...f, adminEmail: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Admin Password *</Label>
+                    <Input
+                      type="password"
+                      placeholder="Min 6 characters"
+                      value={addTenantForm.adminPassword}
+                      onChange={(e) => setAddTenantForm(f => ({ ...f, adminPassword: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => setShowAddTenantDialog(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleAddTenant}
+                  disabled={isProcessing || !addTenantForm.name?.trim() || !addTenantForm.code?.trim() || !addTenantForm.adminEmail?.trim() || !addTenantForm.adminPassword || addTenantForm.adminPassword.length < 6}
+                >
+                  {isProcessing ? 'Creating...' : 'Create Tenant'}
                 </Button>
               </div>
             </div>
