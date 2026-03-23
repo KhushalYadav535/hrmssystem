@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Search, Building2, AlertCircle, CheckCircle2, XCircle, Pause, Play, Ban, Plus } from 'lucide-react';
+import { Search, Building2, AlertCircle, CheckCircle2, XCircle, Pause, Play, Ban, Plus, Edit } from 'lucide-react';
 import apiService from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth-context';
@@ -30,6 +30,7 @@ export default function TenantsPage() {
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
   const [showReactivateDialog, setShowReactivateDialog] = useState(false);
   const [showAddTenantDialog, setShowAddTenantDialog] = useState(false);
+  const [showEditTenantDialog, setShowEditTenantDialog] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<any>(null);
   const [reason, setReason] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -42,6 +43,12 @@ export default function TenantsPage() {
     adminName: '',
     adminEmail: '',
     adminPassword: '',
+  });
+
+  // Edit Tenant form state
+  const [editTenantForm, setEditTenantForm] = useState({
+    name: '',
+    location: '',
   });
 
   useEffect(() => {
@@ -158,18 +165,62 @@ export default function TenantsPage() {
     }
   };
 
+  const handleEditTenant = async () => {
+    if (!editTenantForm.name?.trim()) {
+      toast.error('Tenant name is required');
+      return;
+    }
+    const tid = selectedTenant._id || selectedTenant.id;
+    setIsProcessing(true);
+    try {
+      const response = await apiService.updateTenant(tid, {
+        name: editTenantForm.name.trim(),
+        location: editTenantForm.location?.trim() || '',
+      });
+      if (response.success) {
+        toast.success('Tenant updated successfully');
+        setShowEditTenantDialog(false);
+        setSelectedTenant(null);
+        loadTenants();
+      } else {
+        toast.error(response.message || 'Failed to update tenant');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update tenant');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const openEditTenant = (tenant: any) => {
+    setSelectedTenant(tenant);
+    setEditTenantForm({ name: tenant.name || '', location: tenant.location || '' });
+    setShowEditTenantDialog(true);
+  };
+
+  const getPasswordErrors = (pwd: string): string[] => {
+    const errs: string[] = [];
+    if (!pwd || pwd.length < 6) errs.push('At least 6 characters');
+    return errs;
+  };
+
   const handleAddTenant = async () => {
     const { name, code, location, adminName, adminEmail, adminPassword } = addTenantForm;
     if (!name?.trim() || !code?.trim()) {
       toast.error('Tenant name and code are required');
       return;
     }
-    if (!adminEmail?.trim() || !adminPassword) {
-      toast.error('Admin email and password are required');
+    if (!adminEmail?.trim()) {
+      toast.error('Admin email is required');
       return;
     }
-    if (adminPassword.length < 6) {
+    if (!adminPassword || adminPassword.length < 6) {
       toast.error('Password must be at least 6 characters');
+      return;
+    }
+    const pwdErrors = getPasswordErrors(adminPassword);
+    if (pwdErrors.length > 0) {
+      toast.error(`Invalid password: ${pwdErrors.join(', ')}`);
       return;
     }
 
@@ -301,6 +352,14 @@ export default function TenantsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openEditTenant(tenant)}
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit
+                      </Button>
                       {tenant.status === 'active' && (
                         <>
                           <Button
@@ -410,6 +469,45 @@ export default function TenantsPage() {
           </DialogContent>
         </Dialog>
 
+        {/* Edit Tenant Dialog */}
+        <Dialog open={showEditTenantDialog} onOpenChange={(open) => {
+          setShowEditTenantDialog(open);
+          if (!open) setSelectedTenant(null);
+        }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Tenant</DialogTitle>
+              <DialogDescription>
+                Update tenant name and location
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Tenant Name *</Label>
+                <Input
+                  value={editTenantForm.name}
+                  onChange={(e) => setEditTenantForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="Tenant name"
+                />
+              </div>
+              <div>
+                <Label>Location</Label>
+                <Input
+                  value={editTenantForm.location}
+                  onChange={(e) => setEditTenantForm(f => ({ ...f, location: e.target.value }))}
+                  placeholder="e.g. Mumbai, India"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowEditTenantDialog(false)}>Cancel</Button>
+                <Button onClick={handleEditTenant} disabled={isProcessing || !editTenantForm.name?.trim()}>
+                  {isProcessing ? 'Saving...' : 'Save Changes'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Add Tenant Dialog */}
         <Dialog open={showAddTenantDialog} onOpenChange={(open) => {
           setShowAddTenantDialog(open);
@@ -472,10 +570,14 @@ export default function TenantsPage() {
                     <Label>Admin Password *</Label>
                     <Input
                       type="password"
-                      placeholder="Min 6 characters"
+                      placeholder="Minimum 6 characters required"
                       value={addTenantForm.adminPassword}
                       onChange={(e) => setAddTenantForm(f => ({ ...f, adminPassword: e.target.value }))}
+                      className={addTenantForm.adminPassword && addTenantForm.adminPassword.length < 6 ? 'border-destructive' : ''}
                     />
+                    {addTenantForm.adminPassword && addTenantForm.adminPassword.length < 6 && (
+                      <p className="text-xs text-destructive mt-1">Password must be at least 6 characters</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -485,7 +587,14 @@ export default function TenantsPage() {
                 </Button>
                 <Button
                   onClick={handleAddTenant}
-                  disabled={isProcessing || !addTenantForm.name?.trim() || !addTenantForm.code?.trim() || !addTenantForm.adminEmail?.trim() || !addTenantForm.adminPassword || addTenantForm.adminPassword.length < 6}
+                  disabled={
+                    isProcessing ||
+                    !addTenantForm.name?.trim() ||
+                    !addTenantForm.code?.trim() ||
+                    !addTenantForm.adminEmail?.trim() ||
+                    !addTenantForm.adminPassword ||
+                    addTenantForm.adminPassword.length < 6
+                  }
                 >
                   {isProcessing ? 'Creating...' : 'Create Tenant'}
                 </Button>

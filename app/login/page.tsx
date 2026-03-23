@@ -352,12 +352,7 @@ export default function LoginPage() {
             <CardDescription className="text-base">Manage your human resources with ease and efficiency</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              {/* US-A1-04: Quick Login tab removed - Email login is always default */}
-              <TabsList className="grid w-full grid-cols-2 mb-8 bg-secondary/50 p-1 h-auto">
-                <TabsTrigger value="email-login" className="py-2.5 font-medium text-sm rounded-lg">📧 Email</TabsTrigger>
-                <TabsTrigger value="register" className="py-2.5 font-medium text-sm rounded-lg">✨ Register</TabsTrigger>
-              </TabsList>
+            <Tabs value="email-login" className="w-full">
 
               {/* Email/Password Login */}
               <TabsContent value="email-login" className="space-y-4">
@@ -534,8 +529,9 @@ export default function LoginPage() {
                   </div>
                 )}
               </TabsContent>
+            </Tabs>
 
-              {/* Register */}
+            {false && (
               <TabsContent value="register" className="space-y-4">
                 <div className="bg-accent/10 border border-accent rounded-lg p-3 mb-4 flex gap-2">
                   <AlertCircle className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
@@ -715,7 +711,7 @@ export default function LoginPage() {
                   </div>
                 )}
               </TabsContent>
-            </Tabs>
+            )}
 
             {/* Footer */}
             <div className="text-center text-xs text-muted-foreground pt-6 border-t mt-6">

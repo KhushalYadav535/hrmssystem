@@ -82,12 +82,18 @@ export default function ComplianceSettingsPage() {
 
     setSaving(true);
     try {
-      await apiService.updatePlatformSettings({
-        compliance: settings,
-      });
-      toast.success('Compliance settings saved successfully');
-      setRequiresAuth(false);
-      setAuthPassword('');
+      const payload: Record<string, any> = { compliance: settings };
+      if (requiresAuth && authPassword) {
+        payload.password = authPassword;
+      }
+      const res = await apiService.updatePlatformSettings(payload);
+      if (res.success) {
+        toast.success('Compliance settings saved successfully');
+        setRequiresAuth(false);
+        setAuthPassword('');
+      } else {
+        toast.error(res.message || 'Failed to save compliance settings');
+      }
     } catch (error: any) {
       toast.error(error.message || 'Failed to save compliance settings');
     } finally {

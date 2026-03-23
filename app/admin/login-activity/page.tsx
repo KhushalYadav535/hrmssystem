@@ -47,8 +47,9 @@ export default function LoginActivityPage() {
         search: filters.ip || undefined,
       };
 
-      const response = await apiService.getAuditLogs(params);
-      
+      // Use platform-admin endpoint for Super Admin (Login Activity is platform-wide)
+      const response = await apiService.getPlatformAuditLogs(params);
+
       if (response.success && response.data) {
         const logs = Array.isArray(response.data) ? response.data : response.data.logs || [];
         // Filter for login-related actions only
@@ -77,14 +78,28 @@ export default function LoginActivityPage() {
 
   const handleExport = async () => {
     try {
-      const response = await apiService.get('/audit-logs/export', {
+      const response = await apiService.exportPlatformAuditLogs({
         module: 'Authentication',
-        format: 'csv',
+        dateFrom: filters.dateFrom || undefined,
+        dateTo: filters.dateTo || undefined,
       });
-      
-      if (response.success) {
-        // Create download link
-        const blob = new Blob([response.data], { type: 'text/csv' });
+
+      if (response.success && response.data) {
+        const logs = Array.isArray(response.data) ? response.data : [];
+        const loginLogs = logs.filter((log: any) =>
+          ['Login', 'Login Success', 'Login Failed', 'Account Locked', 'MFA Verified', 'MFA Failed'].includes(log.action)
+        );
+        const headers = ['Timestamp', 'Email', 'IP Address', 'Action', 'Status', 'Details'];
+        const rows = loginLogs.map((log: any) => [
+          new Date(log.timestamp || log.createdAt).toISOString(),
+          log.userEmail || log.email || '',
+          log.ipAddress || '',
+          log.action || '',
+          log.status || '',
+          (log.details || '').replace(/"/g, '""'),
+        ]);
+        const csv = [headers.join(','), ...rows.map((r: string[]) => r.map((c: string) => `"${c}"`).join(','))].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;

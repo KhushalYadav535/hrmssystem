@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,7 @@ const systemHealthData = [
 ];
 
 export default function SuperAdminDashboard() {
+  const router = useRouter();
   const [tenants, setTenants] = useState<any[]>([]);
   const [totalUsers, setTotalUsers] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -190,67 +192,75 @@ export default function SuperAdminDashboard() {
         <p className="text-muted-foreground mt-2">Manage companies, modules, subscriptions and platform configuration</p>
       </div>
 
-      {/* Key Metrics */}
+      {/* Key Metrics - Clickable cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Active Tenants</p>
-                <p className="text-2xl font-bold text-foreground">
-                  {isLoading ? '--' : activeTenants}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {isLoading ? 'Loading...' : 'All systems operational'}
-                </p>
+        <Link href="/admin/tenants?status=active">
+          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Active Tenants</p>
+                  <p className="text-2xl font-bold text-foreground">
+                    {isLoading ? '--' : activeTenants}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {isLoading ? 'Loading...' : 'All systems operational'}
+                  </p>
+                </div>
+                <Building2 className="w-10 h-10 text-primary/30" />
               </div>
-              <Building2 className="w-10 h-10 text-primary/30" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Users</p>
-                <p className="text-2xl font-bold text-foreground">
-                  {isLoading ? '--' : totalUsers.toLocaleString()}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {isLoading ? 'Loading...' : 'Across all tenants'}
-                </p>
+        <Link href="/admin/tenants">
+          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Users</p>
+                  <p className="text-2xl font-bold text-foreground">
+                    {isLoading ? '--' : totalUsers.toLocaleString()}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {isLoading ? 'Loading...' : 'Across all tenants'}
+                  </p>
+                </div>
+                <Users className="w-10 h-10 text-primary/30" />
               </div>
-              <Users className="w-10 h-10 text-primary/30" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">System Uptime</p>
-                <p className="text-2xl font-bold text-foreground">99.9%</p>
-                <p className="text-xs text-green-600 mt-1">Last 7 days</p>
+        <Link href="/admin/integrations/health">
+          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">System Uptime</p>
+                  <p className="text-2xl font-bold text-foreground">99.9%</p>
+                  <p className="text-xs text-green-600 mt-1">Last 7 days</p>
+                </div>
+                <Server className="w-10 h-10 text-primary/30" />
               </div>
-              <Server className="w-10 h-10 text-primary/30" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Database Size</p>
-                <p className="text-2xl font-bold text-foreground">2.4 GB</p>
-                <p className="text-xs text-muted-foreground mt-1">Optimized</p>
+        <Link href="/admin/analytics">
+          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Database Size</p>
+                  <p className="text-2xl font-bold text-foreground">2.4 GB</p>
+                  <p className="text-xs text-muted-foreground mt-1">Optimized</p>
+                </div>
+                <Database className="w-10 h-10 text-primary/30" />
               </div>
-              <Database className="w-10 h-10 text-primary/30" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       {/* US-A2-02: Pending Registrations Alert */}
@@ -413,7 +423,7 @@ export default function SuperAdminDashboard() {
 
       {/* Tenant Management */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+        <Card className="cursor-pointer hover:shadow-md transition-shadow h-full" onClick={() => router.push('/admin/tenants')} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && router.push('/admin/tenants')}>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -421,9 +431,9 @@ export default function SuperAdminDashboard() {
                 <CardDescription>Manage all organization tenants</CardDescription>
               </div>
               <Button size="sm" asChild>
-                <Link href="/admin/modules">
+                <Link href="/admin/tenants">
                   <Plus className="w-4 h-4 mr-2" />
-                  Manage Companies
+                  Manage Tenants
                 </Link>
               </Button>
             </div>
@@ -437,7 +447,7 @@ export default function SuperAdminDashboard() {
               <div className="text-center py-8">
                 <p className="text-muted-foreground">No tenants found</p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  <Link href="/admin/modules" className="text-primary hover:underline">Add companies</Link> via Module Management
+                  <Link href="/admin/tenants" className="text-primary hover:underline">Add tenants</Link> via Tenant Management
                 </p>
               </div>
             ) : (
@@ -464,7 +474,7 @@ export default function SuperAdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="cursor-pointer hover:shadow-md transition-shadow h-full" onClick={() => router.push('/admin/integrations/health')} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && router.push('/admin/integrations/health')}>
           <CardHeader>
             <CardTitle>System Health</CardTitle>
             <CardDescription>Performance and uptime monitoring</CardDescription>
