@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Search, Building2, AlertCircle, CheckCircle2, XCircle, Pause, Play, Ban, Plus, Edit } from 'lucide-react';
+import { Search, Building2, AlertCircle, CheckCircle2, XCircle, Pause, Play, Ban, Plus, Edit, Eye, EyeOff, Trash2 } from 'lucide-react';
 import apiService from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth-context';
@@ -31,6 +31,9 @@ export default function TenantsPage() {
   const [showReactivateDialog, setShowReactivateDialog] = useState(false);
   const [showAddTenantDialog, setShowAddTenantDialog] = useState(false);
   const [showEditTenantDialog, setShowEditTenantDialog] = useState(false);
+  const [showDeleteTenantDialog, setShowDeleteTenantDialog] = useState(false);
+  const [showAddPassword, setShowAddPassword] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<any>(null);
   const [reason, setReason] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -43,12 +46,46 @@ export default function TenantsPage() {
     adminName: '',
     adminEmail: '',
     adminPassword: '',
+    bank_id: '',
+    bank_code: '',
+    bank_name: '',
+    short_name: '',
+    registration_no: '',
+    rbi_license_no: '',
+    registered_office: '',
+    address: '',
+    city: '',
+    state: '',
+    country: '',
+    pin: '',
+    phone: '',
+    email: '',
+    website: '',
   });
 
-  // Edit Tenant form state
+  // Edit Tenant form state - all fields like Create
   const [editTenantForm, setEditTenantForm] = useState({
     name: '',
+    code: '',
     location: '',
+    adminName: '',
+    adminEmail: '',
+    adminPassword: '',
+    bank_id: '',
+    bank_code: '',
+    bank_name: '',
+    short_name: '',
+    registration_no: '',
+    rbi_license_no: '',
+    registered_office: '',
+    address: '',
+    city: '',
+    state: '',
+    country: '',
+    pin: '',
+    phone: '',
+    email: '',
+    website: '',
   });
 
   useEffect(() => {
@@ -170,13 +207,45 @@ export default function TenantsPage() {
       toast.error('Tenant name is required');
       return;
     }
+    if (!editTenantForm.code?.trim()) {
+      toast.error('Tenant code is required');
+      return;
+    }
+    if (!editTenantForm.adminEmail?.trim()) {
+      toast.error('Admin email is required');
+      return;
+    }
+    if (editTenantForm.adminPassword && editTenantForm.adminPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
     const tid = selectedTenant._id || selectedTenant.id;
     setIsProcessing(true);
     try {
-      const response = await apiService.updateTenant(tid, {
+      const payload: Record<string, any> = {
         name: editTenantForm.name.trim(),
+        code: editTenantForm.code.trim().toUpperCase(),
         location: editTenantForm.location?.trim() || '',
-      });
+        adminName: editTenantForm.adminName?.trim() || undefined,
+        adminEmail: editTenantForm.adminEmail.trim().toLowerCase(),
+        bank_id: editTenantForm.bank_id?.trim() || undefined,
+        bank_code: editTenantForm.bank_code?.trim() || undefined,
+        bank_name: editTenantForm.bank_name?.trim() || undefined,
+        short_name: editTenantForm.short_name?.trim() || undefined,
+        registration_no: editTenantForm.registration_no?.trim() || undefined,
+        rbi_license_no: editTenantForm.rbi_license_no?.trim() || undefined,
+        registered_office: editTenantForm.registered_office?.trim() || undefined,
+        address: editTenantForm.address?.trim() || undefined,
+        city: editTenantForm.city?.trim() || undefined,
+        state: editTenantForm.state?.trim() || undefined,
+        country: editTenantForm.country?.trim() || undefined,
+        pin: editTenantForm.pin?.trim() || undefined,
+        phone: editTenantForm.phone?.trim() || undefined,
+        email: editTenantForm.email?.trim() || undefined,
+        website: editTenantForm.website?.trim() || undefined,
+      };
+      if (editTenantForm.adminPassword) payload.adminPassword = editTenantForm.adminPassword;
+      const response = await apiService.updateTenant(tid, payload);
       if (response.success) {
         toast.success('Tenant updated successfully');
         setShowEditTenantDialog(false);
@@ -192,9 +261,51 @@ export default function TenantsPage() {
     }
   };
 
+  const handleDeleteTenant = async () => {
+    const tid = selectedTenant._id || selectedTenant.id;
+    setIsProcessing(true);
+    try {
+      const response = await apiService.deleteTenant(tid);
+      if (response.success) {
+        toast.success('Tenant deleted successfully');
+        setShowDeleteTenantDialog(false);
+        setSelectedTenant(null);
+        loadTenants();
+      } else {
+        toast.error(response.message || 'Failed to delete tenant');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete tenant');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const openEditTenant = (tenant: any) => {
     setSelectedTenant(tenant);
-    setEditTenantForm({ name: tenant.name || '', location: tenant.location || '' });
+    setEditTenantForm({
+      name: tenant.name || '',
+      code: tenant.code || '',
+      location: tenant.location || '',
+      adminName: tenant.adminName || '',
+      adminEmail: tenant.adminEmail || tenant.registrationEmail || '',
+      adminPassword: '',
+      bank_id: tenant.bank_id || '',
+      bank_code: tenant.bank_code || '',
+      bank_name: tenant.bank_name || '',
+      short_name: tenant.short_name || '',
+      registration_no: tenant.registration_no || '',
+      rbi_license_no: tenant.rbi_license_no || '',
+      registered_office: tenant.registered_office || '',
+      address: tenant.address || '',
+      city: tenant.city || '',
+      state: tenant.state || '',
+      country: tenant.country || '',
+      pin: tenant.pin || '',
+      phone: tenant.phone || '',
+      email: tenant.email || '',
+      website: tenant.website || '',
+    });
     setShowEditTenantDialog(true);
   };
 
@@ -233,11 +344,31 @@ export default function TenantsPage() {
         adminName: adminName?.trim() || undefined,
         adminEmail: adminEmail.trim().toLowerCase(),
         adminPassword,
+        bank_id: addTenantForm.bank_id?.trim() || undefined,
+        bank_code: addTenantForm.bank_code?.trim() || undefined,
+        bank_name: addTenantForm.bank_name?.trim() || undefined,
+        short_name: addTenantForm.short_name?.trim() || undefined,
+        registration_no: addTenantForm.registration_no?.trim() || undefined,
+        rbi_license_no: addTenantForm.rbi_license_no?.trim() || undefined,
+        registered_office: addTenantForm.registered_office?.trim() || undefined,
+        address: addTenantForm.address?.trim() || undefined,
+        city: addTenantForm.city?.trim() || undefined,
+        state: addTenantForm.state?.trim() || undefined,
+        country: addTenantForm.country?.trim() || undefined,
+        pin: addTenantForm.pin?.trim() || undefined,
+        phone: addTenantForm.phone?.trim() || undefined,
+        email: addTenantForm.email?.trim() || undefined,
+        website: addTenantForm.website?.trim() || undefined,
       });
-      if (response.success) {
+        if (response.success) {
         toast.success('Tenant created successfully');
         setShowAddTenantDialog(false);
-        setAddTenantForm({ name: '', code: '', location: '', adminName: '', adminEmail: '', adminPassword: '' });
+        setAddTenantForm({
+          name: '', code: '', location: '', adminName: '', adminEmail: '', adminPassword: '',
+          bank_id: '', bank_code: '', bank_name: '', short_name: '', registration_no: '',
+          rbi_license_no: '', registered_office: '', address: '', city: '', state: '', country: '',
+          pin: '', phone: '', email: '', website: '',
+        });
         loadTenants();
       } else {
         toast.error(response.message || 'Failed to create tenant');
@@ -352,13 +483,20 @@ export default function TenantsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openEditTenant(tenant)}
-                      >
+                      <Button variant="outline" size="sm" onClick={() => openEditTenant(tenant)}>
                         <Edit className="w-4 h-4 mr-2" />
                         Edit
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedTenant(tenant);
+                          setShowDeleteTenantDialog(true);
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
                       </Button>
                       {tenant.status === 'active' && (
                         <>
@@ -469,26 +607,37 @@ export default function TenantsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Edit Tenant Dialog */}
+        {/* Edit Tenant Dialog - Full form like Create, fully visible with scroll */}
         <Dialog open={showEditTenantDialog} onOpenChange={(open) => {
           setShowEditTenantDialog(open);
           if (!open) setSelectedTenant(null);
         }}>
-          <DialogContent>
-            <DialogHeader>
+          <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
               <DialogTitle>Edit Tenant</DialogTitle>
               <DialogDescription>
-                Update tenant name and location
+                Update tenant details, bank info, and admin user
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label>Tenant Name *</Label>
-                <Input
-                  value={editTenantForm.name}
-                  onChange={(e) => setEditTenantForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="Tenant name"
-                />
+            <div className="flex-1 overflow-y-auto px-6 space-y-4 min-h-0">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Tenant Name *</Label>
+                  <Input
+                    value={editTenantForm.name}
+                    onChange={(e) => setEditTenantForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="e.g. Acme Corporation"
+                  />
+                </div>
+                <div>
+                  <Label>Tenant Code *</Label>
+                  <Input
+                    value={editTenantForm.code}
+                    onChange={(e) => setEditTenantForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
+                    placeholder="e.g. ACME-CORP"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Unique code</p>
+                </div>
               </div>
               <div>
                 <Label>Location</Label>
@@ -498,45 +647,129 @@ export default function TenantsPage() {
                   placeholder="e.g. Mumbai, India"
                 />
               </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setShowEditTenantDialog(false)}>Cancel</Button>
-                <Button onClick={handleEditTenant} disabled={isProcessing || !editTenantForm.name?.trim()}>
-                  {isProcessing ? 'Saving...' : 'Save Changes'}
-                </Button>
+
+              {/* Bank/Organization Details */}
+              <div className="border-t pt-4">
+                <p className="text-sm font-medium mb-3">Bank / Organization Details</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div><Label>Bank ID</Label><Input placeholder="Bank ID" value={editTenantForm.bank_id} onChange={(e) => setEditTenantForm(f => ({ ...f, bank_id: e.target.value }))} /></div>
+                  <div><Label>Bank Code</Label><Input placeholder="Bank Code" value={editTenantForm.bank_code} onChange={(e) => setEditTenantForm(f => ({ ...f, bank_code: e.target.value }))} /></div>
+                  <div className="md:col-span-2"><Label>Bank Name</Label><Input placeholder="Bank Name" value={editTenantForm.bank_name} onChange={(e) => setEditTenantForm(f => ({ ...f, bank_name: e.target.value }))} /></div>
+                  <div><Label>Short Name</Label><Input placeholder="Short Name" value={editTenantForm.short_name} onChange={(e) => setEditTenantForm(f => ({ ...f, short_name: e.target.value }))} /></div>
+                  <div><Label>Registration No</Label><Input placeholder="Registration No" value={editTenantForm.registration_no} onChange={(e) => setEditTenantForm(f => ({ ...f, registration_no: e.target.value }))} /></div>
+                  <div><Label>RBI License No</Label><Input placeholder="RBI License No" value={editTenantForm.rbi_license_no} onChange={(e) => setEditTenantForm(f => ({ ...f, rbi_license_no: e.target.value }))} /></div>
+                  <div className="md:col-span-2"><Label>Registered Office</Label><Input placeholder="Registered Office" value={editTenantForm.registered_office} onChange={(e) => setEditTenantForm(f => ({ ...f, registered_office: e.target.value }))} /></div>
+                  <div className="md:col-span-2"><Label>Address</Label><Input placeholder="Address" value={editTenantForm.address} onChange={(e) => setEditTenantForm(f => ({ ...f, address: e.target.value }))} /></div>
+                  <div><Label>City</Label><Input placeholder="City" value={editTenantForm.city} onChange={(e) => setEditTenantForm(f => ({ ...f, city: e.target.value }))} /></div>
+                  <div><Label>State</Label><Input placeholder="State" value={editTenantForm.state} onChange={(e) => setEditTenantForm(f => ({ ...f, state: e.target.value }))} /></div>
+                  <div><Label>Country</Label><Input placeholder="Country" value={editTenantForm.country} onChange={(e) => setEditTenantForm(f => ({ ...f, country: e.target.value }))} /></div>
+                  <div><Label>PIN</Label><Input placeholder="PIN" value={editTenantForm.pin} onChange={(e) => setEditTenantForm(f => ({ ...f, pin: e.target.value }))} /></div>
+                  <div><Label>Phone</Label><Input placeholder="Phone" value={editTenantForm.phone} onChange={(e) => setEditTenantForm(f => ({ ...f, phone: e.target.value }))} /></div>
+                  <div><Label>Email</Label><Input type="email" placeholder="Organization Email" value={editTenantForm.email} onChange={(e) => setEditTenantForm(f => ({ ...f, email: e.target.value }))} /></div>
+                  <div><Label>Website</Label><Input placeholder="Website" value={editTenantForm.website} onChange={(e) => setEditTenantForm(f => ({ ...f, website: e.target.value }))} /></div>
+                </div>
               </div>
+
+              <div className="border-t pt-4">
+                <p className="text-sm font-medium mb-2">Tenant Admin User</p>
+                <div className="space-y-3">
+                  <div>
+                    <Label>Admin Name</Label>
+                    <Input
+                      value={editTenantForm.adminName}
+                      onChange={(e) => setEditTenantForm(f => ({ ...f, adminName: e.target.value }))}
+                      placeholder="e.g. John Doe"
+                    />
+                  </div>
+                  <div>
+                    <Label>Admin Email *</Label>
+                    <Input
+                      type="email"
+                      value={editTenantForm.adminEmail}
+                      onChange={(e) => setEditTenantForm(f => ({ ...f, adminEmail: e.target.value }))}
+                      placeholder="admin@company.com"
+                    />
+                  </div>
+                  <div>
+                    <Label>New Password (optional)</Label>
+                    <div className="relative">
+                      <Input
+                        type={showEditPassword ? 'text' : 'password'}
+                        value={editTenantForm.adminPassword}
+                        onChange={(e) => setEditTenantForm(f => ({ ...f, adminPassword: e.target.value }))}
+                        placeholder="Leave blank to keep current"
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowEditPassword(!showEditPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showEditPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    {editTenantForm.adminPassword && editTenantForm.adminPassword.length < 6 && (
+                      <p className="text-xs text-destructive mt-1">Password must be at least 6 characters</p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">Minimum 6 characters if changing</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-6 pb-6 pt-4 border-t shrink-0">
+              <Button variant="outline" onClick={() => setShowEditTenantDialog(false)}>Cancel</Button>
+              <Button
+                onClick={handleEditTenant}
+                disabled={
+                  isProcessing ||
+                  !editTenantForm.name?.trim() ||
+                  !editTenantForm.code?.trim() ||
+                  !editTenantForm.adminEmail?.trim() ||
+                  (editTenantForm.adminPassword ? editTenantForm.adminPassword.length < 6 : false)
+                }
+              >
+                {isProcessing ? 'Saving...' : 'Save Changes'}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
 
-        {/* Add Tenant Dialog */}
+        {/* Add Tenant Dialog - Full form with scroll */}
         <Dialog open={showAddTenantDialog} onOpenChange={(open) => {
           setShowAddTenantDialog(open);
-          if (!open) setAddTenantForm({ name: '', code: '', location: '', adminName: '', adminEmail: '', adminPassword: '' });
+          if (!open) setAddTenantForm({
+            name: '', code: '', location: '', adminName: '', adminEmail: '', adminPassword: '',
+            bank_id: '', bank_code: '', bank_name: '', short_name: '', registration_no: '',
+            rbi_license_no: '', registered_office: '', address: '', city: '', state: '', country: '',
+            pin: '', phone: '', email: '', website: '',
+          });
         }}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
+          <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
               <DialogTitle>Add Tenant</DialogTitle>
               <DialogDescription>
-                Create a new tenant organization with a Tenant Admin user. The admin can log in and manage their organization.
+                Create a new tenant organization with a Tenant Admin user.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label>Tenant Name *</Label>
-                <Input
-                  placeholder="e.g. Acme Corporation"
-                  value={addTenantForm.name}
-                  onChange={(e) => setAddTenantForm(f => ({ ...f, name: e.target.value }))}
-                />
-              </div>
-              <div>
-                <Label>Tenant Code *</Label>
-                <Input
-                  placeholder="e.g. ACME-CORP"
-                  value={addTenantForm.code}
-                  onChange={(e) => setAddTenantForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
-                />
-                <p className="text-xs text-muted-foreground mt-1">Unique code (letters/numbers, will be uppercased)</p>
+            <div className="flex-1 overflow-y-auto px-6 space-y-4 min-h-0">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Tenant Name *</Label>
+                  <Input
+                    placeholder="e.g. Acme Corporation"
+                    value={addTenantForm.name}
+                    onChange={(e) => setAddTenantForm(f => ({ ...f, name: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label>Tenant Code *</Label>
+                  <Input
+                    placeholder="e.g. ACME-CORP"
+                    value={addTenantForm.code}
+                    onChange={(e) => setAddTenantForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Unique code</p>
+                </div>
               </div>
               <div>
                 <Label>Location</Label>
@@ -546,6 +779,29 @@ export default function TenantsPage() {
                   onChange={(e) => setAddTenantForm(f => ({ ...f, location: e.target.value }))}
                 />
               </div>
+
+              {/* Bank/Organization Details */}
+              <div className="border-t pt-4">
+                <p className="text-sm font-medium mb-3">Bank / Organization Details</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div><Label>Bank ID</Label><Input placeholder="Bank ID" value={addTenantForm.bank_id} onChange={(e) => setAddTenantForm(f => ({ ...f, bank_id: e.target.value }))} /></div>
+                  <div><Label>Bank Code</Label><Input placeholder="Bank Code" value={addTenantForm.bank_code} onChange={(e) => setAddTenantForm(f => ({ ...f, bank_code: e.target.value }))} /></div>
+                  <div className="md:col-span-2"><Label>Bank Name</Label><Input placeholder="Bank Name" value={addTenantForm.bank_name} onChange={(e) => setAddTenantForm(f => ({ ...f, bank_name: e.target.value }))} /></div>
+                  <div><Label>Short Name</Label><Input placeholder="Short Name" value={addTenantForm.short_name} onChange={(e) => setAddTenantForm(f => ({ ...f, short_name: e.target.value }))} /></div>
+                  <div><Label>Registration No</Label><Input placeholder="Registration No" value={addTenantForm.registration_no} onChange={(e) => setAddTenantForm(f => ({ ...f, registration_no: e.target.value }))} /></div>
+                  <div><Label>RBI License No</Label><Input placeholder="RBI License No" value={addTenantForm.rbi_license_no} onChange={(e) => setAddTenantForm(f => ({ ...f, rbi_license_no: e.target.value }))} /></div>
+                  <div className="md:col-span-2"><Label>Registered Office</Label><Input placeholder="Registered Office" value={addTenantForm.registered_office} onChange={(e) => setAddTenantForm(f => ({ ...f, registered_office: e.target.value }))} /></div>
+                  <div className="md:col-span-2"><Label>Address</Label><Input placeholder="Address" value={addTenantForm.address} onChange={(e) => setAddTenantForm(f => ({ ...f, address: e.target.value }))} /></div>
+                  <div><Label>City</Label><Input placeholder="City" value={addTenantForm.city} onChange={(e) => setAddTenantForm(f => ({ ...f, city: e.target.value }))} /></div>
+                  <div><Label>State</Label><Input placeholder="State" value={addTenantForm.state} onChange={(e) => setAddTenantForm(f => ({ ...f, state: e.target.value }))} /></div>
+                  <div><Label>Country</Label><Input placeholder="Country" value={addTenantForm.country} onChange={(e) => setAddTenantForm(f => ({ ...f, country: e.target.value }))} /></div>
+                  <div><Label>PIN</Label><Input placeholder="PIN" value={addTenantForm.pin} onChange={(e) => setAddTenantForm(f => ({ ...f, pin: e.target.value }))} /></div>
+                  <div><Label>Phone</Label><Input placeholder="Phone" value={addTenantForm.phone} onChange={(e) => setAddTenantForm(f => ({ ...f, phone: e.target.value }))} /></div>
+                  <div><Label>Email</Label><Input type="email" placeholder="Organization Email" value={addTenantForm.email} onChange={(e) => setAddTenantForm(f => ({ ...f, email: e.target.value }))} /></div>
+                  <div><Label>Website</Label><Input placeholder="Website" value={addTenantForm.website} onChange={(e) => setAddTenantForm(f => ({ ...f, website: e.target.value }))} /></div>
+                </div>
+              </div>
+
               <div className="border-t pt-4">
                 <p className="text-sm font-medium mb-2">Tenant Admin User</p>
                 <div className="space-y-3">
@@ -568,37 +824,65 @@ export default function TenantsPage() {
                   </div>
                   <div>
                     <Label>Admin Password *</Label>
-                    <Input
-                      type="password"
-                      placeholder="Minimum 6 characters required"
-                      value={addTenantForm.adminPassword}
-                      onChange={(e) => setAddTenantForm(f => ({ ...f, adminPassword: e.target.value }))}
-                      className={addTenantForm.adminPassword && addTenantForm.adminPassword.length < 6 ? 'border-destructive' : ''}
-                    />
+                    <div className="relative">
+                      <Input
+                        type={showAddPassword ? 'text' : 'password'}
+                        placeholder="Minimum 6 characters required"
+                        value={addTenantForm.adminPassword}
+                        onChange={(e) => setAddTenantForm(f => ({ ...f, adminPassword: e.target.value }))}
+                        className={`pr-10 ${addTenantForm.adminPassword && addTenantForm.adminPassword.length < 6 ? 'border-destructive' : ''}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowAddPassword(!showAddPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showAddPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                     {addTenantForm.adminPassword && addTenantForm.adminPassword.length < 6 && (
                       <p className="text-xs text-destructive mt-1">Password must be at least 6 characters</p>
                     )}
+                    <p className="text-xs text-muted-foreground mt-1">Minimum 6 characters</p>
                   </div>
                 </div>
               </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" onClick={() => setShowAddTenantDialog(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleAddTenant}
-                  disabled={
-                    isProcessing ||
-                    !addTenantForm.name?.trim() ||
-                    !addTenantForm.code?.trim() ||
-                    !addTenantForm.adminEmail?.trim() ||
-                    !addTenantForm.adminPassword ||
-                    addTenantForm.adminPassword.length < 6
-                  }
-                >
-                  {isProcessing ? 'Creating...' : 'Create Tenant'}
-                </Button>
-              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-6 pb-6 pt-4 border-t shrink-0">
+              <Button variant="outline" onClick={() => setShowAddTenantDialog(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleAddTenant}
+                disabled={
+                  isProcessing ||
+                  !addTenantForm.name?.trim() ||
+                  !addTenantForm.code?.trim() ||
+                  !addTenantForm.adminEmail?.trim() ||
+                  !addTenantForm.adminPassword ||
+                  addTenantForm.adminPassword.length < 6
+                }
+              >
+                {isProcessing ? 'Creating...' : 'Create Tenant'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Tenant Dialog */}
+        <Dialog open={showDeleteTenantDialog} onOpenChange={setShowDeleteTenantDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Tenant</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete tenant &quot;{selectedTenant?.name}&quot;? This will permanently remove the tenant and all associated data. This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowDeleteTenantDialog(false)}>Cancel</Button>
+              <Button variant="destructive" onClick={handleDeleteTenant} disabled={isProcessing}>
+                {isProcessing ? 'Deleting...' : 'Delete Tenant'}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>

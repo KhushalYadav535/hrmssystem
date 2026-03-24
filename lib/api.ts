@@ -1886,6 +1886,12 @@ class ApiService {
     });
   }
 
+  async deleteTenant(tenantId: string) {
+    return this.request(`/tenants/${tenantId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // ==================== SYSTEM ====================
 
   async getSystemStatus() {
@@ -3161,6 +3167,21 @@ class ApiService {
     adminEmail: string;
     adminPassword: string;
     adminName?: string;
+    bank_id?: string;
+    bank_code?: string;
+    bank_name?: string;
+    short_name?: string;
+    registration_no?: string;
+    rbi_license_no?: string;
+    registered_office?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    pin?: string;
+    phone?: string;
+    email?: string;
+    website?: string;
   }) {
     return this.request('/tenants', { method: 'POST', body: JSON.stringify(data) });
   }

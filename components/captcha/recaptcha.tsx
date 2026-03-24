@@ -85,6 +85,36 @@ export default function ReCaptcha({ onVerify, onError, action = 'login' }: ReCap
   return { executeRecaptcha };
 }
 
+// Preload reCAPTCHA script - call on login page mount so it's ready when needed
+let recaptchaLoadPromise: Promise<void> | null = null;
+function ensureRecaptchaLoaded(siteKey: string): Promise<void> {
+  if (window.grecaptcha?.execute) return Promise.resolve();
+  if (recaptchaLoadPromise) return recaptchaLoadPromise;
+  const existing = document.querySelector('script[src*="recaptcha/api.js"]');
+  if (existing) {
+    recaptchaLoadPromise = new Promise((resolve) => {
+      const check = setInterval(() => {
+        if (window.grecaptcha?.execute) {
+          clearInterval(check);
+          resolve();
+        }
+      }, 50);
+      setTimeout(() => { clearInterval(check); resolve(); }, 5000);
+    });
+    return recaptchaLoadPromise;
+  }
+  recaptchaLoadPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = `https://www.google.com/recaptcha/api.js?render=${siteKey}`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('reCAPTCHA failed to load'));
+    document.head.appendChild(script);
+  });
+  return recaptchaLoadPromise;
+}
+
 // Hook version for easier use
 export function useReCaptcha(action: string = 'login') {
   const execute = async (): Promise<string | null> => {
@@ -93,31 +123,10 @@ export function useReCaptcha(action: string = 'login') {
       console.warn('reCAPTCHA site key not configured');
       return null;
     }
-
-    // Ensure script is loaded
-    if (!window.grecaptcha) {
-      return new Promise((resolve) => {
-        const script = document.createElement('script');
-        script.src = `https://www.google.com/recaptcha/api.js?render=${siteKey}`;
-        script.async = true;
-        script.defer = true;
-        script.onload = async () => {
-          try {
-            const token = await window.grecaptcha.execute(siteKey, { action });
-            resolve(token);
-          } catch (error) {
-            console.error('reCAPTCHA error:', error);
-            resolve(null);
-          }
-        };
-        script.onerror = () => resolve(null);
-        document.head.appendChild(script);
-      });
-    }
-
     try {
-      const token = await window.grecaptcha.execute(siteKey, { action });
-      return token;
+      await ensureRecaptchaLoaded(siteKey);
+      if (!window.grecaptcha?.execute) return null;
+      return await window.grecaptcha.execute(siteKey, { action });
     } catch (error) {
       console.error('reCAPTCHA error:', error);
       return null;
