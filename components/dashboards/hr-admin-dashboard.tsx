@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -66,7 +67,9 @@ export default function HRAdminDashboard() {
 
   // Calculate recruitment pipeline data from jobs
   const recruitmentData = jobs.reduce((acc: any[], job: any) => {
-    const month = job.postedDate ? new Date(job.postedDate).toLocaleDateString('en-US', { month: 'short' }) : 'N/A';
+    const pd = job.postedDate ? new Date(job.postedDate) : null;
+    const monthStart = pd ? new Date(pd.getFullYear(), pd.getMonth(), 1) : null;
+    const month = monthStart ? formatDateDDMMYYYY(monthStart) : 'N/A';
     const existing = acc.find(d => d.month === month);
     if (existing) {
       existing.applications += job.applications || 0;
@@ -81,11 +84,15 @@ export default function HRAdminDashboard() {
     return acc;
   }, []);
   
-  // Sort by month order
-  const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const sortedRecruitmentData = recruitmentData.sort((a, b) => {
-    return monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month);
-  });
+  const parseUkDmy = (s: string) => {
+    const parts = s.split('/');
+    if (parts.length !== 3) return 0;
+    const [dd, mm, yyyy] = parts.map(Number);
+    return new Date(yyyy, mm - 1, dd).getTime();
+  };
+  const sortedRecruitmentData = [...recruitmentData].sort(
+    (a, b) => parseUkDmy(a.month) - parseUkDmy(b.month)
+  );
 
   return (
     <div className="space-y-6">
@@ -258,7 +265,7 @@ export default function HRAdminDashboard() {
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm text-foreground capitalize">{job.title}</p>
                         <p className="text-xs text-muted-foreground">
-                          {job.department} • Posted {job.postedDate ? new Date(job.postedDate).toLocaleDateString() : 'N/A'}
+                          {job.department} • Posted {job.postedDate ? formatDateDDMMYYYY(job.postedDate) : 'N/A'}
                         </p>
                       </div>
                       <div className="flex flex-col items-end gap-1 flex-shrink-0">

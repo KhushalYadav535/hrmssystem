@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect, useRouter } from 'next/navigation';
@@ -171,7 +172,7 @@ export default function TravelAdvancePage() {
                       const requestId = request._id || request.id;
                       return (
                         <SelectItem key={requestId} value={requestId}>
-                          {request.origin} → {request.destination} {isMounted && request.departureDate ? `(${new Date(request.departureDate).toLocaleDateString()})` : ''} - ₹{request.estimatedAmount || 0}
+                          {request.origin} → {request.destination} {isMounted && request.departureDate ? `(${formatDateDDMMYYYY(request.departureDate)})` : ''} - ₹{request.estimatedAmount || 0}
                         </SelectItem>
                       );
                     })

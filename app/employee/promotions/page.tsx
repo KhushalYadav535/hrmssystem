@@ -1,4 +1,6 @@
 "use client";
+
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -199,7 +201,7 @@ export default function PromotionsPage() {
                                                 {p.newGrade && <span className="ml-1 text-xs bg-green-50 text-green-700 px-1.5 py-0.5 rounded">{p.newGrade}</span>}
                                             </p>
                                             <p className="text-xs text-muted-foreground mt-0.5">
-                                                Effective: {new Date(p.effectiveDate).toLocaleDateString("en-IN")} •
+                                                Effective: {formatDateDDMMYYYY(p.effectiveDate)} •
                                                 {p.salaryIncrement > 0 && ` Increment: ₹${p.salaryIncrement.toLocaleString("en-IN")} (+${p.incrementPercentage}%)`}
                                             </p>
                                         </div>

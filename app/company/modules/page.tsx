@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
@@ -264,14 +265,14 @@ export default function CompanyModuleRequestPage() {
                         <div>
                           <span className="text-muted-foreground">Activated:</span>
                           <p className="font-medium">
-                            {new Date(cm.activationDate).toLocaleDateString()}
+                            {formatDateDDMMYYYY(cm.activationDate)}
                           </p>
                         </div>
                         {cm.trialEndDate && (
                           <div>
                             <span className="text-muted-foreground">Trial Ends:</span>
                             <p className="font-medium">
-                              {new Date(cm.trialEndDate).toLocaleDateString()}
+                              {formatDateDDMMYYYY(cm.trialEndDate)}
                             </p>
                           </div>
                         )}
@@ -379,7 +380,7 @@ export default function CompanyModuleRequestPage() {
                               <Badge variant="secondary">Pending</Badge>
                             </CardTitle>
                             <CardDescription>
-                              Requested on {new Date(request.requestedAt).toLocaleDateString()}
+                              Requested on {formatDateDDMMYYYY(request.requestedAt)}
                             </CardDescription>
                           </CardHeader>
                           <CardContent>
@@ -426,7 +427,7 @@ export default function CompanyModuleRequestPage() {
                               </Badge>
                             </CardTitle>
                             <CardDescription>
-                              Approved on {request.approvedAt ? new Date(request.approvedAt).toLocaleDateString() : 'N/A'}
+                              Approved on {request.approvedAt ? formatDateDDMMYYYY(request.approvedAt) : 'N/A'}
                             </CardDescription>
                           </CardHeader>
                         </Card>
@@ -451,7 +452,7 @@ export default function CompanyModuleRequestPage() {
                               </Badge>
                             </CardTitle>
                             <CardDescription>
-                              Rejected on {request.rejectedAt ? new Date(request.rejectedAt).toLocaleDateString() : 'N/A'}
+                              Rejected on {request.rejectedAt ? formatDateDDMMYYYY(request.rejectedAt) : 'N/A'}
                             </CardDescription>
                           </CardHeader>
                           <CardContent>

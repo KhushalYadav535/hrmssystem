@@ -1,4 +1,6 @@
 "use client";
+
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -165,7 +167,7 @@ export default function IncrementManagementPage() {
                             <CheckCircle className="h-5 w-5 text-emerald-600 shrink-0" />
                             <div>
                                 <p className="font-medium text-emerald-800">Increment Policy Active — FY {policy.financialYear}</p>
-                                <p className="text-sm text-emerald-700">{policy.ratingBands?.length} rating bands configured • {policy.gradeMultipliers?.length || 0} grade multipliers • Effective: {new Date(policy.effectiveDate).toLocaleDateString("en-IN")}</p>
+                                <p className="text-sm text-emerald-700">{policy.ratingBands?.length} rating bands configured • {policy.gradeMultipliers?.length || 0} grade multipliers • Effective: {formatDateDDMMYYYY(policy.effectiveDate)}</p>
                             </div>
                             <div className="ml-auto flex gap-2">
                                 {policy.ratingBands?.map((b: any) => (

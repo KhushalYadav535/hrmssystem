@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
@@ -282,7 +283,7 @@ export default function TravelPage() {
                             <p className="text-sm text-muted-foreground mb-1">{request.purpose}</p>
                             <div className="flex gap-4 text-xs text-muted-foreground">
                               <span><MapPin className="w-3 h-3 inline mr-1" />{request.origin} → {request.destination}</span>
-                              <span><Calendar className="w-3 h-3 inline mr-1" />{request.departureDate ? new Date(request.departureDate).toLocaleDateString() : 'N/A'} - {request.returnDate ? new Date(request.returnDate).toLocaleDateString() : 'N/A'}</span>
+                              <span><Calendar className="w-3 h-3 inline mr-1" />{request.departureDate ? formatDateDDMMYYYY(request.departureDate) : 'N/A'} - {request.returnDate ? formatDateDDMMYYYY(request.returnDate) : 'N/A'}</span>
                               <span>₹{request.estimatedAmount?.toLocaleString() || '0'}</span>
                             </div>
                           </div>
@@ -331,7 +332,7 @@ export default function TravelPage() {
                               </p>
                             )}
                             <p className="text-sm font-semibold mb-1">₹{advance.advanceAmount?.toLocaleString() || '0'}</p>
-                            <p className="text-xs text-muted-foreground">Requested: {advance.requestedDate ? new Date(advance.requestedDate).toLocaleDateString() : 'N/A'}</p>
+                            <p className="text-xs text-muted-foreground">Requested: {advance.requestedDate ? formatDateDDMMYYYY(advance.requestedDate) : 'N/A'}</p>
                           </div>
                         </div>
                       </div>

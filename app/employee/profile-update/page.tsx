@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
@@ -211,7 +212,7 @@ export default function ProfileUpdatePage() {
                         {REQUEST_TYPES.find((t) => t.value === req.requestType)?.label || req.requestType}
                       </CardTitle>
                       <CardDescription>
-                        {req.requestedAt ? new Date(req.requestedAt).toLocaleDateString() : '-'}
+                        {req.requestedAt ? formatDateDDMMYYYY(req.requestedAt) : '-'}
                       </CardDescription>
                     </div>
                     {getStatusBadge(req.status)}

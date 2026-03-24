@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import DashboardLayout from '@/components/layout/dashboard-layout';
@@ -245,7 +246,7 @@ export default function GrievancePage() {
                       <TableCell>{getSeverityBadge(grievance.severity)}</TableCell>
                       <TableCell>{getStatusBadge(grievance.status)}</TableCell>
                       <TableCell>
-                        {new Date(grievance.submittedDate).toLocaleDateString()}
+                        {formatDateDDMMYYYY(grievance.submittedDate)}
                       </TableCell>
                       {currentUser?.role !== 'Employee' && (
                         <TableCell>

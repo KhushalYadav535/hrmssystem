@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
@@ -223,7 +224,7 @@ export default function ExitSettlementPage() {
                         <div>
                           <CardTitle>{settlement.employeeName || `Employee ${settlement.employeeId}`}</CardTitle>
                           <CardDescription>
-                            Exit Date: {new Date(settlement.exitDate).toLocaleDateString()} • Type: {settlement.exitType}
+                            Exit Date: {formatDateDDMMYYYY(settlement.exitDate)} • Type: {settlement.exitType}
                           </CardDescription>
                         </div>
                         <Badge variant={getStatusBadgeVariant(settlement.status)}>

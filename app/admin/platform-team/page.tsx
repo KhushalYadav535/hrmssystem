@@ -272,7 +272,8 @@ export default function PlatformTeamPage() {
                       )}
                     </div>
                   </div>
-                  {currentUser?.role === 'Super Admin' && role.name !== 'Super Admin' && (
+                  {currentUser?.role === 'Super Admin' &&
+                    !['Super Admin', 'Platform Admin'].includes(role.name) && (
                     <div className="flex gap-2 pt-2 border-t">
                       <Button
                         size="sm"

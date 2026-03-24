@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -145,7 +146,7 @@ export default function ExpenseApprovalsPage() {
                       <div>
                         <p className="text-sm text-muted-foreground">Amount</p>
                         <p className="font-semibold text-foreground">₹{claim.amount}</p>
-                        <p className="text-xs text-muted-foreground">{new Date(claim.date).toLocaleDateString()}</p>
+                        <p className="text-xs text-muted-foreground">{formatDateDDMMYYYY(claim.date)}</p>
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">Description</p>

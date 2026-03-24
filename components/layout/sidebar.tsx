@@ -304,7 +304,8 @@ const navigationItems: NavItem[] = [
     label: 'Reports',
     href: '/reports',
     icon: <BarChart3 className="w-5 h-5" />,
-    roles: ['Tenant Admin', 'Manager', 'HR Administrator', 'Payroll Administrator', 'Finance Administrator', 'Auditor'],
+    // Tenant Admin uses the dedicated "Reports" block below (System Admin hub) — avoid duplicate /reports key
+    roles: ['Manager', 'HR Administrator', 'Payroll Administrator', 'Finance Administrator', 'Auditor'],
     moduleCode: 'REPORTS_BASIC', // BRD: Dynamic Module Management - matches seed script
     subItems: [
       { label: 'Analytics Dashboard', href: '/reports' },
@@ -350,13 +351,13 @@ const navigationItems: NavItem[] = [
     subItems: [
       { label: 'Tenant Settings', href: '/settings', roles: ['Tenant Admin'] },
       { label: 'Organization Structure', href: '/settings/org-structure/org-tree', roles: ['Tenant Admin'] },
+      { label: 'Departments', href: '/settings/departments', roles: ['Tenant Admin'] },
+      { label: 'Head Office', href: '/settings/org-structure/zone-master?create=ho', roles: ['Tenant Admin'] },
       { label: 'Zone Master', href: '/settings/org-structure/zone-master', roles: ['Tenant Admin'] },
       { label: 'Branch Master', href: '/settings/org-structure/branch-master', roles: ['Tenant Admin'] },
-      { label: 'Org Tree Builder', href: '/settings/org-structure/org-tree', roles: ['Tenant Admin'] },
       { label: 'Employee Transfer', href: '/settings/org-structure/employee-transfer', roles: ['Tenant Admin'] },
       { label: 'Transfer Log', href: '/settings/org-structure/transfer-log', roles: ['Tenant Admin'] },
       { label: 'Workflow Settings', href: '/settings/workflows', roles: ['Tenant Admin'] },
-      { label: 'Global HR Parameters', href: '/settings/leave-policies', roles: ['Tenant Admin'] },
       { label: 'Designations', href: '/settings/designations', roles: ['Tenant Admin'] },
       { label: 'Permissions', href: '/settings/permissions', roles: ['Tenant Admin'] },
       { label: 'Modules', href: '/company/modules', roles: ['Tenant Admin'] },
@@ -373,14 +374,16 @@ const navigationItems: NavItem[] = [
     ],
   },
   {
-    label: 'Analytics & Reports',
+    label: 'Reports',
     href: '/reports',
     icon: <BarChart3 className="w-5 h-5" />,
     roles: ['Tenant Admin'],
     subItems: [
-      { label: 'Security Reports', href: '/admin/audit-log', roles: ['Tenant Admin'] },
-      { label: 'Configuration Changes', href: '/admin/audit-log', roles: ['Tenant Admin'] },
-      { label: 'HR Overview KPIs', href: '/reports', roles: ['Tenant Admin'] },
+      { label: 'Analytics Dashboard', href: '/reports', roles: ['Tenant Admin'] },
+      { label: 'Standard Reports', href: '/reports/standard', roles: ['Tenant Admin'] },
+      { label: 'Scheduled Reports', href: '/reports/scheduled', roles: ['Tenant Admin'] },
+      { label: 'Report Builder', href: '/reports/builder', roles: ['Tenant Admin'] },
+      { label: 'Security & Audit Log', href: '/admin/audit-log', roles: ['Tenant Admin'] },
     ],
   },
   {
@@ -400,6 +403,7 @@ const navigationItems: NavItem[] = [
       { label: 'Organization Chart', href: '/org/chart', roles: ['HR Administrator', 'Manager'] },
       { label: 'Bulk Import/Export', href: '/admin/employees/bulk-import', roles: ['HR Administrator'] },
       { label: 'Departments', href: '/settings/departments', roles: ['HR Administrator'] },
+      { label: 'Leave Policies', href: '/settings/leave-policies', roles: ['HR Administrator'] },
       { label: 'Designations', href: '/settings/designations', roles: ['HR Administrator'] },
       { label: 'Permissions', href: '/settings/permissions', roles: ['HR Administrator'] },
       { label: 'Audit Log', href: '/admin/audit-log', roles: ['HR Administrator'] },
@@ -524,6 +528,11 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
         if (isSystemAdmin && hrOperationalMenus.includes(item.label)) {
           return false;
         }
+
+        // System Admin hub: only one "Reports" — hide module-scoped REPORTS_BASIC (operational) entry
+        if (isSystemAdmin && item.href === '/reports' && item.moduleCode === 'REPORTS_BASIC') {
+          return false;
+        }
         
         // Module filtering: only applies when we fetched enabled modules (Tenant Admin, HR Admin)
         // Employee, Manager, etc. don't call getMyCompanyModules - show all items matching their role
@@ -604,9 +613,10 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
           const hasSubItems = item.subItems && item.subItems.length > 0;
           const isExpanded = expandedItems.includes(item.href);
           const isActive = isItemActive(item);
+          const navKey = item.moduleCode ? `${item.href}:${item.moduleCode}` : item.href;
 
           return (
-            <div key={item.href} className="space-y-1">
+            <div key={navKey} className="space-y-1">
               {hasSubItems ? (
                 <>
                   <button
@@ -646,9 +656,9 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                           return subItem.roles.includes(currentUser?.role || '');
                         }
                         return true;
-                      }).map((subItem) => (
+                      }).map((subItem, subIdx) => (
                         <Link
-                          key={subItem.href}
+                          key={`${subItem.href}-${subItem.label}-${subIdx}`}
                           href={subItem.href}
                           className={cn(
                             'flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all duration-200',

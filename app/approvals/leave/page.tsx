@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -161,7 +162,7 @@ export default function LeaveApprovalsPage() {
                       <div>
                         <p className="text-sm text-muted-foreground">Duration</p>
                         <p className="font-semibold text-foreground">
-                          {new Date(request.startDate).toLocaleDateString()} to {new Date(request.endDate).toLocaleDateString()}
+                          {formatDateDDMMYYYY(request.startDate)} to {formatDateDDMMYYYY(request.endDate)}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {Math.ceil((new Date(request.endDate).getTime() - new Date(request.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1} days

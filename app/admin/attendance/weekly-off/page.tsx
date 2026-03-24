@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import DashboardLayout from '@/components/layout/dashboard-layout';
@@ -154,7 +155,7 @@ export default function WeeklyOffPage() {
                         {wo.fixedDays?.join(', ') || wo.rotatingPattern || '-'}
                       </TableCell>
                       <TableCell>
-                        {new Date(wo.effectiveDate).toLocaleDateString()}
+                        {formatDateDDMMYYYY(wo.effectiveDate)}
                       </TableCell>
                     </TableRow>
                   ))}

@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
@@ -214,10 +215,10 @@ export default function BackgroundVerificationPage() {
                               <div className="space-y-1 text-sm text-muted-foreground">
                                 <p>Agency: {check.agency}</p>
                                 {check.initiatedDate && (
-                                  <p>Initiated: {new Date(check.initiatedDate).toLocaleDateString('en-IN')}</p>
+                                  <p>Initiated: {formatDateDDMMYYYY(check.initiatedDate)}</p>
                                 )}
                                 {check.completedDate && (
-                                  <p>Completed: {new Date(check.completedDate).toLocaleDateString('en-IN')}</p>
+                                  <p>Completed: {formatDateDDMMYYYY(check.completedDate)}</p>
                                 )}
                                 {check.report && (
                                   <div className="flex items-center gap-2 mt-2">

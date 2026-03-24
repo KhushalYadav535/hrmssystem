@@ -20,14 +20,29 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 
+type ActionKey = 'view' | 'create' | 'edit' | 'delete' | 'approve';
+type CellMatrix = Record<string, Record<string, Record<ActionKey, boolean>>>;
+
+function buildInitialMatrix(
+  moduleNames: string[],
+  roleIds: string[],
+  actions: ActionKey[]
+): CellMatrix {
+  const m: CellMatrix = {};
+  moduleNames.forEach((mod) => {
+    m[mod] = {};
+    roleIds.forEach((rid) => {
+      m[mod][rid] = {} as Record<ActionKey, boolean>;
+      actions.forEach((a) => {
+        m[mod][rid][a] = false;
+      });
+    });
+  });
+  return m;
+}
+
 export default function PermissionMatrixPage() {
   const { isAuthenticated, hasPermission } = useAuth();
-  const [permissions, setPermissions] = useState({
-    hr_admin: { view: true, create: true, edit: true, delete: true, approve: true },
-    manager: { view: true, create: true, edit: true, delete: false, approve: true },
-    employee: { view: true, create: false, edit: false, delete: false, approve: false },
-    hr_officer: { view: true, create: true, edit: true, delete: false, approve: false },
-  });
   const [showCloneDialog, setShowCloneDialog] = useState(false);
   const [cloneSourceRole, setCloneSourceRole] = useState('');
   const [cloneTargetName, setCloneTargetName] = useState('');
@@ -56,16 +71,43 @@ export default function PermissionMatrixPage() {
     'User Access',
   ];
 
-  const actions = ['View', 'Create', 'Edit', 'Delete', 'Approve'];
+  const actions: { key: ActionKey; label: string }[] = [
+    { key: 'view', label: 'View' },
+    { key: 'create', label: 'Create' },
+    { key: 'edit', label: 'Edit' },
+    { key: 'delete', label: 'Delete' },
+    { key: 'approve', label: 'Approve' },
+  ];
 
-  const togglePermission = (role: string, action: string) => {
-    setPermissions({
-      ...permissions,
-      [role]: {
-        ...permissions[role as keyof typeof permissions],
-        [action.toLowerCase()]: !permissions[role as keyof typeof permissions][action.toLowerCase() as keyof typeof permissions[keyof typeof permissions]],
+  const [permissions, setPermissions] = useState<CellMatrix>(() => {
+    const base = buildInitialMatrix(modules, roles.map((r) => r.id), actions.map((a) => a.key));
+    base['Dashboard']['hr_admin'].view = true;
+    base['Dashboard']['hr_admin'].create = true;
+    base['Dashboard']['hr_admin'].edit = true;
+    base['Dashboard']['hr_admin'].delete = true;
+    base['Dashboard']['hr_admin'].approve = true;
+    base['Dashboard']['manager'].view = true;
+    base['Dashboard']['manager'].create = true;
+    base['Dashboard']['manager'].edit = true;
+    base['Dashboard']['manager'].approve = true;
+    base['Dashboard']['employee'].view = true;
+    base['Dashboard']['hr_officer'].view = true;
+    base['Dashboard']['hr_officer'].create = true;
+    base['Dashboard']['hr_officer'].edit = true;
+    return base;
+  });
+
+  const togglePermission = (moduleName: string, roleId: string, action: ActionKey) => {
+    setPermissions((prev) => ({
+      ...prev,
+      [moduleName]: {
+        ...prev[moduleName],
+        [roleId]: {
+          ...prev[moduleName][roleId],
+          [action]: !prev[moduleName][roleId][action],
+        },
       },
-    });
+    }));
   };
 
   const handleCloneRole = () => {
@@ -74,12 +116,18 @@ export default function PermissionMatrixPage() {
       return;
     }
 
-    const sourcePermissions = permissions[cloneSourceRole as keyof typeof permissions];
     const newRoleId = cloneTargetName.toLowerCase().replace(/\s+/g, '_');
-    
-    setPermissions({
-      ...permissions,
-      [newRoleId]: { ...sourcePermissions },
+    const sourceRowTemplate = permissions['Dashboard']?.[cloneSourceRole];
+    if (!sourceRowTemplate) {
+      toast.error('Invalid source role');
+      return;
+    }
+    setPermissions((prev) => {
+      const next = { ...prev };
+      modules.forEach((mod) => {
+        next[mod] = { ...next[mod], [newRoleId]: { ...next[mod][cloneSourceRole] } };
+      });
+      return next;
     });
 
     toast.success(`Role "${cloneTargetName}" cloned successfully from "${roles.find(r => r.id === cloneSourceRole)?.name}"`);
@@ -164,9 +212,14 @@ export default function PermissionMatrixPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {Object.values(permissions[role.id as keyof typeof permissions] as any).filter((v: any) => v).length}/{actions.length}
+                  {modules.reduce(
+                    (sum, mod) =>
+                      sum + actions.filter((a) => permissions[mod]?.[role.id]?.[a.key]).length,
+                    0
+                  )}
+                  /{modules.length * actions.length}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">permissions</p>
+                <p className="text-xs text-muted-foreground mt-1">cells granted (all modules)</p>
               </CardContent>
             </Card>
           ))}
@@ -199,16 +252,17 @@ export default function PermissionMatrixPage() {
                           <div className="flex justify-center gap-2">
                             {actions.map((action) => (
                               <button
-                                key={action}
+                                key={action.key}
+                                type="button"
                                 className={`px-2 py-1 rounded text-xs font-medium transition ${
-                                  permissions[role.id as keyof typeof permissions]?.[action.toLowerCase() as keyof (typeof permissions)[keyof typeof permissions]] as any
+                                  permissions[module]?.[role.id]?.[action.key]
                                     ? 'bg-green-600 text-white'
                                     : 'bg-gray-300 text-gray-600'
                                 }`}
-                                onClick={() => togglePermission(role.id, action)}
-                                title={action}
+                                onClick={() => togglePermission(module, role.id, action.key)}
+                                title={action.label}
                               >
-                                {action[0]}
+                                {action.label[0]}
                               </button>
                             ))}
                           </div>

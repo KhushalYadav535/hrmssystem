@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY, formatDateTimeFullDDMMYYYY } from '@/lib/date-format';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
@@ -284,7 +285,7 @@ export default function AdminPage() {
           userId: log.userId?._id || log.userId,
           userName: log.userName || 'Unknown',
           email: log.userEmail || 'unknown@example.com',
-          loginTime: log.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A',
+          loginTime: log.timestamp ? formatDateTimeFullDDMMYYYY(log.timestamp) : 'N/A',
           ipAddress: log.ipAddress || 'N/A',
           device: log.userAgent ? log.userAgent.substring(0, 50) : 'Unknown',
           status: 'Active',

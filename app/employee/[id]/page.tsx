@@ -12,6 +12,7 @@ import { useState, useEffect } from 'react';
 import apiService from '@/lib/api';
 import { toast } from 'sonner';
 import { maskAadhaar, maskPAN, maskAccountNumber } from '@/lib/masking';
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 
 interface Employee {
   _id?: string;
@@ -168,12 +169,6 @@ export default function EmployeeDetailPage() {
   }
 
   const fullName = `${employee.firstName} ${employee.lastName}`;
-  const formatDate = (date: string | Date | undefined) => {
-    if (!date) return 'N/A';
-    const d = typeof date === 'string' ? new Date(date) : date;
-    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-  };
-
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -228,7 +223,7 @@ export default function EmployeeDetailPage() {
               <CardTitle className="text-sm font-medium">Join Date</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatDate(employee.joinDate)}</div>
+              <div className="text-2xl font-bold">{formatDateDDMMYYYY(employee.joinDate)}</div>
             </CardContent>
           </Card>
         </div>
@@ -265,7 +260,7 @@ export default function EmployeeDetailPage() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Date of Birth</p>
-                    <p className="text-lg font-semibold">{formatDate(employee.dateOfBirth)}</p>
+                    <p className="text-lg font-semibold">{formatDateDDMMYYYY(employee.dateOfBirth)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Gender</p>
@@ -326,7 +321,7 @@ export default function EmployeeDetailPage() {
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Join Date</p>
-                      <p className="text-lg font-semibold">{formatDate(employee.joinDate)}</p>
+                      <p className="text-lg font-semibold">{formatDateDDMMYYYY(employee.joinDate)}</p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Employment Type</p>
@@ -509,7 +504,7 @@ export default function EmployeeDetailPage() {
                             </div>
                             <div>
                               <span className="text-muted-foreground">Date of Birth:</span>
-                              <span className="ml-2">{formatDate(nominee.dateOfBirth)}</span>
+                              <span className="ml-2">{formatDateDDMMYYYY(nominee.dateOfBirth)}</span>
                             </div>
                           </div>
                         </div>
@@ -538,7 +533,7 @@ export default function EmployeeDetailPage() {
                         <div className="flex items-center justify-between mb-3">
                           <span className="font-semibold text-lg">{employment.employerName}</span>
                           <div className="text-sm text-muted-foreground">
-                            {formatDate(employment.startDate)} - {formatDate(employment.endDate)}
+                            {formatDateDDMMYYYY(employment.startDate)} - {formatDateDDMMYYYY(employment.endDate)}
                           </div>
                         </div>
                         {employment.employerAddress && (
@@ -608,7 +603,7 @@ export default function EmployeeDetailPage() {
                         <div className="flex items-center justify-between mb-3">
                           <span className="font-semibold text-lg">{employment.employerName}</span>
                           <div className="text-sm text-muted-foreground">
-                            {formatDate(employment.startDate)} - {formatDate(employment.endDate)}
+                            {formatDateDDMMYYYY(employment.startDate)} - {formatDateDDMMYYYY(employment.endDate)}
                           </div>
                         </div>
                         {employment.employerAddress && (

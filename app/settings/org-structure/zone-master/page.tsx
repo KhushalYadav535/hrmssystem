@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,16 +22,17 @@ import { useAuth } from '@/lib/auth-context';
  */
 export default function ZoneMasterPage() {
   const { currentUser } = useAuth();
+  const pathname = usePathname();
   const [zones, setZones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingZone, setEditingZone] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [unitTypeFilter, setUnitTypeFilter] = useState<'all' | 'ZO' | 'RO'>('all');
+  const [unitTypeFilter, setUnitTypeFilter] = useState<'all' | 'ZO' | 'RO' | 'HO'>('all');
   const [form, setForm] = useState({
     unitCode: '',
     unitName: '',
-    unitType: 'ZO' as 'ZO' | 'RO',
+    unitType: 'ZO' as 'ZO' | 'RO' | 'HO',
     parentUnitId: '',
     unitHeadId: '',
     headquartersCity: '',
@@ -51,15 +53,16 @@ export default function ZoneMasterPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      // Always fetch ZO and RO types only, never BRANCH
-      const [zonesRes, regionsRes, parentRes] = await Promise.all([
+      const [zonesRes, regionsRes, hoRes] = await Promise.all([
         apiService.getOrganizationUnits({ type: 'ZO' }),
         apiService.getOrganizationUnits({ type: 'RO' }),
         apiService.getOrganizationUnits({ type: 'HO' }),
       ]);
 
       let allUnits: any[] = [];
-      
+      if (hoRes.success && hoRes.data) {
+        allUnits = allUnits.concat(Array.isArray(hoRes.data) ? hoRes.data : []);
+      }
       if (zonesRes.success && zonesRes.data) {
         allUnits = allUnits.concat(Array.isArray(zonesRes.data) ? zonesRes.data : []);
       }
@@ -67,20 +70,17 @@ export default function ZoneMasterPage() {
         allUnits = allUnits.concat(Array.isArray(regionsRes.data) ? regionsRes.data : []);
       }
 
-      // Filter based on unitTypeFilter
       let filteredUnits = allUnits;
       if (unitTypeFilter === 'ZO') {
         filteredUnits = allUnits.filter((u: any) => u.unitType === 'ZO');
       } else if (unitTypeFilter === 'RO') {
         filteredUnits = allUnits.filter((u: any) => u.unitType === 'RO');
+      } else if (unitTypeFilter === 'HO') {
+        filteredUnits = allUnits.filter((u: any) => u.unitType === 'HO');
       }
-      // If 'all', show both ZO and RO (already filtered above)
 
       setZones(filteredUnits);
-
-      if (parentRes.success && parentRes.data) {
-        setParentUnits(Array.isArray(parentRes.data) ? parentRes.data : []);
-      }
+      setParentUnits(hoRes.success && hoRes.data ? (Array.isArray(hoRes.data) ? hoRes.data : []) : []);
     } catch (error: any) {
       toast.error('Failed to load zones/regions');
     } finally {
@@ -119,6 +119,38 @@ export default function ZoneMasterPage() {
     setDialogOpen(true);
   };
 
+  const openCreateHeadOffice = useCallback(() => {
+    setEditingZone(null);
+    setUnitTypeFilter('HO');
+    setForm({
+      unitCode: 'HO-001',
+      unitName: '',
+      unitType: 'HO',
+      parentUnitId: '',
+      unitHeadId: '',
+      headquartersCity: '',
+      state: '',
+      city: '',
+      address: '',
+      pinCode: '',
+      effectiveDate: new Date().toISOString().split('T')[0],
+      isActive: true,
+    });
+    loadEmployees();
+    setDialogOpen(true);
+  }, []);
+
+  useEffect(() => {
+    if (currentUser?.role !== 'Tenant Admin' || typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('create') !== 'ho') return;
+    const t = window.setTimeout(() => {
+      openCreateHeadOffice();
+      window.history.replaceState({}, '', pathname || '/settings/org-structure/zone-master');
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [pathname, currentUser?.role, openCreateHeadOffice]);
+
   const openEdit = (zone: any) => {
     setEditingZone(zone);
     setForm({
@@ -147,8 +179,19 @@ export default function ZoneMasterPage() {
 
     // Validate unit code format
     let formattedCode = form.unitCode.trim().toUpperCase();
-    
-    if (form.unitType === 'ZO') {
+
+    if (form.unitType === 'HO') {
+      if (!/^HO-\d{3}$/.test(formattedCode)) {
+        const m = formattedCode.match(/^HO[-_]?(\d{1,3})$/i);
+        if (m) {
+          formattedCode = `HO-${m[1].padStart(3, '0')}`;
+          setForm({ ...form, unitCode: formattedCode });
+        } else {
+          toast.error('Invalid Head Office code. Use format: HO-001 (three digits).');
+          return;
+        }
+      }
+    } else if (form.unitType === 'ZO') {
       // ZO format: ZO-NAME-01 (e.g., ZO-SOUTH-01, ZO-NORTH-01)
       if (!/^ZO-[A-Z]{3,6}-\d{2}$/.test(formattedCode)) {
         // Try to auto-format if user entered something like ZO_SOUTH or ZO-SOUTH
@@ -183,7 +226,11 @@ export default function ZoneMasterPage() {
     }
 
     try {
-      const dataToSave = { ...form, unitCode: formattedCode };
+      const dataToSave = {
+        ...form,
+        unitCode: formattedCode,
+        parentUnitId: form.unitType === 'HO' ? '' : form.parentUnitId,
+      };
       if (editingZone) {
         const res = await apiService.updateOrganizationUnit(editingZone._id, dataToSave);
         if (res.success) {
@@ -239,8 +286,7 @@ export default function ZoneMasterPage() {
   };
 
   const filteredZones = zones.filter((zone) => {
-    // Ensure only ZO and RO types are shown (extra safety check)
-    if (zone.unitType !== 'ZO' && zone.unitType !== 'RO') {
+    if (zone.unitType !== 'ZO' && zone.unitType !== 'RO' && zone.unitType !== 'HO') {
       return false;
     }
     
@@ -266,9 +312,9 @@ export default function ZoneMasterPage() {
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold">Zone / Region Master</h1>
+            <h1 className="text-3xl font-bold">Zone / Region / Head Office Master</h1>
             <p className="text-muted-foreground mt-2">
-              Manage zones and regions in the organization hierarchy
+              Manage Head Office, zones, and regions. Add Head Office first if you use HO → branches without zones.
             </p>
           </div>
           {currentUser?.role === 'Tenant Admin' && (
@@ -295,9 +341,13 @@ export default function ZoneMasterPage() {
                   Clear Seed Data
                 </Button>
               )}
-              <Button onClick={openCreate}>
+              <Button variant="default" className="bg-emerald-700 hover:bg-emerald-800" onClick={openCreateHeadOffice}>
                 <Plus className="w-4 h-4 mr-2" />
-                Create Zone/Region
+                Add Head Office
+              </Button>
+              <Button variant="outline" onClick={openCreate}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Zone / Region
               </Button>
             </div>
           )}
@@ -324,6 +374,7 @@ export default function ZoneMasterPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="HO">Head Office</SelectItem>
                   <SelectItem value="ZO">Zones Only</SelectItem>
                   <SelectItem value="RO">Regions Only</SelectItem>
                 </SelectContent>
@@ -416,9 +467,9 @@ export default function ZoneMasterPage() {
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{editingZone ? 'Edit Zone/Region' : 'Create Zone/Region'}</DialogTitle>
+              <DialogTitle>{editingZone ? 'Edit unit' : 'Add Head Office / Zone / Region'}</DialogTitle>
               <DialogDescription>
-                {editingZone ? 'Update zone/region details' : 'Add a new zone or region to the organization structure'}
+                Head Office has no parent. Zones and regions must sit under a Head Office.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -427,12 +478,13 @@ export default function ZoneMasterPage() {
                   <Label>Unit Type *</Label>
                   <Select
                     value={form.unitType}
-                    onValueChange={(v: 'ZO' | 'RO') => setForm({ ...form, unitType: v })}
+                    onValueChange={(v: 'ZO' | 'RO' | 'HO') => setForm({ ...form, unitType: v, parentUnitId: v === 'HO' ? '' : form.parentUnitId })}
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="HO">Head Office</SelectItem>
                       <SelectItem value="ZO">Zone</SelectItem>
                       <SelectItem value="RO">Region</SelectItem>
                     </SelectContent>
@@ -446,7 +498,9 @@ export default function ZoneMasterPage() {
                     placeholder={form.unitType === 'ZO' ? 'ZO-SOUTH-01' : 'RO-DEL01'}
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    {form.unitType === 'ZO' 
+                    {form.unitType === 'HO'
+                      ? 'Format: HO-001, HO-002, ...'
+                      : form.unitType === 'ZO'
                       ? 'Format: ZO-NAME-01 (e.g., ZO-SOUTH-01, ZO-NORTH-01)'
                       : 'Format: RO-XXXX (e.g., RO-DEL01, RO-MUM01)'}
                   </p>
@@ -457,30 +511,36 @@ export default function ZoneMasterPage() {
                 <Input
                   value={form.unitName}
                   onChange={(e) => setForm({ ...form, unitName: e.target.value })}
-                  placeholder="e.g., North Zone"
+                  placeholder={form.unitType === 'HO' ? 'e.g., Corporate Head Office' : 'e.g., North Zone'}
                 />
               </div>
+              {form.unitType !== 'HO' && (
               <div>
-                <Label>Parent Unit *</Label>
+                <Label>Parent (Head Office) *</Label>
                 <Select
-                  value={form.parentUnitId}
-                  onValueChange={(v) => setForm({ ...form, parentUnitId: v })}
+                  value={form.parentUnitId || '__none__'}
+                  onValueChange={(v) => setForm({ ...form, parentUnitId: v === '__none__' ? '' : v })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select parent unit" />
+                    <SelectValue placeholder="Select Head Office" />
                   </SelectTrigger>
                   <SelectContent>
-                    {parentUnits.map((parent) => (
-                      <SelectItem key={parent._id} value={parent._id}>
-                        {parent.unitCode} - {parent.unitName}
-                      </SelectItem>
-                    ))}
+                    {parentUnits.length === 0 ? (
+                      <SelectItem value="__none__" disabled>Create a Head Office first (unit type HO)</SelectItem>
+                    ) : (
+                      parentUnits.map((parent) => (
+                        <SelectItem key={parent._id} value={parent._id}>
+                          {parent.unitCode} - {parent.unitName}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {form.unitType === 'ZO' ? 'Zone must be under Head Office' : 'Region must be under Zone'}
+                  Zones and regions must report to a Head Office.
                 </p>
               </div>
+              )}
               <div>
                 <Label>Zonal/Regional Head</Label>
                 <Select

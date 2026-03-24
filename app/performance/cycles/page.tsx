@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
@@ -195,7 +196,7 @@ export default function AppraisalCyclesPage() {
                     <div>
                       <CardTitle className="text-lg">{cycle.cycleName}</CardTitle>
                       <CardDescription>
-                        {cycle.cycleType} • {cycle.startDate ? new Date(cycle.startDate).toLocaleDateString() : '-'} to {cycle.endDate ? new Date(cycle.endDate).toLocaleDateString() : '-'}
+                        {cycle.cycleType} • {cycle.startDate ? formatDateDDMMYYYY(cycle.startDate) : '-'} to {cycle.endDate ? formatDateDDMMYYYY(cycle.endDate) : '-'}
                       </CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
@@ -217,15 +218,15 @@ export default function AppraisalCyclesPage() {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div>
                       <p className="text-muted-foreground">Self Assessment Deadline</p>
-                      <p className="font-medium">{cycle.selfAssessmentDeadline ? new Date(cycle.selfAssessmentDeadline).toLocaleDateString() : '-'}</p>
+                      <p className="font-medium">{cycle.selfAssessmentDeadline ? formatDateDDMMYYYY(cycle.selfAssessmentDeadline) : '-'}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Manager Review Deadline</p>
-                      <p className="font-medium">{cycle.managerReviewDeadline ? new Date(cycle.managerReviewDeadline).toLocaleDateString() : '-'}</p>
+                      <p className="font-medium">{cycle.managerReviewDeadline ? formatDateDDMMYYYY(cycle.managerReviewDeadline) : '-'}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Normalization Deadline</p>
-                      <p className="font-medium">{cycle.normalizationDeadline ? new Date(cycle.normalizationDeadline).toLocaleDateString() : '-'}</p>
+                      <p className="font-medium">{cycle.normalizationDeadline ? formatDateDDMMYYYY(cycle.normalizationDeadline) : '-'}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Applicable To</p>

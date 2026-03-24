@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
@@ -250,7 +251,7 @@ export default function ExitAdminPage() {
                         <div>
                           <p className="text-muted-foreground">Last Working Date</p>
                           <p className="font-medium">
-                            {new Date(separation.lastWorkingDate).toLocaleDateString()}
+                            {formatDateDDMMYYYY(separation.lastWorkingDate)}
                           </p>
                         </div>
                         <div>
@@ -260,7 +261,7 @@ export default function ExitAdminPage() {
                         <div>
                           <p className="text-muted-foreground">Submitted</p>
                           <p className="font-medium">
-                            {new Date(separation.createdAt).toLocaleDateString()}
+                            {formatDateDDMMYYYY(separation.createdAt)}
                           </p>
                         </div>
                       </div>

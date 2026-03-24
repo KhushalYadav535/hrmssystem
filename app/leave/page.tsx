@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
@@ -639,8 +640,8 @@ export default function LeavePage() {
                 ) : (
                   allLeaves.map((leave) => {
                     const leaveId = leave._id || leave.id;
-                    const startDate = leave.startDate ? new Date(leave.startDate).toLocaleDateString() : '';
-                    const endDate = leave.endDate ? new Date(leave.endDate).toLocaleDateString() : '';
+                    const startDate = leave.startDate ? formatDateDDMMYYYY(leave.startDate) : '';
+                    const endDate = leave.endDate ? formatDateDDMMYYYY(leave.endDate) : '';
                     const days = leave.days || (leave.startDate && leave.endDate ? 
                       Math.ceil((new Date(leave.endDate).getTime() - new Date(leave.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1 : 0);
                     return (
@@ -789,8 +790,8 @@ export default function LeavePage() {
                 ) : pendingLeaves.length > 0 ? (
                   pendingLeaves.map((leave) => {
                     const leaveId = leave._id || leave.id;
-                    const startDate = leave.startDate ? new Date(leave.startDate).toLocaleDateString() : '';
-                    const endDate = leave.endDate ? new Date(leave.endDate).toLocaleDateString() : '';
+                    const startDate = leave.startDate ? formatDateDDMMYYYY(leave.startDate) : '';
+                    const endDate = leave.endDate ? formatDateDDMMYYYY(leave.endDate) : '';
                     return (
                       <div key={leaveId} className="p-4 border border-yellow-200 bg-yellow-50 dark:bg-yellow-900/10 rounded-lg">
                         <p className="font-semibold text-sm mb-1">{leave.leaveType}</p>
@@ -813,8 +814,8 @@ export default function LeavePage() {
                 ) : approvedLeaves.length > 0 ? (
                   approvedLeaves.map((leave) => {
                     const leaveId = leave._id || leave.id;
-                    const startDate = leave.startDate ? new Date(leave.startDate).toLocaleDateString() : '';
-                    const endDate = leave.endDate ? new Date(leave.endDate).toLocaleDateString() : '';
+                    const startDate = leave.startDate ? formatDateDDMMYYYY(leave.startDate) : '';
+                    const endDate = leave.endDate ? formatDateDDMMYYYY(leave.endDate) : '';
                     const days = leave.days || (leave.startDate && leave.endDate ? 
                       Math.ceil((new Date(leave.endDate).getTime() - new Date(leave.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1 : 0);
                     return (

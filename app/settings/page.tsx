@@ -21,6 +21,8 @@ interface TenantData {
   name?: string;
   code?: string;
   location?: string;
+  /** API may return _id */
+  _id?: string;
   employees?: number;
   status?: string;
   settings?: {
@@ -120,12 +122,12 @@ export default function SettingsPage() {
     }
   };
 
+  /** Organization name / code / location come from Platform “Add Tenant” and are not editable here. */
   const handleSaveOrganization = async () => {
     try {
       setIsSaving(true);
       const settings = {
         ...tenantData?.settings,
-        organizationName: formData.organizationName,
         email: formData.email,
         phone: formData.phone,
         address: formData.address,
@@ -133,7 +135,7 @@ export default function SettingsPage() {
 
       const response = await apiService.updateTenantSettings(settings);
       if (response.success) {
-        toast.success('Organization settings saved successfully');
+        toast.success('Contact details saved');
         loadTenantData();
       } else {
         toast.error(response.message || 'Failed to save settings');
@@ -259,21 +261,29 @@ export default function SettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Organization Information</CardTitle>
-                <CardDescription>Update your organization details</CardDescription>
+                <CardDescription>
+                  Tenant name, code, and registered location are set when the tenant is created by Platform Admin and cannot be changed here.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-lg border border-border bg-muted/30 p-4">
                   <div>
-                    <Label htmlFor="orgName">Organization Name *</Label>
-                    <Input
-                      id="orgName"
-                      value={formData.organizationName}
-                      onChange={(e) => setFormData({ ...formData, organizationName: e.target.value })}
-                      className="mt-2"
-                    />
+                    <Label>Organization / Tenant Name</Label>
+                    <p className="mt-2 text-sm font-medium">{tenantData?.name || formData.organizationName || '—'}</p>
                   </div>
                   <div>
-                    <Label htmlFor="orgEmail">Email</Label>
+                    <Label>Tenant Code</Label>
+                    <p className="mt-2 text-sm font-medium">{tenantData?.code || '—'}</p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label>Registered location</Label>
+                    <p className="mt-2 text-sm font-medium">{tenantData?.location || '—'}</p>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground">You can update operational contact details below.</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="orgEmail">Contact Email</Label>
                     <Input
                       id="orgEmail"
                       type="email"
@@ -282,8 +292,6 @@ export default function SettingsPage() {
                       className="mt-2"
                     />
                   </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="orgPhone">Phone</Label>
                     <Input
@@ -293,8 +301,10 @@ export default function SettingsPage() {
                       className="mt-2"
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="orgAddress">Address</Label>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <Label htmlFor="orgAddress">Mailing / office address</Label>
                     <Input
                       id="orgAddress"
                       value={formData.address}
@@ -305,7 +315,7 @@ export default function SettingsPage() {
                 </div>
                 <Button onClick={handleSaveOrganization} disabled={isSaving} className="gap-2">
                   <Save className="w-4 h-4" />
-                  {isSaving ? 'Saving...' : 'Save Changes'}
+                  {isSaving ? 'Saving...' : 'Save contact details'}
                 </Button>
               </CardContent>
             </Card>

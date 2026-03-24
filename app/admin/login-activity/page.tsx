@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateTimeFullDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -232,7 +233,7 @@ export default function LoginActivityPage() {
                     {loginLogs.map((log: any) => (
                       <tr key={log._id || log.id} className="border-b hover:bg-secondary/50">
                         <td className="p-3 text-sm">
-                          {new Date(log.timestamp || log.createdAt).toLocaleString()}
+                          {formatDateTimeFullDDMMYYYY(log.timestamp || log.createdAt)}
                         </td>
                         <td className="p-3 text-sm font-medium">{log.userEmail || log.email}</td>
                         <td className="p-3 text-sm text-muted-foreground">{log.ipAddress || 'Unknown'}</td>

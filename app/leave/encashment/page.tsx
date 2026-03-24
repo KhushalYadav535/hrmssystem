@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
@@ -330,7 +331,7 @@ export default function LeaveEncashmentPage() {
                             <div>
                               <p className="text-muted-foreground">Requested</p>
                               <p className="font-semibold">
-                                {req.requestedDate ? new Date(req.requestedDate).toLocaleDateString() : '-'}
+                                {req.requestedDate ? formatDateDDMMYYYY(req.requestedDate) : '-'}
                               </p>
                             </div>
                             <div>
@@ -340,7 +341,7 @@ export default function LeaveEncashmentPage() {
                             <div>
                               <p className="text-muted-foreground">Paid Date</p>
                               <p className="font-semibold">
-                                {req.paymentDate ? new Date(req.paymentDate).toLocaleDateString() : '-'}
+                                {req.paymentDate ? formatDateDDMMYYYY(req.paymentDate) : '-'}
                               </p>
                             </div>
                           </div>

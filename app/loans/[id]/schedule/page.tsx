@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect, useParams } from 'next/navigation';
@@ -105,7 +106,7 @@ export default function LoanSchedulePage() {
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Due Date</p>
-                      <p className="font-semibold">{new Date(emi.dueDate).toLocaleDateString()}</p>
+                      <p className="font-semibold">{formatDateDDMMYYYY(emi.dueDate)}</p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Principal</p>
@@ -122,7 +123,7 @@ export default function LoanSchedulePage() {
                     {emi.status === 'PAID' && emi.paidDate && (
                       <div>
                         <p className="text-sm text-muted-foreground">Paid Date</p>
-                        <p className="font-semibold">{new Date(emi.paidDate).toLocaleDateString()}</p>
+                        <p className="font-semibold">{formatDateDDMMYYYY(emi.paidDate)}</p>
                       </div>
                     )}
                   </div>

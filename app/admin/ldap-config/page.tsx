@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateTimeFullDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
@@ -407,7 +408,7 @@ export default function LDAPConfigPage() {
                       <div>
                         <p className="text-sm font-semibold">Last Sync</p>
                         <p className="text-sm text-muted-foreground">
-                          {new Date(config.lastSyncDate).toLocaleString()}
+                          {formatDateTimeFullDDMMYYYY(config.lastSyncDate)}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">

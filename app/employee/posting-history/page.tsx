@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect, Suspense } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect, useParams, useSearchParams } from 'next/navigation';
@@ -160,14 +161,14 @@ function PostingHistoryContent() {
                             <div>
                               <p className="text-xs text-muted-foreground">Effective Date</p>
                               <p className="text-sm font-medium">
-                                {new Date(posting.effectiveDate).toLocaleDateString()}
+                                {formatDateDDMMYYYY(posting.effectiveDate)}
                               </p>
                             </div>
                             {posting.endDate && (
                               <div>
                                 <p className="text-xs text-muted-foreground">End Date</p>
                                 <p className="text-sm font-medium">
-                                  {new Date(posting.endDate).toLocaleDateString()}
+                                  {formatDateDDMMYYYY(posting.endDate)}
                                 </p>
                               </div>
                             )}

@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect, Suspense } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect, useParams, useSearchParams } from 'next/navigation';
@@ -122,7 +123,7 @@ function CareerPlanningContent() {
                           {careerPath.currentPosting.toDepartment} • {careerPath.currentPosting.toLocation}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Since {new Date(careerPath.currentPosting.effectiveDate).toLocaleDateString()}
+                          Since {formatDateDDMMYYYY(careerPath.currentPosting.effectiveDate)}
                         </p>
                       </div>
                     ) : (
@@ -221,7 +222,7 @@ function CareerPlanningContent() {
                           </div>
                           <p className="text-sm text-muted-foreground mb-2">{event.description}</p>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(event.date).toLocaleDateString()}
+                            {formatDateDDMMYYYY(event.date)}
                           </p>
                         </div>
                       </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
@@ -1720,7 +1721,7 @@ export default function PayrollAdminDashboard() {
                           <p className="font-medium">{selectedPayroll.makerName}</p>
                           {selectedPayroll.submittedDate && (
                             <p className="text-xs text-muted-foreground mt-1">
-                              Submitted: {new Date(selectedPayroll.submittedDate).toLocaleDateString('en-IN')}
+                              Submitted: {formatDateDDMMYYYY(selectedPayroll.submittedDate)}
                             </p>
                           )}
                         </div>
@@ -1731,7 +1732,7 @@ export default function PayrollAdminDashboard() {
                           <p className="font-medium">{selectedPayroll.checkerName}</p>
                           {selectedPayroll.approvedDate && (
                             <p className="text-xs text-muted-foreground mt-1">
-                              Approved: {new Date(selectedPayroll.approvedDate).toLocaleDateString('en-IN')}
+                              Approved: {formatDateDDMMYYYY(selectedPayroll.approvedDate)}
                             </p>
                           )}
                         </div>
@@ -1746,7 +1747,7 @@ export default function PayrollAdminDashboard() {
                               <div className="flex justify-between">
                                 <span className="font-medium">{history.action}</span>
                                 <span className="text-muted-foreground">
-                                  {new Date(history.timestamp).toLocaleDateString('en-IN')}
+                                  {formatDateDDMMYYYY(history.timestamp)}
                                 </span>
                               </div>
                               <div className="text-muted-foreground mt-1">

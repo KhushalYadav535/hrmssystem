@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
@@ -100,11 +101,7 @@ export default function BankFilePage() {
                     Bank File for {selectedMonth} {selectedYear} - {bankFileData.status}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Generated on: {new Date(bankFileData.generatedDate).toLocaleDateString('en-IN', { 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
-                    })}
+                    Generated on: {formatDateDDMMYYYY(bankFileData.generatedDate)}
                   </p>
                 </div>
               </div>

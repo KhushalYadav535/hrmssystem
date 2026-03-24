@@ -1,10 +1,14 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { useAuth } from '@/lib/auth-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Shield, Mail, User, Building2, Calendar, Users } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Shield, Mail, User, Building2, Calendar, Users, Landmark } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import apiService from '@/lib/api';
 import { toast } from 'sonner';
@@ -32,6 +36,12 @@ export default function MyProfilePage() {
   const [employeeData, setEmployeeData] = useState<EmployeeInfo | null>(null);
   const [tenantData, setTenantData] = useState<TenantInfo | null>(currentTenant || null);
   const [isLoading, setIsLoading] = useState(true);
+  const [bankForm, setBankForm] = useState({ bankName: '', accountNumber: '', ifscCode: '' });
+  const [primaryBankAccountId, setPrimaryBankAccountId] = useState<string | null>(null);
+  const [bankSaving, setBankSaving] = useState(false);
+
+  const canEditOwnBank =
+    currentUser?.role === 'Employee' || currentUser?.role === 'Manager';
 
   useEffect(() => {
     loadProfileData();
@@ -56,7 +66,7 @@ export default function MyProfilePage() {
       }
       if (!loaded && currentUser?.email) {
         try {
-          const empRes = await apiService.getEmployees({ email: currentUser.email });
+          const empRes = await apiService.getEmployees({ search: currentUser.email });
           if (empRes.success && empRes.data && Array.isArray(empRes.data) && empRes.data.length > 0) {
             setEmployeeData(empRes.data[0]);
           }
@@ -71,6 +81,31 @@ export default function MyProfilePage() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    const loadBank = async () => {
+      if (!employeeData?._id || !canEditOwnBank) return;
+      try {
+        const res = await apiService.getEmployeeBankAccounts(employeeData._id);
+        const list = res.success && Array.isArray(res.data) ? res.data : [];
+        const primary = list.find((a: any) => a.isPrimary) || list[0];
+        if (primary?._id) {
+          setPrimaryBankAccountId(primary._id);
+          setBankForm({
+            bankName: primary.bankName || '',
+            accountNumber: '',
+            ifscCode: primary.ifscCode || '',
+          });
+        } else {
+          setPrimaryBankAccountId(null);
+          setBankForm({ bankName: '', accountNumber: '', ifscCode: '' });
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    loadBank();
+  }, [employeeData?._id, canEditOwnBank]);
 
   const initials = (currentUser?.name ?? '')
     .split(' ')
@@ -196,11 +231,7 @@ export default function MyProfilePage() {
                 <div>
                   <p className="text-xs text-muted-foreground">Member Since</p>
                   <p className="font-semibold">
-                    {new Date(currentUser.joinDate).toLocaleDateString('en-IN', {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric',
-                    })}
+                    {formatDateDDMMYYYY(currentUser.joinDate)}
                   </p>
                 </div>
               </div>
@@ -209,6 +240,98 @@ export default function MyProfilePage() {
         </Card>
 
         {/* Employee Details (if available) */}
+        {employeeData && canEditOwnBank && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Landmark className="w-5 h-5" />
+                Salary bank account
+              </CardTitle>
+              <CardDescription>
+                Enter bank name, account number (9–18 digits), and IFSC. This is used for salary credits.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 max-w-lg">
+              <div>
+                <Label htmlFor="bankName">Bank name</Label>
+                <Input
+                  id="bankName"
+                  value={bankForm.bankName}
+                  onChange={(e) => setBankForm((f) => ({ ...f, bankName: e.target.value }))}
+                  className="mt-1"
+                  placeholder="e.g. State Bank of India"
+                />
+              </div>
+              <div>
+                <Label htmlFor="acct">Account number</Label>
+                <Input
+                  id="acct"
+                  value={bankForm.accountNumber}
+                  onChange={(e) => setBankForm((f) => ({ ...f, accountNumber: e.target.value }))}
+                  className="mt-1"
+                  placeholder="Digits only, 9–18 characters"
+                  autoComplete="off"
+                />
+              </div>
+              <div>
+                <Label htmlFor="ifsc">IFSC code</Label>
+                <Input
+                  id="ifsc"
+                  value={bankForm.ifscCode}
+                  onChange={(e) => setBankForm((f) => ({ ...f, ifscCode: e.target.value.toUpperCase() }))}
+                  className="mt-1"
+                  placeholder="e.g. SBIN0001234"
+                  maxLength={11}
+                />
+              </div>
+              <Button
+                type="button"
+                disabled={bankSaving}
+                onClick={async () => {
+                  if (!employeeData._id) return;
+                  const digits = bankForm.accountNumber.replace(/\D/g, '');
+                  if (!bankForm.bankName.trim() || digits.length < 9 || digits.length > 18) {
+                    toast.error('Bank name and a valid account number (9–18 digits) are required');
+                    return;
+                  }
+                  if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(bankForm.ifscCode.trim())) {
+                    toast.error('Invalid IFSC format (e.g. HDFC0001234)');
+                    return;
+                  }
+                  setBankSaving(true);
+                  try {
+                    const payload = {
+                      bankName: bankForm.bankName.trim(),
+                      accountNumber: bankForm.accountNumber.trim(),
+                      ifscCode: bankForm.ifscCode.trim(),
+                      isPrimary: true,
+                    };
+                    if (primaryBankAccountId) {
+                      const res = await apiService.updateBankAccount(employeeData._id, primaryBankAccountId, payload);
+                      if (res.success) toast.success('Bank details updated');
+                      else toast.error(res.message || 'Update failed');
+                    } else {
+                      const res = await apiService.createBankAccount(employeeData._id, payload);
+                      if (res.success) {
+                        toast.success('Bank details saved');
+                        const id = (res.data as any)?._id || (res.data as any)?.id;
+                        if (id) setPrimaryBankAccountId(id);
+                        setBankForm((f) => ({ ...f, accountNumber: '' }));
+                      } else toast.error(res.message || 'Save failed');
+                    }
+                  } catch (e: any) {
+                    toast.error(e?.message || 'Request failed');
+                  } finally {
+                    setBankSaving(false);
+                  }
+                }}
+              >
+                {bankSaving ? 'Saving…' : primaryBankAccountId ? 'Update bank details' : 'Save bank details'}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         {employeeData && (
           <Card>
             <CardHeader>
@@ -250,11 +373,7 @@ export default function MyProfilePage() {
                     <div>
                       <p className="text-xs text-muted-foreground">Join Date</p>
                       <p className="font-semibold">
-                        {new Date(employeeData.joinDate).toLocaleDateString('en-IN', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                        })}
+                        {formatDateDDMMYYYY(employeeData.joinDate)}
                       </p>
                     </div>
                   </div>

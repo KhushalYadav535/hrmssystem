@@ -1,4 +1,6 @@
 "use client";
+
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -182,7 +184,7 @@ export default function AppraisalDisputesPage() {
                                                     </p>
                                                 )}
                                                 <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{d.reason}</p>
-                                                <p className="text-xs text-muted-foreground mt-0.5">Submitted: {new Date(d.submittedDate).toLocaleDateString("en-IN")}</p>
+                                                <p className="text-xs text-muted-foreground mt-0.5">Submitted: {formatDateDDMMYYYY(d.submittedDate)}</p>
                                             </div>
                                         </div>
                                         <div className="flex flex-col gap-2 shrink-0">

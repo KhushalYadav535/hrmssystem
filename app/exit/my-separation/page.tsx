@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
@@ -130,7 +131,7 @@ export default function MySeparationPage() {
                 <div>
                   <p className="text-sm text-muted-foreground">Last Working Date</p>
                   <p className="text-2xl font-bold">
-                    {new Date(separation.lastWorkingDate).toLocaleDateString()}
+                    {formatDateDDMMYYYY(separation.lastWorkingDate)}
                   </p>
                 </div>
                 <Calendar className="w-8 h-8 text-muted-foreground" />
@@ -185,7 +186,7 @@ export default function MySeparationPage() {
                     <p className="text-sm text-muted-foreground">Resignation Date</p>
                     <p className="font-semibold">
                       {separation.resignationDate
-                        ? new Date(separation.resignationDate).toLocaleDateString()
+                        ? formatDateDDMMYYYY(separation.resignationDate)
                         : 'N/A'}
                     </p>
                   </div>
@@ -230,7 +231,7 @@ export default function MySeparationPage() {
                         )}
                         {clearance.clearedDate && (
                           <p className="text-xs text-muted-foreground mt-1">
-                            Cleared: {new Date(clearance.clearedDate).toLocaleDateString()}
+                            Cleared: {formatDateDDMMYYYY(clearance.clearedDate)}
                           </p>
                         )}
                       </div>

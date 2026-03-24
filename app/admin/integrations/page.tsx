@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import apiService from '@/lib/api';
@@ -144,7 +145,7 @@ export default function IntegrationsPage() {
                   )}
                   {healthStatus[int.integrationCode].lastHealthCheck && (
                     <span className="text-muted-foreground ml-auto">
-                      {new Date(healthStatus[int.integrationCode].lastHealthCheck).toLocaleDateString()}
+                      {formatDateDDMMYYYY(healthStatus[int.integrationCode].lastHealthCheck)}
                     </span>
                   )}
                 </div>

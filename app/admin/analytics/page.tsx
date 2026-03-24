@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LineChart, Line } from 'recharts';
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 
 export default function AnalyticsPage() {
   const { toast } = useToast();
@@ -61,7 +62,7 @@ export default function AnalyticsPage() {
       const date = new Date();
       date.setDate(date.getDate() - i);
       trendData.push({
-        date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        date: formatDateDDMMYYYY(date),
         tenants: Math.floor(Math.random() * 5) + (data.totalTenants || 0) - 2, // Simulated
         users: Math.floor(Math.random() * 50) + (data.totalUsers || 0) - 25,
         activations: Math.floor(Math.random() * 3),

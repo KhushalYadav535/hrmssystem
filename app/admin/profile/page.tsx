@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { useAuth } from '@/lib/auth-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -88,9 +89,7 @@ export default function PlatformAdminProfilePage() {
                                 <div>
                                     <p className="text-xs text-muted-foreground">Member Since</p>
                                     <p className="font-semibold">
-                                        {new Date(currentUser.joinDate).toLocaleDateString('en-IN', {
-                                            day: '2-digit', month: 'short', year: 'numeric',
-                                        })}
+                                        {formatDateDDMMYYYY(currentUser.joinDate)}
                                     </p>
                                 </div>
                             </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
@@ -265,7 +266,7 @@ export default function OneTimePaymentPage() {
                         <div>
                           <p className="text-xs text-muted-foreground">Created</p>
                           <p className="text-sm font-medium">
-                            {payment.createdAt ? new Date(payment.createdAt).toLocaleDateString() : 'N/A'}
+                            {payment.createdAt ? formatDateDDMMYYYY(payment.createdAt) : 'N/A'}
                           </p>
                         </div>
                       </div>

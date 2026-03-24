@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY, formatDateTimeFullDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -49,7 +50,7 @@ export default function IntegrationHealthPage() {
           const date = new Date();
           date.setDate(date.getDate() - i);
           timelineData.push({
-            date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            date: formatDateDDMMYYYY(date),
             healthy: Math.floor(Math.random() * 3) + 2,
             failed: Math.floor(Math.random() * 2),
             degraded: Math.floor(Math.random() * 1),
@@ -150,7 +151,7 @@ export default function IntegrationHealthPage() {
                     <div className="text-sm">
                       <p className="text-muted-foreground">Last Check</p>
                       <p className="font-medium">
-                        {new Date(health.lastHealthCheck).toLocaleString()}
+                        {formatDateTimeFullDDMMYYYY(health.lastHealthCheck)}
                       </p>
                     </div>
                   )}

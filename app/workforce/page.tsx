@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
@@ -753,12 +754,7 @@ export default function WorkforcePage() {
                     <Label className="text-muted-foreground">Join Date</Label>
                     <p>
                       {selectedEmployee.joinDate
-                        ? new Date(selectedEmployee.joinDate).toLocaleDateString('en-GB', {
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric',
-                          })
-                        : 'N/A'}
+                        ? formatDateDDMMYYYY(selectedEmployee.joinDate): 'N/A'}
                     </p>
                   </div>
                 </div>
@@ -773,7 +769,7 @@ export default function WorkforcePage() {
                             <div>
                               <p className="font-medium">{doc.name}</p>
                               <p className="text-xs text-muted-foreground">
-                                {doc.size || 'N/A'} • {doc.uploadedDate ? new Date(doc.uploadedDate).toLocaleDateString() : 'N/A'}
+                                {doc.size || 'N/A'} • {doc.uploadedDate ? formatDateDDMMYYYY(doc.uploadedDate) : 'N/A'}
                               </p>
                             </div>
                           </div>

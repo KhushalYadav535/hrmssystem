@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateTimeFullDDMMYYYY } from '@/lib/date-format';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
@@ -143,7 +144,7 @@ export default function AuditLogPage() {
         const logs = Array.isArray(response.data) ? response.data : [];
         const csvHeaders = ['Timestamp', 'User', 'Action', 'Module', 'Details', 'Status', 'IP Address'];
         const csvRows = logs.map((log: any) => [
-          new Date(log.timestamp).toLocaleString(),
+          formatDateTimeFullDDMMYYYY(log.timestamp),
           log.userName || 'Unknown',
           log.action,
           log.module,
@@ -175,18 +176,6 @@ export default function AuditLogPage() {
       toast.error('Failed to export audit log');
       console.error('Export audit log error:', error);
     }
-  };
-
-  const formatTimestamp = (timestamp: string | Date) => {
-    const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
-    return date.toLocaleString('en-IN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
   };
 
   const dynamicModules = Array.from(new Set(auditLogs.map(log => log.module))).filter(Boolean);
@@ -349,7 +338,7 @@ export default function AuditLogPage() {
                             <div className="flex items-center gap-4 text-xs text-muted-foreground">
                               <span className="flex items-center gap-1">
                                 <Calendar className="w-3 h-3" />
-                                {formatTimestamp(log.timestamp)}
+                                {formatDateTimeFullDDMMYYYY(log.timestamp)}
                               </span>
                               {log.ipAddress && (
                                 <>

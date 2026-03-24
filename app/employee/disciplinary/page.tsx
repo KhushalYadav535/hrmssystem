@@ -1,4 +1,6 @@
 "use client";
+
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -190,7 +192,7 @@ export default function DisciplinaryPage() {
                                         <p className="font-semibold">{r.employeeId?.firstName} {r.employeeId?.lastName}</p>
                                         <p className="text-sm text-muted-foreground">{r.employeeId?.employeeCode} • {r.employeeId?.designation}</p>
                                         <p className="text-sm mt-1">{r.type}</p>
-                                        <p className="text-xs text-muted-foreground mt-0.5">Incident: {new Date(r.incidentDate).toLocaleDateString("en-IN")} • Issued by: {r.issuedByName}</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">Incident: {formatDateDDMMYYYY(r.incidentDate)} • Issued by: {r.issuedByName}</p>
                                         <p className="text-sm text-muted-foreground mt-1 line-clamp-1">{r.reason}</p>
                                     </div>
                                 </div>
@@ -222,7 +224,7 @@ export default function DisciplinaryPage() {
                             <div className="grid grid-cols-2 gap-2">
                                 <div><p className="text-muted-foreground">Employee</p><p className="font-medium">{viewRecord.employeeId?.firstName} {viewRecord.employeeId?.lastName}</p></div>
                                 <div><p className="text-muted-foreground">Type</p><p className="font-medium">{viewRecord.type}</p></div>
-                                <div><p className="text-muted-foreground">Incident Date</p><p>{new Date(viewRecord.incidentDate).toLocaleDateString("en-IN")}</p></div>
+                                <div><p className="text-muted-foreground">Incident Date</p><p>{formatDateDDMMYYYY(viewRecord.incidentDate)}</p></div>
                                 <div><p className="text-muted-foreground">Status</p><Badge className={STATUS_COLORS[viewRecord.status]}>{viewRecord.status}</Badge></div>
                                 <div><p className="text-muted-foreground">Issued By</p><p>{viewRecord.issuedByName}</p></div>
                                 <div><p className="text-muted-foreground">Outcome</p><p>{viewRecord.outcome || "Pending"}</p></div>
@@ -239,7 +241,7 @@ export default function DisciplinaryPage() {
                                 <div className="border-t pt-3">
                                     <p className="text-muted-foreground mb-1">Employee Response</p>
                                     <p>{viewRecord.employeeResponse}</p>
-                                    <p className="text-xs text-muted-foreground">{new Date(viewRecord.employeeResponseDate).toLocaleDateString("en-IN")}</p>
+                                    <p className="text-xs text-muted-foreground">{formatDateDDMMYYYY(viewRecord.employeeResponseDate)}</p>
                                 </div>
                             )}
                         </div>

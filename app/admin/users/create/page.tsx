@@ -21,6 +21,7 @@ export default function CreateUserPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isCreating, setIsCreating] = useState(false);
   const [departments, setDepartments] = useState<any[]>([]);
+  const [designations, setDesignations] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     employeeCode: '',
     firstName: '',
@@ -38,14 +39,13 @@ export default function CreateUserPage() {
     location: '',
     salary: '',
     ctc: '',
-    bank: '',
-    accountNumber: '',
     status: 'Active',
   });
 
   useEffect(() => {
     if (isAuthenticated) {
       loadDepartments();
+      loadDesignations();
     }
   }, [isAuthenticated]);
 
@@ -62,6 +62,22 @@ export default function CreateUserPage() {
     } catch (error: any) {
       console.error('Failed to load departments:', error);
     }
+  };
+
+  const loadDesignations = async () => {
+    try {
+      const response = await apiService.getDesignations();
+      if (response.success && response.data) {
+        setDesignations(Array.isArray(response.data) ? response.data : []);
+      }
+    } catch (error: any) {
+      console.error('Failed to load designations:', error);
+    }
+  };
+
+  const designationLabel = (idOrValue: string) => {
+    const d = designations.find((x) => (x._id || x.id) === idOrValue);
+    return d?.name || d?.title || formData.designation || idOrValue;
   };
 
   const handleInputChange = (e: any) => {
@@ -107,15 +123,13 @@ export default function CreateUserPage() {
         phone: formData.phone.trim(),
         dateOfBirth: formData.dateOfBirth,
         gender: formData.gender,
-        designation: formData.designation.trim(),
+        designation: formData.designation.trim(), // Designation Master id or code
         department: formData.department.trim(),
         status: formData.status,
         joinDate: formData.joinDate,
         location: formData.location.trim(),
         salary: parseFloat(formData.salary),
         ctc: parseFloat(formData.ctc),
-        bankAccount: formData.accountNumber || undefined,
-        ifscCode: formData.bank || undefined,
       };
 
       const response = await apiService.createEmployee(employeeData);
@@ -314,14 +328,25 @@ export default function CreateUserPage() {
                   </div>
                   <div>
                     <Label htmlFor="designation">Designation *</Label>
-                    <Input
-                      id="designation"
-                      name="designation"
+                    <Select
                       value={formData.designation}
-                      onChange={handleInputChange}
-                      placeholder="e.g., Senior Accountant"
-                      className="mt-2"
-                    />
+                      onValueChange={(value) => setFormData((prev) => ({ ...prev, designation: value }))}
+                    >
+                      <SelectTrigger className="mt-2">
+                        <SelectValue placeholder="Select from Designation Master" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {designations.length === 0 ? (
+                          <div className="px-2 py-2 text-sm text-muted-foreground">No designations in master — add them under Configuration → Designations</div>
+                        ) : (
+                          designations.map((d) => (
+                            <SelectItem key={d._id || d.id} value={String(d._id || d.id)}>
+                              {d.name || d.title || d.code || 'Designation'}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -388,6 +413,9 @@ export default function CreateUserPage() {
 
             {currentStep === 3 && (
               <div className="space-y-6">
+                <p className="text-sm text-muted-foreground">
+                  Bank details are maintained by the employee under <strong>Settings → My Profile</strong> after login.
+                </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="salary">Monthly Salary *</Label>
@@ -410,30 +438,6 @@ export default function CreateUserPage() {
                       value={formData.ctc}
                       onChange={handleInputChange}
                       placeholder="600000"
-                      className="mt-2"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="bank">Bank Name</Label>
-                    <Input
-                      id="bank"
-                      name="bank"
-                      value={formData.bank}
-                      onChange={handleInputChange}
-                      placeholder="Bank name"
-                      className="mt-2"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="accountNumber">Bank Account Number</Label>
-                    <Input
-                      id="accountNumber"
-                      name="accountNumber"
-                      value={formData.accountNumber}
-                      onChange={handleInputChange}
-                      placeholder="Account number"
                       className="mt-2"
                     />
                   </div>
@@ -472,7 +476,7 @@ export default function CreateUserPage() {
                     </div>
                     <div>
                       <p className="text-muted-foreground">Designation</p>
-                      <p className="font-medium">{formData.designation || 'Not specified'}</p>
+                      <p className="font-medium">{designationLabel(formData.designation) || 'Not specified'}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Location</p>

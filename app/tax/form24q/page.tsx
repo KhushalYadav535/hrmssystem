@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
@@ -277,13 +278,7 @@ export default function Form24QPage() {
                       </p>
                       {currentData.generatedDate && (
                         <p className="text-sm text-muted-foreground">
-                          Generated on: {new Date(currentData.generatedDate).toLocaleDateString('en-IN', { 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                          Generated on: {formatDateDDMMYYYY(currentData.generatedDate)}
                         </p>
                       )}
                       {currentData.tracesAcknowledgmentNumber && (

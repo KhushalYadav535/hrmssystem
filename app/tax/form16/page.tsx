@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
@@ -119,11 +120,7 @@ export default function Form16Page() {
                   </p>
                   {currentForm16.status === 'Available' && (
                     <p className="text-sm text-muted-foreground">
-                      Generated on: {new Date(currentForm16.generatedDate).toLocaleDateString('en-IN', { 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
-                      })}
+                      Generated on: {formatDateDDMMYYYY(currentForm16.generatedDate)}
                     </p>
                   )}
                 </div>

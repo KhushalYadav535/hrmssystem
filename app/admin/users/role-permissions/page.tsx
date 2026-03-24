@@ -87,6 +87,10 @@ export default function RolePermissionsPage() {
   }
 
   const handleEditPermissions = (role: string) => {
+    if (ROLES_WITH_LOCKED_PERMISSIONS.includes(role)) {
+      toast.error('Permissions for this system role cannot be changed here.');
+      return;
+    }
     const rolePerm = rolePermissions.find(rp => rp.role === role);
     if (rolePerm) {
       setSelectedRole(role);
@@ -178,6 +182,9 @@ export default function RolePermissionsPage() {
     'Auditor',
   ];
 
+  /** Platform / system roles — permission matrix must not be edited from tenant screens */
+  const ROLES_WITH_LOCKED_PERMISSIONS = ['Super Admin', 'Tenant Admin'];
+
   // Group permissions by category
   const permissionCategories: Record<string, string[]> = {
     'Employee Management': availablePermissions.filter(p => p.includes('employee') || p.includes('onboarding') || p.includes('recruitment')),
@@ -255,10 +262,11 @@ export default function RolePermissionsPage() {
                               <Button
                                 variant="outline"
                                 className="w-full"
+                                disabled={ROLES_WITH_LOCKED_PERMISSIONS.includes(role)}
                                 onClick={() => handleEditPermissions(role)}
                               >
                                 <Settings className="w-4 h-4 mr-2" />
-                                Manage Permissions
+                                {ROLES_WITH_LOCKED_PERMISSIONS.includes(role) ? 'Locked (system role)' : 'Manage Permissions'}
                               </Button>
                             </div>
                           </CardContent>

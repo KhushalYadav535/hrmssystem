@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -315,7 +316,7 @@ export default function BranchPromotionPage() {
                       </div>
                       <div>
                         <Label className="text-muted-foreground text-xs">Effective Date</Label>
-                        <p className="font-medium">{new Date(promo.effectiveDate).toLocaleDateString()}</p>
+                        <p className="font-medium">{formatDateDDMMYYYY(promo.effectiveDate)}</p>
                       </div>
                       <div>
                         <Label className="text-muted-foreground text-xs">Type</Label>

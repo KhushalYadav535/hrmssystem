@@ -58,7 +58,7 @@ export default function CalendarView({ events, onDateClick }: CalendarViewProps)
       <div className="space-y-4">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-semibold text-foreground">
-            {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            {currentDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
           </h3>
           <div className="flex gap-2">
             <Button

@@ -60,10 +60,11 @@ export default function BranchMasterPage() {
       const params: any = { type: 'BRANCH' };
       
       // Fetch branches, zones (ZO), and regions (RO) for parent dropdown
-      const [branchesRes, zonesRes, regionsRes] = await Promise.all([
+      const [branchesRes, zonesRes, regionsRes, hoRes] = await Promise.all([
         apiService.getOrganizationUnits(params),
         apiService.getOrganizationUnits({ type: 'ZO' }),
         apiService.getOrganizationUnits({ type: 'RO' }),
+        apiService.getOrganizationUnits({ type: 'HO' }),
       ]);
 
       if (branchesRes.success && branchesRes.data) {
@@ -95,8 +96,12 @@ export default function BranchMasterPage() {
         setBranches([]);
       }
       
-      // Combine zones and regions for parent dropdown
+      // Zones, regions, and Head Office as optional parents (HO-only bank: branches under HO)
       const allParentUnits: any[] = [];
+      if (hoRes.success && hoRes.data) {
+        const hos = Array.isArray(hoRes.data) ? hoRes.data : [];
+        allParentUnits.push(...hos);
+      }
       if (zonesRes.success && zonesRes.data) {
         const zones = Array.isArray(zonesRes.data) ? zonesRes.data : [];
         allParentUnits.push(...zones);
@@ -131,12 +136,16 @@ export default function BranchMasterPage() {
   const loadParentUnits = async () => {
     try {
       // Fetch both zones (ZO) and regions (RO) for parent dropdown
-      const [zonesRes, regionsRes] = await Promise.all([
+      const [zonesRes, regionsRes, hoRes] = await Promise.all([
         apiService.getOrganizationUnits({ type: 'ZO' }),
         apiService.getOrganizationUnits({ type: 'RO' }),
+        apiService.getOrganizationUnits({ type: 'HO' }),
       ]);
       
       const allParentUnits: any[] = [];
+      if (hoRes.success && hoRes.data) {
+        allParentUnits.push(...(Array.isArray(hoRes.data) ? hoRes.data : []));
+      }
       if (zonesRes.success && zonesRes.data) {
         const zones = Array.isArray(zonesRes.data) ? zonesRes.data : [];
         allParentUnits.push(...zones);
@@ -203,11 +212,7 @@ export default function BranchMasterPage() {
       return;
     }
 
-    // BR-ORG-11: Branch must have parent (Region or Zone)
-    if (!form.parentUnitId) {
-      toast.error('Parent Region/Zone is required');
-      return;
-    }
+    // BR-ORG-11: Parent zone/region/HO is optional (small banks: HO → branches only)
 
     // BR-ORG-12: Validate IFSC format (11 characters: 4 letters + 0 + 6 digits)
     if (form.branchCode && !/^[A-Z]{4}0[0-9]{6}$/.test(form.branchCode.toUpperCase())) {
@@ -228,6 +233,7 @@ export default function BranchMasterPage() {
       } else {
         const res = await apiService.createOrganizationUnit({
           ...form,
+          parentUnitId: form.parentUnitId || undefined,
           unitType: 'BRANCH',
         });
         if (res.success) {
@@ -524,18 +530,19 @@ export default function BranchMasterPage() {
                 />
               </div>
               <div>
-                <Label>Parent Region / Zone *</Label>
+                <Label>Parent (Head Office / Zone / Region) — optional</Label>
                 <Select
-                  value={form.parentUnitId}
-                  onValueChange={(v) => setForm({ ...form, parentUnitId: v })}
+                  value={form.parentUnitId || '__none__'}
+                  onValueChange={(v) => setForm({ ...form, parentUnitId: v === '__none__' ? '' : v })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select parent unit" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="__none__">No parent (e.g. only Head Office and branches)</SelectItem>
                     {parentUnits.length === 0 ? (
                       <SelectItem value="no-parent" disabled>
-                        No zones or regions available. Please create a zone or region first.
+                        No parent units defined yet. You can add Head Office in Zone Master, or create zones/regions.
                       </SelectItem>
                     ) : (
                       parentUnits.map((parent) => (

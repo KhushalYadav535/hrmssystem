@@ -260,7 +260,7 @@ export default function OrgTreePage() {
             <CardHeader>
               <CardTitle>Organization Tree</CardTitle>
               <CardDescription>
-                Visual hierarchy view. {currentUser?.role === 'Tenant Admin' && 'Drag units to reorganize.'}
+                This is the organization structure screen: interactive tree (org tree builder). Use Zone/Branch Master to add units; use this page to view and, as Tenant Admin, drag-and-drop to reorganize.
               </CardDescription>
             </CardHeader>
             <CardContent>

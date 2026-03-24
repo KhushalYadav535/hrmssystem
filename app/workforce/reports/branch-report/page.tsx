@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -91,7 +92,7 @@ export default function BranchReportPage() {
 
     const csvRows: string[][] = [
       ['Branch Report', reportData.branch.name],
-      ['Generated Date', new Date().toLocaleDateString()],
+      ['Generated Date', formatDateDDMMYYYY(new Date())],
       [],
       ['SUMMARY'],
       ['Total Employees', reportData.summary.totalEmployees.toString()],
@@ -505,7 +506,7 @@ export default function BranchReportPage() {
                             <TableCell>{promo.employee}</TableCell>
                             <TableCell>{promo.from}</TableCell>
                             <TableCell className="font-medium">{promo.to}</TableCell>
-                            <TableCell>{new Date(promo.date).toLocaleDateString()}</TableCell>
+                            <TableCell>{formatDateDDMMYYYY(promo.date)}</TableCell>
                             <TableCell>
                               {promo.includesTransfer ? (
                                 <Badge variant="secondary">Yes</Badge>
@@ -569,7 +570,7 @@ export default function BranchReportPage() {
                             <TableCell>
                               <Badge variant="outline">{transfer.type}</Badge>
                             </TableCell>
-                            <TableCell>{new Date(transfer.date).toLocaleDateString()}</TableCell>
+                            <TableCell>{formatDateDDMMYYYY(transfer.date)}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>

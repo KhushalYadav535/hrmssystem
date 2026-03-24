@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
@@ -134,7 +135,7 @@ export default function OnboardingPage() {
                 const candidateName = candidate.candidateName || candidate.name || 'Unknown';
                 const position = candidate.position || 'N/A';
                 const department = candidate.department || 'N/A';
-                const joiningDate = candidate.joiningDate ? new Date(candidate.joiningDate).toLocaleDateString() : 'N/A';
+                const joiningDate = candidate.joiningDate ? formatDateDDMMYYYY(candidate.joiningDate) : 'N/A';
                 const status = candidate.status || 'pending';
                 const completionRate = candidate.completionRate || 0;
                 const tasks = candidate.tasks || [];

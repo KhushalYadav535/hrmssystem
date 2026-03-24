@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
@@ -330,7 +331,7 @@ export default function AttendancePage() {
           <CardHeader>
             <CardTitle className="text-lg">Attendance Records</CardTitle>
             <CardDescription>
-              {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              {formatDateDDMMYYYY(new Date())}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -358,7 +359,7 @@ export default function AttendancePage() {
                   ) : (
                     attendanceRecords.map((record) => {
                       const recordId = record._id || record.id;
-                      const recordDate = record.date ? new Date(record.date).toLocaleDateString() : 'N/A';
+                      const recordDate = record.date ? formatDateDDMMYYYY(record.date) : 'N/A';
                       const checkIn = record.checkIn ? new Date(record.checkIn).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '-';
                       const checkOut = record.checkOut ? new Date(record.checkOut).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '-';
                       const workingHours = record.workingHours || 0;

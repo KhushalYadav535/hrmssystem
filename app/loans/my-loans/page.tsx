@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
@@ -261,9 +262,9 @@ function LoanCard({ loan, getStatusBadge }: { loan: Loan; getStatusBadge: (statu
               )}
             </div>
             <div className="mt-4 text-xs text-muted-foreground">
-              Applied: {new Date(loan.createdAt).toLocaleDateString()}
-              {loan.disbursalDate && ` • Disbursed: ${new Date(loan.disbursalDate).toLocaleDateString()}`}
-              {loan.closureDate && ` • Closed: ${new Date(loan.closureDate).toLocaleDateString()}`}
+              Applied: {formatDateDDMMYYYY(loan.createdAt)}
+              {loan.disbursalDate && ` • Disbursed: ${formatDateDDMMYYYY(loan.disbursalDate)}`}
+              {loan.closureDate && ` • Closed: ${formatDateDDMMYYYY(loan.closureDate)}`}
             </div>
           </div>
           <div className="flex gap-2">

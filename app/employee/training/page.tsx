@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect, Suspense } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect, useParams, useSearchParams } from 'next/navigation';
@@ -306,7 +307,7 @@ function TrainingHistoryContent() {
                             {training.provider && ` • ${training.provider}`}
                           </p>
                           <p className="text-xs text-muted-foreground mt-1">
-                            {new Date(training.startDate).toLocaleDateString()} - {new Date(training.endDate).toLocaleDateString()}
+                            {formatDateDDMMYYYY(training.startDate)} - {formatDateDDMMYYYY(training.endDate)}
                             {training.duration && ` • ${training.duration} hours`}
                           </p>
                         </div>

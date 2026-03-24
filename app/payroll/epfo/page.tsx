@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
@@ -306,13 +307,7 @@ export default function EPFOPage() {
                   </p>
                   {ecrData.generatedDate && (
                     <p className="text-sm text-muted-foreground">
-                      Generated on: {new Date(ecrData.generatedDate).toLocaleDateString('en-IN', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      Generated on: {formatDateDDMMYYYY(ecrData.generatedDate)}
                     </p>
                   )}
                   {ecrData.acknowledgment?.acknowledgmentNumber && (

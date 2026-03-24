@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
@@ -153,7 +154,7 @@ export default function TaxPage() {
                       <div className="space-y-3">
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Submission Date</span>
-                          <span className="font-medium">{tax.submissionDate ? new Date(tax.submissionDate).toLocaleDateString() : 'Not submitted'}</span>
+                          <span className="font-medium">{tax.submissionDate ? formatDateDDMMYYYY(tax.submissionDate) : 'Not submitted'}</span>
                         </div>
                         {tax.verifiedBy && (
                           <div className="flex justify-between text-sm">
@@ -164,7 +165,7 @@ export default function TaxPage() {
                         {tax.verifiedDate && (
                           <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">Verified Date</span>
-                            <span className="font-medium">{new Date(tax.verifiedDate).toLocaleDateString()}</span>
+                            <span className="font-medium">{formatDateDDMMYYYY(tax.verifiedDate)}</span>
                           </div>
                         )}
                       </div>

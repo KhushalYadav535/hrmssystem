@@ -40,7 +40,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en-GB" suppressHydrationWarning>
       <body className={`font-sans antialiased`} suppressHydrationWarning>
         <ThemeProvider>
           <AuthProvider>

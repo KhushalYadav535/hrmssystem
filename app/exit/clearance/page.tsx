@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect, Suspense } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect, useSearchParams } from 'next/navigation';
@@ -189,7 +190,7 @@ function ClearanceContent() {
                       <p className="text-xs text-muted-foreground">
                         Cleared by: {clearance.clearanceOfficerName}
                         {clearance.clearedDate &&
-                          ` on ${new Date(clearance.clearedDate).toLocaleDateString()}`}
+                          ` on ${formatDateDDMMYYYY(clearance.clearedDate)}`}
                       </p>
                     )}
                   </div>

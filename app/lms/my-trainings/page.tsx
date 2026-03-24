@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import DashboardLayout from '@/components/layout/dashboard-layout';
@@ -102,7 +103,7 @@ export default function MyTrainingsPage() {
                   {t.dueDate && (
                     <p className="text-sm text-muted-foreground flex items-center gap-1">
                       <Clock className="w-4 h-4" />
-                      Due: {new Date(t.dueDate).toLocaleDateString()}
+                      Due: {formatDateDDMMYYYY(t.dueDate)}
                     </p>
                   )}
                   {t.status !== 'COMPLETED' && (

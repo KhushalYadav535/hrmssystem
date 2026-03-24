@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY, formatDateTimeFullDDMMYYYY } from '@/lib/date-format';
 import React, { useState, useEffect, Suspense } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useParams, useRouter } from 'next/navigation';
@@ -263,7 +264,7 @@ function GrievanceDetailContent() {
                 {grievance.incidentDate && (
                   <div>
                     <Label className="text-sm font-medium">Incident Date</Label>
-                    <p className="text-sm mt-1">{new Date(grievance.incidentDate).toLocaleDateString()}</p>
+                    <p className="text-sm mt-1">{formatDateDDMMYYYY(grievance.incidentDate)}</p>
                   </div>
                 )}
                 {grievance.preferredResolution && (
@@ -297,7 +298,7 @@ function GrievanceDetailContent() {
                           <div>
                             <p className="font-medium">{comment.commentedBy?.name || 'Unknown'}</p>
                             <p className="text-sm text-muted-foreground">
-                              {new Date(comment.commentedDate).toLocaleString()}
+                              {formatDateTimeFullDDMMYYYY(comment.commentedDate)}
                             </p>
                           </div>
                           {comment.isInternal && (

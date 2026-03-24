@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import apiService from '@/lib/api';
@@ -255,7 +256,7 @@ export default function SubscriptionPackagesPage() {
                   <CardContent>
                     <p className="text-2xl font-bold">₹{Number(pkg.monthlyPrice || 0).toLocaleString()}/mo</p>
                     <p className="text-xs text-muted-foreground mt-2">
-                      Archived on {new Date(pkg.archivedAt).toLocaleDateString()}
+                      Archived on {formatDateDDMMYYYY(pkg.archivedAt)}
                     </p>
                   </CardContent>
                 </Card>

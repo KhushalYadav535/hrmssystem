@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
@@ -109,8 +110,8 @@ export default function MyShiftPage() {
                   Current Shift
                 </CardTitle>
                 <CardDescription>
-                  Effective from {shift.effectiveDate ? new Date(shift.effectiveDate).toLocaleDateString() : '-'}
-                  {shift.endDate && ` until ${new Date(shift.endDate).toLocaleDateString()}`}
+                  Effective from {shift.effectiveDate ? formatDateDDMMYYYY(shift.effectiveDate) : '-'}
+                  {shift.endDate && ` until ${formatDateDDMMYYYY(shift.endDate)}`}
                 </CardDescription>
               </CardHeader>
               <CardContent>

@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -102,13 +103,13 @@ export default function TransferLogPage() {
   const handleExport = () => {
     const csvHeaders = ['Date', 'Employee', 'From Unit', 'To Unit', 'Type', 'Status', 'Effective Date'];
     const csvRows = transfers.map((t: any) => [
-      new Date(t.createdAt).toLocaleDateString(),
+      formatDateDDMMYYYY(t.createdAt),
       `${t.employeeId?.firstName || ''} ${t.employeeId?.lastName || ''}`,
       t.fromUnitId?.unitCode || '',
       t.toUnitId?.unitCode || '',
       t.transferType,
       t.status,
-      new Date(t.effectiveDate).toLocaleDateString(),
+      formatDateDDMMYYYY(t.effectiveDate),
     ]);
     const csvContent = [csvHeaders, ...csvRows].map(row => row.join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -231,7 +232,7 @@ export default function TransferLogPage() {
                 <tbody>
                   {transfers.map((transfer) => (
                     <tr key={transfer._id} className="border-b hover:bg-muted/50">
-                      <td className="p-2">{new Date(transfer.createdAt).toLocaleDateString()}</td>
+                      <td className="p-2">{formatDateDDMMYYYY(transfer.createdAt)}</td>
                       <td className="p-2">
                         {transfer.employeeId?.firstName} {transfer.employeeId?.lastName}
                         <br />
@@ -255,7 +256,7 @@ export default function TransferLogPage() {
                           <Badge variant="secondary" className="ml-1 text-xs">Temp</Badge>
                         )}
                       </td>
-                      <td className="p-2">{new Date(transfer.effectiveDate).toLocaleDateString()}</td>
+                      <td className="p-2">{formatDateDDMMYYYY(transfer.effectiveDate)}</td>
                       <td className="p-2">{getStatusBadge(transfer.status)}</td>
                       <td className="p-2">
                         <Button
@@ -320,7 +321,7 @@ export default function TransferLogPage() {
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Effective Date</Label>
-                  <p className="font-medium">{new Date(selectedTransfer.effectiveDate).toLocaleDateString()}</p>
+                  <p className="font-medium">{formatDateDDMMYYYY(selectedTransfer.effectiveDate)}</p>
                 </div>
                 {selectedTransfer.reason && (
                   <div>

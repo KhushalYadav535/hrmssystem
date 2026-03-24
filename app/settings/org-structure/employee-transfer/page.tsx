@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -367,7 +368,7 @@ export default function EmployeeTransferPage() {
                       {selectedEmployee.transferHistory.slice(0, 5).map((transfer: any, idx: number) => (
                         <div key={idx} className="text-sm p-2 bg-muted rounded">
                           <p className="font-medium">
-                            {new Date(transfer.effectiveDate).toLocaleDateString()}
+                            {formatDateDDMMYYYY(transfer.effectiveDate)}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {transfer.transferType} transfer

@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import DashboardLayout from '@/components/layout/dashboard-layout';
@@ -66,7 +67,7 @@ export default function CertificatesPage() {
                 <CardContent>
                   {cert.completedDate && (
                     <p className="text-sm text-muted-foreground">
-                      Completed on {new Date(cert.completedDate).toLocaleDateString()}
+                      Completed on {formatDateDDMMYYYY(cert.completedDate)}
                     </p>
                   )}
                 </CardContent>

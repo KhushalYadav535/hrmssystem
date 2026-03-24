@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
@@ -210,7 +211,7 @@ export default function LoanApprovePage() {
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        Applied: {new Date(loan.createdAt).toLocaleDateString()}
+                        Applied: {formatDateDDMMYYYY(loan.createdAt)}
                       </div>
                     </div>
                     <div className="flex gap-2">

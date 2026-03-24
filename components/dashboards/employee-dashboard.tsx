@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -116,7 +117,7 @@ export default function EmployeeDashboard() {
       type: 'leave',
       icon: Calendar,
       title: 'Leave Approved',
-      description: `${leave.leaveType} • ${new Date(leave.startDate).toLocaleDateString()} - ${new Date(leave.endDate).toLocaleDateString()}`,
+      description: `${leave.leaveType} • ${formatDateDDMMYYYY(leave.startDate)} - ${formatDateDDMMYYYY(leave.endDate)}`,
       status: 'Approved',
       date: leave.approvedDate || leave.appliedDate
     })),

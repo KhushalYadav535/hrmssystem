@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
@@ -244,13 +245,7 @@ export default function ESICPage() {
                   </p>
                   {esicData.generatedDate && (
                     <p className="text-sm text-muted-foreground">
-                      Generated on: {new Date(esicData.generatedDate).toLocaleDateString('en-IN', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      Generated on: {formatDateDDMMYYYY(esicData.generatedDate)}
                     </p>
                   )}
                   {esicData.returnNumber && (
@@ -399,7 +394,7 @@ export default function ESICPage() {
                 {esicData.paymentStatus.paymentDate && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Payment Date</span>
-                    <span className="font-medium">{new Date(esicData.paymentStatus.paymentDate).toLocaleDateString('en-IN')}</span>
+                    <span className="font-medium">{formatDateDDMMYYYY(esicData.paymentStatus.paymentDate)}</span>
                   </div>
                 )}
                 {esicData.paymentStatus.challanNumber && (

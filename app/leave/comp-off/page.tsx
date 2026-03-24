@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
@@ -156,13 +157,13 @@ export default function CompOffPage() {
                   {compOffs.map((co) => (
                     <TableRow key={co._id}>
                       <TableCell>
-                        {co.workedDate ? new Date(co.workedDate).toLocaleDateString() : '-'}
+                        {co.workedDate ? formatDateDDMMYYYY(co.workedDate) : '-'}
                       </TableCell>
                       <TableCell>{co.workedHours || '-'}</TableCell>
                       <TableCell>{co.workedHours >= 4 ? 1 : 0.5}</TableCell>
                       <TableCell>{getStatusBadge(co.status)}</TableCell>
                       <TableCell>
-                        {co.expiryDate ? new Date(co.expiryDate).toLocaleDateString() : '-'}
+                        {co.expiryDate ? formatDateDDMMYYYY(co.expiryDate) : '-'}
                       </TableCell>
                     </TableRow>
                   ))}

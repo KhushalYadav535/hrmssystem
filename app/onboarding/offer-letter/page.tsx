@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
@@ -258,7 +259,7 @@ export default function OfferLetterPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <p>Date: {new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                    <p>Date: {formatDateDDMMYYYY(new Date())}</p>
                     <p className="font-semibold">{formData.candidateName || 'Candidate Name'}</p>
                     <p>{formData.department || 'Department'}</p>
                   </div>

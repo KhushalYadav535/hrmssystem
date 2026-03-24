@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
@@ -367,7 +368,7 @@ export default function RecruitmentPage() {
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground mb-1">Posted Date</p>
-                          <p className="text-sm">{job.postedDate ? new Date(job.postedDate).toLocaleDateString() : 'N/A'}</p>
+                          <p className="text-sm">{job.postedDate ? formatDateDDMMYYYY(job.postedDate) : 'N/A'}</p>
                         </div>
                       </div>
 

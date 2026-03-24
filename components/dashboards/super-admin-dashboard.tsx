@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -290,7 +291,7 @@ export default function SuperAdminDashboard() {
                       {tenant.code} • {tenant.location} • {tenant.registrationEmail || tenant.adminEmail}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Registered: {new Date(tenant.createdAt).toLocaleDateString()}
+                      Registered: {formatDateDDMMYYYY(tenant.createdAt)}
                     </p>
                   </div>
                   <div className="flex gap-2">
@@ -348,7 +349,7 @@ export default function SuperAdminDashboard() {
                     <div>
                       <p className="font-medium">{sub.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        {sub.code} • Expires: {new Date(sub.subscriptionExpiryDate).toLocaleDateString()}
+                        {sub.code} • Expires: {formatDateDDMMYYYY(sub.subscriptionExpiryDate)}
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
@@ -621,7 +622,7 @@ export default function SuperAdminDashboard() {
                 <div>
                   <Label className="text-muted-foreground">Registration Date</Label>
                   <p className="font-medium">
-                    {new Date(selectedTenant.createdAt).toLocaleDateString()}
+                    {formatDateDDMMYYYY(selectedTenant.createdAt)}
                   </p>
                 </div>
               </div>

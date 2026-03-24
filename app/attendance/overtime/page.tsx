@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDateDDMMYYYY } from '@/lib/date-format';
 import { useAuth } from '@/lib/auth-context';
 import { redirect } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
@@ -304,7 +305,7 @@ export default function OvertimePage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-semibold">
-                        {rec.date ? new Date(rec.date).toLocaleDateString() : '-'} -{' '}
+                        {rec.date ? formatDateDDMMYYYY(rec.date) : '-'} -{' '}
                         {(rec.actualHours ?? rec.requestedHours ?? 0)} hours
                       </p>
                       <p className="text-sm text-muted-foreground">{rec.reason || '-'}</p>
