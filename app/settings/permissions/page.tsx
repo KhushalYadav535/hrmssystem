@@ -6,8 +6,9 @@ import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useState } from 'react';
-import { Save, Copy, Plus } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { useState, useEffect } from 'react';
+import { Save, Copy } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -41,73 +42,135 @@ function buildInitialMatrix(
   return m;
 }
 
+function mergeStoredPermissions(
+  stored: unknown,
+  modules: string[],
+  roleIds: string[],
+  actionKeys: ActionKey[],
+  fallback: CellMatrix
+): CellMatrix {
+  if (!stored || typeof stored !== 'object') return fallback;
+  const s = stored as CellMatrix;
+  const next = buildInitialMatrix(modules, roleIds, actionKeys);
+  for (const mod of modules) {
+    if (!s[mod]) continue;
+    for (const rid of roleIds) {
+      if (!s[mod][rid]) continue;
+      for (const ak of actionKeys) {
+        const v = s[mod][rid][ak];
+        if (typeof v === 'boolean') next[mod][rid][ak] = v;
+      }
+    }
+  }
+  return next;
+}
+
+const PERMISSION_ROLES = [
+  { id: 'hr_admin', name: 'HR Administrator', color: 'bg-red-600' },
+  { id: 'manager', name: 'Manager', color: 'bg-blue-600' },
+  { id: 'hr_officer', name: 'HR Officer', color: 'bg-green-600' },
+  { id: 'employee', name: 'Employee', color: 'bg-gray-600' },
+] as const;
+
+const PERMISSION_MODULES = [
+  'Dashboard',
+  'Employee Management',
+  'Leave Management',
+  'Payroll',
+  'Attendance',
+  'Performance',
+  'Reports',
+  'Settings',
+  'Approvals',
+  'User Access',
+] as const;
+
+const PERMISSION_ACTIONS: { key: ActionKey; label: string }[] = [
+  { key: 'view', label: 'View' },
+  { key: 'create', label: 'Create' },
+  { key: 'edit', label: 'Edit' },
+  { key: 'delete', label: 'Delete' },
+  { key: 'approve', label: 'Approve' },
+];
+
+function makeDefaultPermissionMatrix(): CellMatrix {
+  const modules = [...PERMISSION_MODULES];
+  const roleIds = PERMISSION_ROLES.map((r) => r.id);
+  const actionKeys = PERMISSION_ACTIONS.map((a) => a.key);
+  const base = buildInitialMatrix(modules, roleIds, actionKeys);
+  base['Dashboard']['hr_admin'].view = true;
+  base['Dashboard']['hr_admin'].create = true;
+  base['Dashboard']['hr_admin'].edit = true;
+  base['Dashboard']['hr_admin'].delete = true;
+  base['Dashboard']['hr_admin'].approve = true;
+  base['Dashboard']['manager'].view = true;
+  base['Dashboard']['manager'].create = true;
+  base['Dashboard']['manager'].edit = true;
+  base['Dashboard']['manager'].approve = true;
+  base['Dashboard']['employee'].view = true;
+  base['Dashboard']['hr_officer'].view = true;
+  base['Dashboard']['hr_officer'].create = true;
+  base['Dashboard']['hr_officer'].edit = true;
+  return base;
+}
+
 export default function PermissionMatrixPage() {
-  const { isAuthenticated, hasPermission } = useAuth();
+  const { isAuthenticated, hasPermission, currentUser, currentTenant } = useAuth();
   const [showCloneDialog, setShowCloneDialog] = useState(false);
   const [cloneSourceRole, setCloneSourceRole] = useState('');
   const [cloneTargetName, setCloneTargetName] = useState('');
+  const permissionStorageKey = currentTenant?.id
+    ? `hrms-module-permissions:${currentTenant.id}`
+    : null;
+  const [permissions, setPermissions] = useState<CellMatrix>(makeDefaultPermissionMatrix);
 
-  if (!isAuthenticated || !hasPermission('manage_settings')) {
+  useEffect(() => {
+    if (!permissionStorageKey || typeof window === 'undefined') return;
+    try {
+      const raw = localStorage.getItem(permissionStorageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      setPermissions(
+        mergeStoredPermissions(
+          parsed,
+          [...PERMISSION_MODULES],
+          PERMISSION_ROLES.map((r) => r.id),
+          PERMISSION_ACTIONS.map((a) => a.key),
+          makeDefaultPermissionMatrix()
+        )
+      );
+    } catch {
+      /* ignore corrupt storage */
+    }
+  }, [permissionStorageKey]);
+
+  const roles = PERMISSION_ROLES;
+  const modules = PERMISSION_MODULES;
+  const actions = PERMISSION_ACTIONS;
+
+  if (
+    !isAuthenticated ||
+    (currentUser?.role !== 'Tenant Admin' && !hasPermission('manage_settings'))
+  ) {
     redirect('/dashboard');
   }
 
-  const roles = [
-    { id: 'hr_admin', name: 'HR Administrator', color: 'bg-red-600' },
-    { id: 'manager', name: 'Manager', color: 'bg-blue-600' },
-    { id: 'hr_officer', name: 'HR Officer', color: 'bg-green-600' },
-    { id: 'employee', name: 'Employee', color: 'bg-gray-600' },
-  ];
-
-  const modules = [
-    'Dashboard',
-    'Employee Management',
-    'Leave Management',
-    'Payroll',
-    'Attendance',
-    'Performance',
-    'Reports',
-    'Settings',
-    'Approvals',
-    'User Access',
-  ];
-
-  const actions: { key: ActionKey; label: string }[] = [
-    { key: 'view', label: 'View' },
-    { key: 'create', label: 'Create' },
-    { key: 'edit', label: 'Edit' },
-    { key: 'delete', label: 'Delete' },
-    { key: 'approve', label: 'Approve' },
-  ];
-
-  const [permissions, setPermissions] = useState<CellMatrix>(() => {
-    const base = buildInitialMatrix(modules, roles.map((r) => r.id), actions.map((a) => a.key));
-    base['Dashboard']['hr_admin'].view = true;
-    base['Dashboard']['hr_admin'].create = true;
-    base['Dashboard']['hr_admin'].edit = true;
-    base['Dashboard']['hr_admin'].delete = true;
-    base['Dashboard']['hr_admin'].approve = true;
-    base['Dashboard']['manager'].view = true;
-    base['Dashboard']['manager'].create = true;
-    base['Dashboard']['manager'].edit = true;
-    base['Dashboard']['manager'].approve = true;
-    base['Dashboard']['employee'].view = true;
-    base['Dashboard']['hr_officer'].view = true;
-    base['Dashboard']['hr_officer'].create = true;
-    base['Dashboard']['hr_officer'].edit = true;
-    return base;
-  });
-
-  const togglePermission = (moduleName: string, roleId: string, action: ActionKey) => {
-    setPermissions((prev) => ({
-      ...prev,
-      [moduleName]: {
-        ...prev[moduleName],
-        [roleId]: {
-          ...prev[moduleName][roleId],
-          [action]: !prev[moduleName][roleId][action],
+  const setPermission = (moduleName: string, roleId: string, action: ActionKey, granted: boolean) => {
+    setPermissions((prev) => {
+      const mod = prev[moduleName] ?? {};
+      const roleRow = mod[roleId] ?? Object.fromEntries(actions.map((a) => [a.key, false])) as Record<ActionKey, boolean>;
+      if (!!roleRow[action] === granted) return prev;
+      return {
+        ...prev,
+        [moduleName]: {
+          ...mod,
+          [roleId]: {
+            ...roleRow,
+            [action]: granted,
+          },
         },
-      },
-    }));
+      };
+    });
   };
 
   const handleCloneRole = () => {
@@ -194,7 +257,22 @@ export default function PermissionMatrixPage() {
                 </div>
               </DialogContent>
             </Dialog>
-            <Button className="gap-2">
+            <Button
+              className="gap-2"
+              type="button"
+              onClick={() => {
+                if (!permissionStorageKey) {
+                  toast.error('Tenant context not ready. Refresh the page and try again.');
+                  return;
+                }
+                try {
+                  localStorage.setItem(permissionStorageKey, JSON.stringify(permissions));
+                  toast.success('Module permissions saved for this tenant');
+                } catch (e: any) {
+                  toast.error(e?.message || 'Could not save permissions');
+                }
+              }}
+            >
               <Save className="w-4 h-4" />
               Save Changes
             </Button>
@@ -219,7 +297,7 @@ export default function PermissionMatrixPage() {
                   )}
                   /{modules.length * actions.length}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">cells granted (all modules)</p>
+                <p className="text-xs text-muted-foreground mt-1">checks granted (all module × action cells for this role)</p>
               </CardContent>
             </Card>
           ))}
@@ -228,48 +306,65 @@ export default function PermissionMatrixPage() {
         <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle>Module Permissions</CardTitle>
-            <CardDescription>Configure granular access control by role and module</CardDescription>
+            <CardDescription>
+              One row per <strong>module</strong> and <strong>role</strong>. Each checkbox only changes that module + role + action — not an entire column.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="border-b border-border">
-                    <th className="text-left p-3 font-semibold">Module</th>
-                    {roles.map((role) => (
-                      <th key={role.id} className="text-center p-3 font-semibold">
-                        <Badge variant="outline" className="text-xs">{role.name}</Badge>
+                    <th className="text-left p-3 font-semibold min-w-[10rem]">Module</th>
+                    <th className="text-left p-3 font-semibold min-w-[8rem]">Role</th>
+                    {actions.map((action) => (
+                      <th key={action.key} className="text-center p-3 font-semibold whitespace-nowrap">
+                        {action.label}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {modules.map((module) => (
-                    <tr key={module} className="border-b border-border hover:bg-secondary/30">
-                      <td className="p-3 font-medium">{module}</td>
-                      {roles.map((role) => (
-                        <td key={role.id} className="p-3 text-center">
-                          <div className="flex justify-center gap-2">
-                            {actions.map((action) => (
-                              <button
-                                key={action.key}
-                                type="button"
-                                className={`px-2 py-1 rounded text-xs font-medium transition ${
-                                  permissions[module]?.[role.id]?.[action.key]
-                                    ? 'bg-green-600 text-white'
-                                    : 'bg-gray-300 text-gray-600'
-                                }`}
-                                onClick={() => togglePermission(module, role.id, action.key)}
-                                title={action.label}
-                              >
-                                {action.label[0]}
-                              </button>
-                            ))}
+                  {modules.flatMap((module) =>
+                    roles.map((role, roleIdx) => (
+                      <tr
+                        key={`${module}-${role.id}`}
+                        className="border-b border-border hover:bg-secondary/30"
+                      >
+                        {roleIdx === 0 ? (
+                          <td
+                            rowSpan={roles.length}
+                            className="p-3 font-medium align-top bg-muted/20 border-r border-border"
+                          >
+                            {module}
+                          </td>
+                        ) : null}
+                        <td className="p-3">
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${role.color}`} />
+                            <span className="font-medium text-foreground">{role.name}</span>
                           </div>
                         </td>
-                      ))}
-                    </tr>
-                  ))}
+                        {actions.map((action) => {
+                          const checked = !!permissions[module]?.[role.id]?.[action.key];
+                          return (
+                            <td key={action.key} className="p-2 text-center">
+                              <div className="flex justify-center">
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={(v) =>
+                                    setPermission(module, role.id, action.key, v === true)
+                                  }
+                                  aria-label={`${module}, ${role.name}, ${action.label}`}
+                                  className="data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600 data-[state=checked]:text-white"
+                                />
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -279,13 +374,14 @@ export default function PermissionMatrixPage() {
         <Card>
           <CardHeader>
             <CardTitle>Legend</CardTitle>
+            <CardDescription>Checked = permission granted for that row only</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-              {['V - View', 'C - Create', 'E - Edit', 'D - Delete', 'A - Approve'].map((item) => (
-                <div key={item} className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-green-600 rounded" />
-                  <span>{item}</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-sm text-muted-foreground">
+              {actions.map((a) => (
+                <div key={a.key} className="flex items-center gap-2">
+                  <span className="inline-block size-4 rounded border border-green-600 bg-green-600 shrink-0" aria-hidden />
+                  <span>{a.label}</span>
                 </div>
               ))}
             </div>

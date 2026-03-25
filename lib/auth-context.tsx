@@ -19,6 +19,15 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function rolesFromApiUser(user: Record<string, unknown>): UserRole[] {
+  const raw = user?.roles;
+  if (Array.isArray(raw) && raw.length) {
+    return raw.filter(Boolean) as UserRole[];
+  }
+  if (typeof user?.role === 'string' && user.role) return [user.role as UserRole];
+  return [];
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
@@ -40,6 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             password: '', // Don't store password
             name: user.name,
             role: user.role,
+            roles: rolesFromApiUser(user as Record<string, unknown>),
             employeeId: user.employeeId || null,
             payrollSubRole: user.payrollSubRole || null,
             designation: user.designation || '',
@@ -98,6 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           password: '', // Don't store password
           name: user.name,
           role: user.role,
+          roles: rolesFromApiUser(user as Record<string, unknown>),
           employeeId: user.employeeId || null,
           payrollSubRole: user.payrollSubRole || null,
           designation: user.designation || '',
@@ -143,7 +154,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           password: '',
           name: user.name,
           role: user.role,
+          roles: rolesFromApiUser(user as Record<string, unknown>),
           employeeId: user.employeeId || null,
+          payrollSubRole: user.payrollSubRole || null,
           designation: user.designation || '',
           department: user.department || '',
           status: user.status,
@@ -194,6 +207,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           password: '',
           name: user.name,
           role: user.role,
+          roles: rolesFromApiUser(user as Record<string, unknown>),
           designation: '',
           department: '',
           status: 'active',
@@ -264,6 +278,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             password: '',
             name: user.name,
             role: user.role,
+            roles: rolesFromApiUser(user as Record<string, unknown>),
             payrollSubRole: user.payrollSubRole || null,
             designation: user.designation || '',
             department: user.department || '',
@@ -293,8 +308,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (permission: string) => {
       if (!currentUser) return false;
 
+      const effectiveRoles: UserRole[] =
+        currentUser.roles && currentUser.roles.length > 0
+          ? currentUser.roles
+          : currentUser.role
+            ? [currentUser.role]
+            : [];
+
       // Super Admin has ALL permissions
-      if (currentUser.role === 'Super Admin') {
+      if (effectiveRoles.includes('Super Admin')) {
         return true;
       }
 
@@ -349,11 +371,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ],
       };
 
-      // BRD: Payroll Maker-Checker - Tenant Admin assigns Maker or Checker via payrollSubRole
-      if (currentUser.role === 'Payroll Administrator' && currentUser.payrollSubRole) {
+      // BRD: Payroll Maker-Checker - applies when user holds Payroll Administrator among their roles
+      if (effectiveRoles.includes('Payroll Administrator') && currentUser.payrollSubRole) {
         const makerOnly = ['process_payroll', 'manage_compliance', 'generate_form16', 'generate_form24q', 'manage_epfo', 'manage_esic', 'generate_bank_files', 'view_employee_salary'];
         const checkerOnly = ['approve_payroll', 'reject_payroll'];
-        const shared = ['view_payroll_reports', 'view_payslip'];
         if (currentUser.payrollSubRole === 'Maker') {
           if (checkerOnly.includes(permission)) return false;
         } else if (currentUser.payrollSubRole === 'Checker') {
@@ -361,14 +382,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      return rolePermissions[currentUser.role]?.includes(permission) ?? false;
+      return effectiveRoles.some((r) => rolePermissions[r]?.includes(permission) ?? false);
     },
     [currentUser]
   );
 
   const hasRole = useCallback(
     (role: UserRole) => {
-      return currentUser?.role === role;
+      if (!currentUser) return false;
+      const rs =
+        currentUser.roles && currentUser.roles.length > 0
+          ? currentUser.roles
+          : currentUser.role
+            ? [currentUser.role]
+            : [];
+      return rs.includes(role);
     },
     [currentUser]
   );
@@ -386,13 +414,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     registerTenant,
   };
 
-  // Show loading state while restoring session (avoid hydration mismatch - no window check)
+  // Loading UI: suppressHydrationWarning helps when browser extensions mutate the DOM (e.g. bis_skin_checked).
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center space-y-4">
-          <div className="w-12 h-12 border-4 border-primary border-t-primary/30 rounded-full animate-spin mx-auto" />
-          <p className="text-muted-foreground">Loading...</p>
+      <div className="flex min-h-screen items-center justify-center" suppressHydrationWarning>
+        <div className="space-y-4 text-center" suppressHydrationWarning>
+          <div
+            className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-primary/30"
+            suppressHydrationWarning
+            aria-hidden
+          />
+          <p className="text-muted-foreground" suppressHydrationWarning>
+            Loading...
+          </p>
         </div>
       </div>
     );

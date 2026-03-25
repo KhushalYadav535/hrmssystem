@@ -21,6 +21,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { formatDateDDMMYYYY } from '@/lib/date-format';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type CustomReportRow = {
   id: string;
@@ -30,7 +32,18 @@ type CustomReportRow = {
   frequency: string;
   shared: number;
   status: string;
+  /** Primary dataset for the report definition */
+  dataSource?: string;
+  /** Selected columns/fields to include */
+  columns?: string[];
 };
+
+const REPORT_DATA_SOURCES: { id: string; label: string; columns: string[] }[] = [
+  { id: 'employees', label: 'Employees', columns: ['Employee code', 'Name', 'Department', 'Designation', 'Join date', 'Status'] },
+  { id: 'attendance', label: 'Attendance', columns: ['Date', 'Employee', 'Shift', 'In time', 'Out time', 'Status'] },
+  { id: 'leave', label: 'Leave', columns: ['Employee', 'Leave type', 'From', 'To', 'Days', 'Status'] },
+  { id: 'payroll', label: 'Payroll', columns: ['Period', 'Employee', 'Gross', 'Deductions', 'Net pay', 'Status'] },
+];
 
 const SEED_REPORTS: CustomReportRow[] = [
   { id: 'seed-1', name: 'Department Wise Payroll', created: '2026-02-01', author: 'You', frequency: 'Monthly', shared: 5, status: 'Active' },
@@ -42,16 +55,19 @@ function storageKey(tenantId: string | undefined, userId: string | undefined) {
 }
 
 export default function CustomReportBuilderPage() {
-  const { isAuthenticated, currentUser, currentTenant, hasPermission } = useAuth();
+  const { isAuthenticated, currentUser, currentTenant, hasPermission, hasRole } = useAuth();
   const [newReportOpen, setNewReportOpen] = useState(false);
+  const [previewReport, setPreviewReport] = useState<CustomReportRow | null>(null);
   const [newReportName, setNewReportName] = useState('');
+  const [newReportDataSource, setNewReportDataSource] = useState(REPORT_DATA_SOURCES[0]?.id ?? 'employees');
+  const [newReportColumns, setNewReportColumns] = useState<string[]>(() => [...(REPORT_DATA_SOURCES[0]?.columns ?? [])]);
   const [customReports, setCustomReports] = useState<CustomReportRow[]>(SEED_REPORTS);
 
   const canUseReportBuilder = useMemo(() => {
     if (!isAuthenticated || !currentUser) return false;
-    if (currentUser.role === 'Tenant Admin') return true;
+    if (hasRole('Tenant Admin')) return true;
     return hasPermission('view_reports') || hasPermission('view_all_reports');
-  }, [isAuthenticated, currentUser, hasPermission]);
+  }, [isAuthenticated, currentUser, hasPermission, hasRole]);
 
   useEffect(() => {
     if (!canUseReportBuilder || typeof window === 'undefined') return;
@@ -105,28 +121,88 @@ export default function CustomReportBuilderPage() {
           </Button>
         </div>
 
-        <Dialog open={newReportOpen} onOpenChange={setNewReportOpen}>
-          <DialogContent className="sm:max-w-md">
+        <Dialog
+          open={newReportOpen}
+          onOpenChange={(open) => {
+            setNewReportOpen(open);
+            if (open) {
+              const src = REPORT_DATA_SOURCES[0];
+              setNewReportDataSource(src?.id ?? 'employees');
+              setNewReportColumns(src ? [...src.columns] : []);
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>New custom report</DialogTitle>
               <DialogDescription>
-                Enter a name. The report appears under My Reports and is saved in this browser for your user.
+                Choose a name, data source, and fields. The definition is stored with the report in this browser for your user.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-2 py-2">
-              <Label htmlFor="nr-name">Report name</Label>
-              <Input
-                id="nr-name"
-                value={newReportName}
-                onChange={(e) => setNewReportName(e.target.value)}
-                placeholder="e.g. Branch-wise attendance"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    (e.target as HTMLInputElement).form?.requestSubmit?.();
-                  }
-                }}
-              />
+            <div className="space-y-4 py-2 max-h-[min(70vh,28rem)] overflow-y-auto pr-1">
+              <div className="space-y-2">
+                <Label htmlFor="nr-name">Report name</Label>
+                <Input
+                  id="nr-name"
+                  value={newReportName}
+                  onChange={(e) => setNewReportName(e.target.value)}
+                  placeholder="e.g. Branch-wise attendance"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      (e.target as HTMLInputElement).form?.requestSubmit?.();
+                    }
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Data source</Label>
+                <Select
+                  value={newReportDataSource}
+                  onValueChange={(id) => {
+                    setNewReportDataSource(id);
+                    const def = REPORT_DATA_SOURCES.find((s) => s.id === id);
+                    setNewReportColumns(def ? [...def.columns] : []);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select dataset" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REPORT_DATA_SOURCES.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Include columns</Label>
+                <p className="text-xs text-muted-foreground">Toggle individual fields for this report.</p>
+                <div className="rounded-lg border border-border divide-y divide-border">
+                  {(REPORT_DATA_SOURCES.find((s) => s.id === newReportDataSource)?.columns ?? []).map((col) => {
+                    const checked = newReportColumns.includes(col);
+                    return (
+                      <div key={col} className="flex items-center gap-3 px-3 py-2">
+                        <Checkbox
+                          id={`nr-col-${col}`}
+                          checked={checked}
+                          onCheckedChange={(v) => {
+                            const on = v === true;
+                            setNewReportColumns((prev) =>
+                              on ? (prev.includes(col) ? prev : [...prev, col]) : prev.filter((c) => c !== col)
+                            );
+                          }}
+                        />
+                        <label htmlFor={`nr-col-${col}`} className="text-sm cursor-pointer flex-1">
+                          {col}
+                        </label>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
             <DialogFooter className="gap-2 sm:gap-0">
               <Button variant="outline" type="button" onClick={() => setNewReportOpen(false)}>
@@ -140,6 +216,10 @@ export default function CustomReportBuilderPage() {
                     toast.error('Please enter a report name');
                     return;
                   }
+                  if (newReportColumns.length === 0) {
+                    toast.error('Select at least one column');
+                    return;
+                  }
                   const today = new Date().toISOString().split('T')[0];
                   const row: CustomReportRow = {
                     id: `r-${Date.now()}`,
@@ -149,6 +229,8 @@ export default function CustomReportBuilderPage() {
                     frequency: 'On demand',
                     shared: 0,
                     status: 'Draft',
+                    dataSource: newReportDataSource,
+                    columns: [...newReportColumns],
                   };
                   persistReports((prev) => [row, ...prev]);
                   setNewReportName('');
@@ -157,6 +239,65 @@ export default function CustomReportBuilderPage() {
                 }}
               >
                 Create report
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={!!previewReport} onOpenChange={(open) => !open && setPreviewReport(null)}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{previewReport?.name ?? 'Report'}</DialogTitle>
+              <DialogDescription>
+                Definition stored in this browser. Export runs a placeholder until a data API is connected.
+              </DialogDescription>
+            </DialogHeader>
+            {previewReport && (
+              <div className="space-y-3 text-sm">
+                <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1">
+                  <p>
+                    <span className="text-muted-foreground">Created: </span>
+                    {formatDateDDMMYYYY(previewReport.created)}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Frequency: </span>
+                    {previewReport.frequency}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Author: </span>
+                    {previewReport.author}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Status: </span>
+                    {previewReport.status}
+                  </p>
+                  {previewReport.dataSource && (
+                    <p>
+                      <span className="text-muted-foreground">Data source: </span>
+                      {REPORT_DATA_SOURCES.find((s) => s.id === previewReport.dataSource)?.label ??
+                        previewReport.dataSource}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <Label className="text-foreground">Columns</Label>
+                  {previewReport.columns && previewReport.columns.length > 0 ? (
+                    <ul className="mt-2 list-inside list-disc text-muted-foreground">
+                      {previewReport.columns.map((c) => (
+                        <li key={c}>{c}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-muted-foreground">
+                      No column list (e.g. sample reports). Edit via Duplicate + delete old, or recreate from New Report.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setPreviewReport(null)}>
+                Close
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -179,15 +320,30 @@ export default function CustomReportBuilderPage() {
                         <CardTitle>{report.name}</CardTitle>
                         <CardDescription>
                           Created {formatDateDDMMYYYY(report.created)} • {report.frequency}
+                          {report.dataSource
+                            ? ` • ${REPORT_DATA_SOURCES.find((s) => s.id === report.dataSource)?.label ?? report.dataSource}`
+                            : ''}
                           {report.shared > 0 ? ` • Shared with ${report.shared} people` : ''}
+                          {report.columns?.length ? ` • ${report.columns.length} column(s)` : ''}
                         </CardDescription>
                       </div>
                       <Badge className={report.status === 'Draft' ? 'bg-amber-600' : 'bg-green-600'}>{report.status}</Badge>
                     </div>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="space-y-3">
+                    {report.columns && report.columns.length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">Fields: </span>
+                        {report.columns.join(', ')}
+                      </p>
+                    )}
                     <div className="flex flex-wrap gap-2">
-                      <Button size="sm" className="gap-2" type="button">
+                      <Button
+                        size="sm"
+                        className="gap-2"
+                        type="button"
+                        onClick={() => setPreviewReport(report)}
+                      >
                         <Eye className="w-4 h-4" />
                         View
                       </Button>
@@ -249,6 +405,8 @@ export default function CustomReportBuilderPage() {
                           frequency: 'On demand',
                           shared: 0,
                           status: 'Draft',
+                          dataSource: 'employees',
+                          columns: ['Employee code', 'Name', 'Department'],
                         };
                         persistReports((prev) => [row, ...prev]);
                         toast.success('Template added to My Reports');

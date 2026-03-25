@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { redirect, useRouter } from 'next/navigation';
+import { redirect, useRouter, useSearchParams } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, Edit, Trash2, Search, UserPlus, Save, X, Key, UserCheck, UserX, Loader2 } from 'lucide-react';
 import apiService from '@/lib/api';
 import { toast } from 'sonner';
@@ -22,6 +23,7 @@ interface User {
   email: string;
   name: string;
   role: string;
+  roles?: string[];
   payrollSubRole?: 'Maker' | 'Checker' | null;
   designation?: string;
   department?: string;
@@ -29,8 +31,40 @@ interface User {
   joinDate?: string;
 }
 
+const ALL_ROLE_OPTIONS = [
+  'Super Admin',
+  'Tenant Admin',
+  'HR Administrator',
+  'Payroll Administrator',
+  'Finance Administrator',
+  'Manager',
+  'Employee',
+  'Auditor',
+] as const;
+
+function userEffectiveRoles(u: User): string[] {
+  if (u.roles && Array.isArray(u.roles) && u.roles.length) return u.roles;
+  return u.role ? [u.role] : [];
+}
+
+/** Roles provisioned at platform level — Tenant Admin cannot change or reset these accounts. */
+const PLATFORM_MANAGED_ROLES = ['Super Admin', 'Platform Admin'] as const;
+
+function isPlatformManagedRole(role: string | undefined) {
+  return !!role && PLATFORM_MANAGED_ROLES.includes(role as 'Super Admin' | 'Platform Admin');
+}
+
+function userHasPlatformManagedRole(user: User) {
+  return userEffectiveRoles(user).some((r) => isPlatformManagedRole(r));
+}
+
 export default function UsersPage() {
-  const { isAuthenticated, hasPermission } = useAuth();
+  const { isAuthenticated, hasPermission, hasRole, currentUser } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const isTenantAdmin = hasRole('Tenant Admin');
+
+  const tenantAdminMayManage = (user: User) => !isTenantAdmin || !userHasPlatformManagedRole(user);
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -39,10 +73,10 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState<string | null>(null);
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [userFormData, setUserFormData] = useState({
     name: '',
     email: '',
-    role: '',
     payrollSubRole: '' as '' | 'Maker' | 'Checker',
     designation: '',
     department: '',
@@ -54,6 +88,13 @@ export default function UsersPage() {
       loadUsers();
     }
   }, [isAuthenticated]);
+
+  // After creating a user/employee, redirect includes ?refresh=1 so list reloads even when session was already active.
+  useEffect(() => {
+    if (!isAuthenticated || searchParams.get('refresh') !== '1') return;
+    loadUsers();
+    router.replace('/admin/users', { scroll: false });
+  }, [isAuthenticated, searchParams, router]);
 
   // Refresh data when page comes into focus (e.g., after navigation)
   useEffect(() => {
@@ -96,12 +137,21 @@ export default function UsersPage() {
   }
 
   const handleEdit = (user: User) => {
+    if (!tenantAdminMayManage(user)) {
+      toast.error('Platform-managed roles cannot be edited from Tenant Admin. Contact Platform Admin.');
+      return;
+    }
     setEditingUser(user);
+    const eff = userEffectiveRoles(user);
+    setSelectedRoles(eff.length ? eff : user.role ? [user.role] : []);
     setUserFormData({
       name: user.name || '',
       email: user.email || '',
-      role: user.role || '',
-      payrollSubRole: (user.role === 'Payroll Administrator' && (user.payrollSubRole === 'Maker' || user.payrollSubRole === 'Checker')) ? user.payrollSubRole : '',
+      payrollSubRole:
+        userEffectiveRoles(user).includes('Payroll Administrator') &&
+        (user.payrollSubRole === 'Maker' || user.payrollSubRole === 'Checker')
+          ? user.payrollSubRole
+          : '',
       designation: user.designation || '',
       department: user.department || '',
       status: user.status === 'active' || user.status === 'Active' ? 'active' : 'inactive',
@@ -119,7 +169,20 @@ export default function UsersPage() {
         return;
       }
 
-      const payload = { ...userFormData, payrollSubRole: userFormData.payrollSubRole || null };
+      if (selectedRoles.length === 0) {
+        toast.error('Select at least one role');
+        return;
+      }
+      const payload = {
+        name: userFormData.name,
+        designation: userFormData.designation,
+        department: userFormData.department,
+        status: userFormData.status === 'active' ? 'Active' : 'Inactive',
+        roles: selectedRoles,
+        payrollSubRole: selectedRoles.includes('Payroll Administrator')
+          ? userFormData.payrollSubRole || null
+          : null,
+      };
       const response = await apiService.updateUser(userId.toString(), payload);
       if (response.success) {
         toast.success('User updated successfully');
@@ -151,6 +214,80 @@ export default function UsersPage() {
     }
   };
 
+  const handleResetPassword = async (userId: string) => {
+    const target = users.find((u) => String(u._id || u.id) === String(userId));
+    if (target && !tenantAdminMayManage(target)) {
+      toast.error('You cannot reset passwords for platform-managed roles.');
+      return;
+    }
+    if (!confirm('Send a new temporary password to this user (and show it here if the API returns it)?')) return;
+    try {
+      setIsActionLoading(userId);
+      const response = await apiService.resetUserPassword(userId);
+      if (response.success) {
+        const data = response.data as { tempPassword?: string } | undefined;
+        const temp = data && typeof data === 'object' && 'tempPassword' in data ? data.tempPassword : undefined;
+        if (temp && typeof temp === 'string') {
+          toast.success(`Password reset. Temporary password: ${temp}`, { duration: 20_000 });
+        } else {
+          toast.success(response.message || 'Password reset successfully');
+        }
+        loadUsers();
+      } else {
+        toast.error(response.message || 'Failed to reset password');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to reset password');
+    } finally {
+      setIsActionLoading(null);
+    }
+  };
+
+  const handleActivate = async (userId: string) => {
+    const target = users.find((u) => String(u._id || u.id) === String(userId));
+    if (target && !tenantAdminMayManage(target)) {
+      toast.error('You cannot change status for platform-managed roles.');
+      return;
+    }
+    try {
+      setIsActionLoading(userId);
+      const response = await apiService.activateUser(userId);
+      if (response.success) {
+        toast.success(response.message || 'User activated');
+        loadUsers();
+      } else {
+        toast.error(response.message || 'Failed to activate user');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to activate user');
+    } finally {
+      setIsActionLoading(null);
+    }
+  };
+
+  const handleDeactivate = async (userId: string) => {
+    const target = users.find((u) => String(u._id || u.id) === String(userId));
+    if (target && !tenantAdminMayManage(target)) {
+      toast.error('You cannot change status for platform-managed roles.');
+      return;
+    }
+    const reason = typeof window !== 'undefined' ? window.prompt('Reason for deactivation (optional):') : null;
+    try {
+      setIsActionLoading(userId);
+      const response = await apiService.deactivateUser(userId, reason || undefined);
+      if (response.success) {
+        toast.success(response.message || 'User deactivated');
+        loadUsers();
+      } else {
+        toast.error(response.message || 'Failed to deactivate user');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to deactivate user');
+    } finally {
+      setIsActionLoading(null);
+    }
+  };
+
   const getRoleBadgeColor = (role: string) => {
     const colors: Record<string, string> = {
       'Super Admin': 'bg-red-100 text-red-700',
@@ -160,6 +297,7 @@ export default function UsersPage() {
       'Finance Administrator': 'bg-yellow-100 text-yellow-700',
       'Manager': 'bg-indigo-100 text-indigo-700',
       'Employee': 'bg-gray-100 text-gray-700',
+      'Auditor': 'bg-slate-100 text-slate-800',
     };
     return colors[role] || 'bg-gray-100 text-gray-700';
   };
@@ -209,13 +347,14 @@ export default function UsersPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Roles</SelectItem>
-                  <SelectItem value="Super Admin">Super Admin</SelectItem>
+                  {!isTenantAdmin && <SelectItem value="Super Admin">Super Admin</SelectItem>}
                   <SelectItem value="Tenant Admin">Tenant Admin</SelectItem>
                   <SelectItem value="HR Administrator">HR Administrator</SelectItem>
                   <SelectItem value="Payroll Administrator">Payroll Administrator</SelectItem>
                   <SelectItem value="Finance Administrator">Finance Administrator</SelectItem>
                   <SelectItem value="Manager">Manager</SelectItem>
                   <SelectItem value="Employee">Employee</SelectItem>
+                  <SelectItem value="Auditor">Auditor</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -251,6 +390,7 @@ export default function UsersPage() {
               <div className="space-y-3">
                 {filteredUsers.map((user) => {
                   const userId = user._id || user.id || '';
+                  const mayManage = tenantAdminMayManage(user);
                   return (
                     <div
                       key={userId}
@@ -267,16 +407,17 @@ export default function UsersPage() {
                           </span>
                         </div>
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <h3 className="font-semibold text-lg">{user.name || 'Unknown User'}</h3>
-                            {user.role && (
-                              <Badge className={getRoleBadgeColor(user.role)}>
-                                {user.role}
-                                {user.role === 'Payroll Administrator' && (user.payrollSubRole === 'Maker' || user.payrollSubRole === 'Checker') && (
-                                  <span className="ml-1 opacity-90">({user.payrollSubRole})</span>
-                                )}
+                            {userEffectiveRoles(user).map((r) => (
+                              <Badge key={r} className={getRoleBadgeColor(r)}>
+                                {r}
+                                {r === 'Payroll Administrator' &&
+                                  (user.payrollSubRole === 'Maker' || user.payrollSubRole === 'Checker') && (
+                                    <span className="ml-1 opacity-90">({user.payrollSubRole})</span>
+                                  )}
                               </Badge>
-                            )}
+                            ))}
                             {user.status && (
                             <Badge
                               variant={user.status === 'active' || user.status === 'Active' ? 'default' : 'secondary'}
@@ -315,6 +456,8 @@ export default function UsersPage() {
                           variant="outline" 
                           className="gap-2"
                           onClick={() => handleEdit(user)}
+                          disabled={!mayManage}
+                          title={!mayManage ? 'Platform-managed role' : undefined}
                         >
                           <Edit className="w-4 h-4" />
                           Edit
@@ -324,8 +467,8 @@ export default function UsersPage() {
                           variant="outline"
                           className="gap-2"
                           onClick={() => handleResetPassword(userId)}
-                          disabled={isActionLoading === userId}
-                          title="Reset Password"
+                          disabled={isActionLoading === userId || !mayManage}
+                          title={!mayManage ? 'Platform-managed role' : 'Reset Password'}
                         >
                           {isActionLoading === userId ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -339,8 +482,8 @@ export default function UsersPage() {
                             variant="outline"
                             className="gap-2 text-green-600 hover:text-green-700"
                             onClick={() => handleActivate(userId)}
-                            disabled={isActionLoading === userId}
-                            title="Activate User"
+                            disabled={isActionLoading === userId || !mayManage}
+                            title={!mayManage ? 'Platform-managed role' : 'Activate User'}
                           >
                             {isActionLoading === userId ? (
                               <Loader2 className="w-4 h-4 animate-spin" />
@@ -354,8 +497,8 @@ export default function UsersPage() {
                             variant="outline"
                             className="gap-2 text-orange-600 hover:text-orange-700"
                             onClick={() => handleDeactivate(userId)}
-                            disabled={isActionLoading === userId}
-                            title="Deactivate User"
+                            disabled={isActionLoading === userId || !mayManage}
+                            title={!mayManage ? 'Platform-managed role' : 'Deactivate User'}
                           >
                             {isActionLoading === userId ? (
                               <Loader2 className="w-4 h-4 animate-spin" />
@@ -369,6 +512,8 @@ export default function UsersPage() {
                           variant="destructive"
                           className="gap-2"
                           onClick={() => handleDelete(userId)}
+                          disabled={!mayManage}
+                          title={!mayManage ? 'Platform-managed role' : undefined}
                         >
                           <Trash2 className="w-4 h-4" />
                           Delete
@@ -415,27 +560,37 @@ export default function UsersPage() {
                 <p className="text-xs text-muted-foreground">Email cannot be changed</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-role">Role</Label>
-                <Select
-                  value={userFormData.role}
-                  onValueChange={(value) => setUserFormData({ ...userFormData, role: value, payrollSubRole: value === 'Payroll Administrator' ? userFormData.payrollSubRole : '' })}
-                >
-                  <SelectTrigger id="edit-role">
-                    <SelectValue placeholder="Select role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Super Admin">Super Admin</SelectItem>
-                    <SelectItem value="Tenant Admin">Tenant Admin</SelectItem>
-                    <SelectItem value="HR Administrator">HR Administrator</SelectItem>
-                    <SelectItem value="Payroll Administrator">Payroll Administrator</SelectItem>
-                    <SelectItem value="Finance Administrator">Finance Administrator</SelectItem>
-                    <SelectItem value="Manager">Manager</SelectItem>
-                    <SelectItem value="Employee">Employee</SelectItem>
-                    <SelectItem value="Auditor">Auditor</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Roles</Label>
+                <p className="text-xs text-muted-foreground">User can hold multiple roles; permissions are combined.</p>
+                <div className="rounded-lg border border-border divide-y max-h-48 overflow-y-auto">
+                  {ALL_ROLE_OPTIONS.filter((r) => !isTenantAdmin || r !== 'Super Admin').map((r) => (
+                    <div key={r} className="flex items-center gap-3 px-3 py-2">
+                      <Checkbox
+                        id={`edit-role-${r}`}
+                        checked={selectedRoles.includes(r)}
+                        onCheckedChange={(v) => {
+                          const on = v === true;
+                          if (!on && selectedRoles.length <= 1) {
+                            toast.error('At least one role is required');
+                            return;
+                          }
+                          setSelectedRoles((prev) =>
+                            on
+                              ? prev.includes(r)
+                                ? prev
+                                : [...prev, r]
+                              : prev.filter((x) => x !== r)
+                          );
+                        }}
+                      />
+                      <label htmlFor={`edit-role-${r}`} className="text-sm cursor-pointer flex-1">
+                        {r}
+                      </label>
+                    </div>
+                  ))}
+                </div>
               </div>
-              {userFormData.role === 'Payroll Administrator' && (
+              {selectedRoles.includes('Payroll Administrator') && (
                 <div className="space-y-2">
                   <Label htmlFor="edit-payroll-subrole">Payroll Type (BRD Maker-Checker)</Label>
                   <Select

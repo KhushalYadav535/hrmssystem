@@ -135,7 +135,7 @@ export default function CreateUserPage() {
       const response = await apiService.createEmployee(employeeData);
       if (response.success) {
         toast.success('Employee and User account created successfully! Both records are now available in Employee and User sections.');
-        router.push('/admin/users');
+        router.push('/admin/users?refresh=1');
         router.refresh();
       } else {
         const errorMsg = response.message || response.error || 'Failed to create employee';

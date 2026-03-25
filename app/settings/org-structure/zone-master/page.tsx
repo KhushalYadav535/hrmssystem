@@ -443,7 +443,7 @@ export default function ZoneMasterPage() {
                 )}
                 {zone.unitHeadId && (
                   <div className="text-sm">
-                    <span className="text-muted-foreground">Head: </span>
+                    <span className="text-muted-foreground">Lead: </span>
                     <span>{zone.unitHeadId.firstName} {zone.unitHeadId.lastName}</span>
                   </div>
                 )}
@@ -469,7 +469,7 @@ export default function ZoneMasterPage() {
             <DialogHeader>
               <DialogTitle>{editingZone ? 'Edit unit' : 'Add Head Office / Zone / Region'}</DialogTitle>
               <DialogDescription>
-                Head Office has no parent. Zones and regions must sit under a Head Office.
+                Head Office has no parent. Zones must sit under Head Office. Regions may sit under Head Office or under a Zone.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -516,7 +516,7 @@ export default function ZoneMasterPage() {
               </div>
               {form.unitType !== 'HO' && (
               <div>
-                <Label>Parent (Head Office) *</Label>
+                <Label>Parent (Head Office or Zone) *</Label>
                 <Select
                   value={form.parentUnitId || '__none__'}
                   onValueChange={(v) => setForm({ ...form, parentUnitId: v === '__none__' ? '' : v })}
@@ -537,12 +537,12 @@ export default function ZoneMasterPage() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Zones and regions must report to a Head Office.
+                  Regions may report to Head Office or to a Zone; zones report to Head Office.
                 </p>
               </div>
               )}
               <div>
-                <Label>Zonal/Regional Head</Label>
+                <Label>Zonal / Regional lead (employee)</Label>
                 <Select
                   value={form.unitHeadId}
                   onValueChange={(v) => setForm({ ...form, unitHeadId: v })}

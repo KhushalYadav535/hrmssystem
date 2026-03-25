@@ -222,7 +222,10 @@ export default function BranchMasterPage() {
 
     try {
       if (editingBranch) {
-        const res = await apiService.updateOrganizationUnit(editingBranch._id, form);
+        const res = await apiService.updateOrganizationUnit(editingBranch._id, {
+          ...form,
+          parentUnitId: form.parentUnitId || null,
+        });
         if (res.success) {
           toast.success('Branch updated successfully');
           setDialogOpen(false);
@@ -233,7 +236,7 @@ export default function BranchMasterPage() {
       } else {
         const res = await apiService.createOrganizationUnit({
           ...form,
-          parentUnitId: form.parentUnitId || undefined,
+          parentUnitId: form.parentUnitId || null,
           unitType: 'BRANCH',
         });
         if (res.success) {
@@ -554,7 +557,7 @@ export default function BranchMasterPage() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Branch must be under a Region or Zone
+                  Optional. Link to Head Office, Zone, or Region if your bank uses that structure; leave as &quot;No parent&quot; for HO → branches only.
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-4">

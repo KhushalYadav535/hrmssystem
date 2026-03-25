@@ -28,6 +28,8 @@ export interface User {
   password: string;
   name: string;
   role: UserRole;
+  /** All assigned roles (union). When absent, treat as [role]. */
+  roles?: UserRole[];
   employeeId?: string | null;
   /** BRD: Maker=process payroll, Checker=approve only. Set by Tenant Admin for Payroll Administrator */
   payrollSubRole?: PayrollSubRole | null;

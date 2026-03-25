@@ -25,6 +25,24 @@ interface TenantData {
   _id?: string;
   employees?: number;
   status?: string;
+  /** Organization profile from tenant record (Add Tenant) */
+  email?: string;
+  phone?: string;
+  address?: string;
+  registered_office?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  pin?: string;
+  website?: string;
+  bank_id?: string;
+  bank_code?: string;
+  bank_name?: string;
+  short_name?: string;
+  registration_no?: string;
+  rbi_license_no?: string;
+  primaryAdminEmail?: string;
+  primaryAdminName?: string;
   settings?: {
     organizationName?: string;
     email?: string;
@@ -54,10 +72,6 @@ export default function SettingsPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    organizationName: '',
-    email: '',
-    phone: '',
-    address: '',
     emailNotifications: true,
     smsNotifications: false,
     leaveApprovals: true,
@@ -97,10 +111,6 @@ export default function SettingsPage() {
         // Populate form data from tenant
         const settings = tenant.settings || {};
         setFormData({
-          organizationName: settings.organizationName || tenant.name || '',
-          email: settings.email || '',
-          phone: settings.phone || '',
-          address: settings.address || tenant.location || '',
           emailNotifications: settings.emailNotifications !== undefined ? settings.emailNotifications : true,
           smsNotifications: settings.smsNotifications !== undefined ? settings.smsNotifications : false,
           leaveApprovals: settings.leaveApprovals !== undefined ? settings.leaveApprovals : true,
@@ -119,31 +129,6 @@ export default function SettingsPage() {
       console.error('Load tenant data error:', error);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  /** Organization name / code / location come from Platform “Add Tenant” and are not editable here. */
-  const handleSaveOrganization = async () => {
-    try {
-      setIsSaving(true);
-      const settings = {
-        ...tenantData?.settings,
-        email: formData.email,
-        phone: formData.phone,
-        address: formData.address,
-      };
-
-      const response = await apiService.updateTenantSettings(settings);
-      if (response.success) {
-        toast.success('Contact details saved');
-        loadTenantData();
-      } else {
-        toast.error(response.message || 'Failed to save settings');
-      }
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to save settings');
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -209,6 +194,8 @@ export default function SettingsPage() {
     setIsEditDialogOpen(true);
   };
 
+  const orgField = (value: string | undefined) => (value && String(value).trim() ? value : '—');
+
   if (isLoading) {
     return (
       <DashboardLayout>
@@ -262,61 +249,114 @@ export default function SettingsPage() {
               <CardHeader>
                 <CardTitle>Organization Information</CardTitle>
                 <CardDescription>
-                  Tenant name, code, and registered location are set when the tenant is created by Platform Admin and cannot be changed here.
+                  All details below come from the tenant record created in Platform Admin&apos;s <strong>Add Tenant</strong> flow.
+                  They are read-only here; contact Platform Admin to change organization or bank registration data.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-lg border border-border bg-muted/30 p-4">
-                  <div>
-                    <Label>Organization / Tenant Name</Label>
-                    <p className="mt-2 text-sm font-medium">{tenantData?.name || formData.organizationName || '—'}</p>
-                  </div>
-                  <div>
-                    <Label>Tenant Code</Label>
-                    <p className="mt-2 text-sm font-medium">{tenantData?.code || '—'}</p>
-                  </div>
-                  <div className="md:col-span-2">
-                    <Label>Registered location</Label>
-                    <p className="mt-2 text-sm font-medium">{tenantData?.location || '—'}</p>
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground">You can update operational contact details below.</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="orgEmail">Contact Email</Label>
-                    <Input
-                      id="orgEmail"
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="mt-2"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="orgPhone">Phone</Label>
-                    <Input
-                      id="orgPhone"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="mt-2"
-                    />
+              <CardContent className="space-y-8">
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-foreground">Core</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-lg border border-border bg-muted/30 p-4">
+                    <div>
+                      <Label>Organization / Tenant Name</Label>
+                      <p className="mt-2 text-sm font-medium">{orgField(tenantData?.name)}</p>
+                    </div>
+                    <div>
+                      <Label>Tenant Code</Label>
+                      <p className="mt-2 text-sm font-medium">{orgField(tenantData?.code)}</p>
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label>Registered location</Label>
+                      <p className="mt-2 text-sm font-medium">{orgField(tenantData?.location)}</p>
+                    </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="md:col-span-2">
-                    <Label htmlFor="orgAddress">Mailing / office address</Label>
-                    <Input
-                      id="orgAddress"
-                      value={formData.address}
-                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                      className="mt-2"
-                    />
+
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-foreground">Contact &amp; address</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-lg border border-border bg-muted/30 p-4">
+                    <div>
+                      <Label>Organization email</Label>
+                      <p className="mt-2 text-sm font-medium">{orgField(tenantData?.email)}</p>
+                    </div>
+                    <div>
+                      <Label>Phone</Label>
+                      <p className="mt-2 text-sm font-medium">{orgField(tenantData?.phone)}</p>
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label>Address</Label>
+                      <p className="mt-2 text-sm font-medium whitespace-pre-wrap">{orgField(tenantData?.address)}</p>
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label>Registered office</Label>
+                      <p className="mt-2 text-sm font-medium">{orgField(tenantData?.registered_office)}</p>
+                    </div>
+                    <div>
+                      <Label>City</Label>
+                      <p className="mt-2 text-sm font-medium">{orgField(tenantData?.city)}</p>
+                    </div>
+                    <div>
+                      <Label>State</Label>
+                      <p className="mt-2 text-sm font-medium">{orgField(tenantData?.state)}</p>
+                    </div>
+                    <div>
+                      <Label>Country</Label>
+                      <p className="mt-2 text-sm font-medium">{orgField(tenantData?.country)}</p>
+                    </div>
+                    <div>
+                      <Label>PIN</Label>
+                      <p className="mt-2 text-sm font-medium">{orgField(tenantData?.pin)}</p>
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label>Website</Label>
+                      <p className="mt-2 text-sm font-medium break-all">{orgField(tenantData?.website)}</p>
+                    </div>
                   </div>
                 </div>
-                <Button onClick={handleSaveOrganization} disabled={isSaving} className="gap-2">
-                  <Save className="w-4 h-4" />
-                  {isSaving ? 'Saving...' : 'Save contact details'}
-                </Button>
+
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-foreground">Bank / organization registration</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-lg border border-border bg-muted/30 p-4">
+                    <div>
+                      <Label>Bank ID</Label>
+                      <p className="mt-2 text-sm font-medium">{orgField(tenantData?.bank_id)}</p>
+                    </div>
+                    <div>
+                      <Label>Bank Code</Label>
+                      <p className="mt-2 text-sm font-medium">{orgField(tenantData?.bank_code)}</p>
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label>Bank Name</Label>
+                      <p className="mt-2 text-sm font-medium">{orgField(tenantData?.bank_name)}</p>
+                    </div>
+                    <div>
+                      <Label>Short Name</Label>
+                      <p className="mt-2 text-sm font-medium">{orgField(tenantData?.short_name)}</p>
+                    </div>
+                    <div>
+                      <Label>Registration No</Label>
+                      <p className="mt-2 text-sm font-medium">{orgField(tenantData?.registration_no)}</p>
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label>RBI License No</Label>
+                      <p className="mt-2 text-sm font-medium">{orgField(tenantData?.rbi_license_no)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-foreground">Tenant Admin (created with tenant)</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-lg border border-border bg-muted/30 p-4">
+                    <div>
+                      <Label>Admin name</Label>
+                      <p className="mt-2 text-sm font-medium">{orgField(tenantData?.primaryAdminName)}</p>
+                    </div>
+                    <div>
+                      <Label>Admin email</Label>
+                      <p className="mt-2 text-sm font-medium break-all">{orgField(tenantData?.primaryAdminEmail)}</p>
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

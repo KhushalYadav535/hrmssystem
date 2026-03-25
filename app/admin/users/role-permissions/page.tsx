@@ -123,6 +123,14 @@ export default function RolePermissionsPage() {
   const handleSaveRoleAssignment = async () => {
     if (!selectedUser) return;
 
+    if (
+      PLATFORM_MANAGED_ROLES.includes(newRole) &&
+      currentUser?.role !== 'Super Admin'
+    ) {
+      toast.error('Super Admin cannot be assigned from the tenant console.');
+      return;
+    }
+
     try {
       const userId = selectedUser._id || selectedUser.id;
       const response = await apiService.updateUser(userId!.toString(), { role: newRole });
@@ -171,7 +179,10 @@ export default function RolePermissionsPage() {
     );
   });
 
-  const roles = [
+  /** Platform-only roles: not shown in tenant Role & Permission UI (Platform Admin team manages these) */
+  const PLATFORM_MANAGED_ROLES = ['Super Admin'];
+
+  const allTenantRoles = [
     'Super Admin',
     'Tenant Admin',
     'HR Administrator',
@@ -180,9 +191,14 @@ export default function RolePermissionsPage() {
     'Manager',
     'Employee',
     'Auditor',
-  ];
+  ] as const;
 
-  /** Platform / system roles — permission matrix must not be edited from tenant screens */
+  const roles =
+    currentUser?.role === 'Super Admin'
+      ? [...allTenantRoles]
+      : allTenantRoles.filter((r) => !PLATFORM_MANAGED_ROLES.includes(r));
+
+  /** System roles — permission matrix must not be edited for these from this screen */
   const ROLES_WITH_LOCKED_PERMISSIONS = ['Super Admin', 'Tenant Admin'];
 
   // Group permissions by category
@@ -228,7 +244,14 @@ export default function RolePermissionsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Role Permissions</CardTitle>
-                <CardDescription>Configure permissions for each role in your organization</CardDescription>
+                <CardDescription>
+                  Configure permissions for each role in your organization.
+                  {currentUser?.role !== 'Super Admin' && (
+                    <span className="block mt-1 text-muted-foreground/90">
+                      Platform roles (Super Admin) are managed separately and are not shown here.
+                    </span>
+                  )}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
