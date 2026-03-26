@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import apiService from '@/lib/api';
 import { toast } from 'sonner';
+import { formatDesignationLabel } from '@/lib/utils';
 
 export default function LoanDetailsPage() {
   const { currentUser } = useAuth();
@@ -175,7 +176,7 @@ export default function LoanDetailsPage() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Designation</p>
-                    <p className="font-semibold">{loan.employeeId?.designation}</p>
+                    <p className="font-semibold">{formatDesignationLabel(loan.employeeId?.designation)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Department</p>

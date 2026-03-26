@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Users, Target, Star, Save, CheckCircle2, TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import apiService from '@/lib/api';
+import { formatDesignationLabel } from '@/lib/utils';
 
 interface TeamMember {
   id: string;
@@ -294,7 +295,7 @@ export default function ManagerRatingPage() {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="font-semibold">{member.firstName} {member.lastName}</p>
-                          <p className="text-sm text-muted-foreground">{member.designation || member.employeeCode}</p>
+                          <p className="text-sm text-muted-foreground">{formatDesignationLabel(member.designation) || member.employeeCode}</p>
                         </div>
                         <Badge className={selectedManagerAppraisal ? 'bg-green-600' : 'bg-yellow-600'}>
                           {selectedManagerAppraisal ? 'Completed' : 'Pending'}
@@ -316,7 +317,7 @@ export default function ManagerRatingPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-xl font-semibold">{currentMember.firstName} {currentMember.lastName}</h2>
-                    <p className="text-muted-foreground">{currentMember.designation || currentMember.employeeCode}</p>
+                    <p className="text-muted-foreground">{formatDesignationLabel(currentMember.designation) || currentMember.employeeCode}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm text-muted-foreground">Self Rating</p>

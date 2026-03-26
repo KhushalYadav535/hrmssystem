@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Save, Search, Users, Shield, Settings, CheckCircle2 } from 'lucide-react';
 import apiService from '@/lib/api';
 import { toast } from 'sonner';
+import { formatDesignationLabel } from '@/lib/utils';
 
 interface RolePermission {
   _id?: string;
@@ -360,15 +361,15 @@ export default function RolePermissionsPage() {
                               </div>
                               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                                 {user.email && <span>{user.email}</span>}
-                                {user.designation && (
+                                {formatDesignationLabel(user.designation) && (
                                   <>
                                     {user.email && <span>•</span>}
-                                    <span>{user.designation}</span>
+                                    <span>{formatDesignationLabel(user.designation)}</span>
                                   </>
                                 )}
                                 {user.department && (
                                   <>
-                                    {(user.email || user.designation) && <span>•</span>}
+                                    {(user.email || formatDesignationLabel(user.designation)) && <span>•</span>}
                                     <span>{user.department}</span>
                                   </>
                                 )}

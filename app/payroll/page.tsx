@@ -13,7 +13,7 @@ import apiService from '@/lib/api';
 import { toast } from 'sonner';
 
 export default function PayrollPage() {
-  const { isAuthenticated, hasPermission, currentUser } = useAuth();
+  const { isAuthenticated, hasPermission, currentUser, hasRole } = useAuth();
   const router = useRouter();
   const [selectedMonth, setSelectedMonth] = useState('January');
   const [selectedYear, setSelectedYear] = useState('2026');
@@ -21,18 +21,23 @@ export default function PayrollPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // BRD Access Control:
-    // - Payroll Admin, HR Admin, Tenant Admin, Finance Admin, Auditor → Admin Dashboard
-    // - Employee → This page (own payslip)
-    // - Manager → This page (team payslips)
-    
-    const adminRoles = ['Payroll Administrator', 'HR Administrator', 'Tenant Admin', 'Finance Administrator', 'Auditor', 'Super Admin'];
-    if (isAuthenticated && adminRoles.includes(currentUser?.role || '')) {
+    // Redirect "admin-only" payroll users to admin. Users with Employee/Manager + HR/Payroll etc. can stay here for My Payslips.
+    const adminOnlyIfNoPayslipView = [
+      'Payroll Administrator',
+      'HR Administrator',
+      'Tenant Admin',
+      'Finance Administrator',
+      'Auditor',
+      'Super Admin',
+    ];
+    const canUsePayslipView = hasRole('Employee') || hasRole('Manager');
+    const hasAdminPayrollRole = adminOnlyIfNoPayslipView.some((r) => hasRole(r as any));
+    if (isAuthenticated && hasAdminPayrollRole && !canUsePayslipView) {
       router.push('/payroll/admin');
       return;
     }
     loadPayrolls();
-  }, [selectedMonth, selectedYear, isAuthenticated, currentUser, router]);
+  }, [selectedMonth, selectedYear, isAuthenticated, currentUser, router, hasRole]);
 
   const loadPayrolls = async () => {
     try {
@@ -58,11 +63,10 @@ export default function PayrollPage() {
   // - Manager: View team payslips
   // - Others: Redirected to admin dashboard
   
-  const isEmployee = currentUser?.role === 'Employee';
-  const isManager = currentUser?.role === 'Manager';
-  
+  const isEmployee = hasRole('Employee');
+  const isManager = hasRole('Manager');
+
   if (!isEmployee && !isManager) {
-    // Non-employee/manager roles should use admin dashboard
     redirect('/payroll/admin');
   }
 

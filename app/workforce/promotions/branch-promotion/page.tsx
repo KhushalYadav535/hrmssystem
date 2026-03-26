@@ -16,6 +16,7 @@ import { Search, Plus, TrendingUp, Building2, ArrowRight, Loader2, CheckCircle2,
 import apiService from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth-context';
+import { formatDesignationLabel } from '@/lib/utils';
 
 /**
  * Branch-wise Promotion Page
@@ -385,7 +386,7 @@ export default function BranchPromotionPage() {
                   </Select>
                   {selectedEmployee && (
                     <div className="mt-2 p-2 bg-muted rounded text-sm">
-                      <p><strong>Current:</strong> {selectedEmployee.designation} at {typeof selectedEmployee.postingUnitId === 'object' ? selectedEmployee.postingUnitId.unitCode : 'N/A'}</p>
+                      <p><strong>Current:</strong> {formatDesignationLabel(selectedEmployee.designation)} at {typeof selectedEmployee.postingUnitId === 'object' ? selectedEmployee.postingUnitId.unitCode : 'N/A'}</p>
                     </div>
                   )}
                 </div>

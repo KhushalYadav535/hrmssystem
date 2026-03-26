@@ -17,6 +17,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import DocumentViewer from '@/components/document-viewer';
+import { designationToIdString, formatDesignationLabel } from '@/lib/utils';
 
 interface Employee {
   _id?: string;
@@ -35,18 +36,24 @@ interface Employee {
 }
 
 export default function WorkforcePage() {
-  const { isAuthenticated, hasPermission, currentUser } = useAuth();
+  const { isAuthenticated, hasPermission, currentUser, hasRole } = useAuth();
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Redirect Employee role to dashboard
+  // Redirect pure employees (no Manager / HR / Auditor / Tenant Admin hat) from workforce management
   useEffect(() => {
-    if (isAuthenticated && currentUser?.role === 'Employee') {
+    if (!isAuthenticated || !currentUser) return;
+    const canUseWorkforceNav =
+      hasRole('Tenant Admin') ||
+      hasRole('HR Administrator') ||
+      hasRole('Manager') ||
+      hasRole('Auditor');
+    if (hasRole('Employee') && !canUseWorkforceNav) {
       router.push('/dashboard');
     }
-  }, [isAuthenticated, currentUser, router]);
+  }, [isAuthenticated, currentUser, router, hasRole]);
 
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -200,12 +207,31 @@ export default function WorkforcePage() {
     }
   };
 
-  // Helper to display designation name
+  const addFormDesignationId = designationToIdString(employeeForm.designation);
+  const addFormDesignationLabel =
+    addFormDesignationId
+      ? designations.find((d: any) => String(d._id || d.id) === addFormDesignationId)?.name ||
+        formatDesignationLabel(employeeForm.designation)
+      : '';
+
+  // Helper to display designation name (API may send { _id, name } or a legacy ObjectId string)
   const getDesignationName = (designation: any) => {
     if (!designation) return 'Not specified';
-    if (typeof designation === 'string') return designation;
-    if (typeof designation === 'object') return designation.name || designation.toString();
-    return String(designation);
+    if (typeof designation === 'object' && typeof designation.name === 'string' && designation.name) {
+      return designation.name;
+    }
+    const idStr =
+      typeof designation === 'object' && designation?._id != null
+        ? String(designation._id)
+        : typeof designation === 'string'
+          ? designation
+          : '';
+    const fromMaster =
+      idStr && designations.find((d) => String(d._id || d.id) === idStr);
+    if (fromMaster?.name) return fromMaster.name;
+    if (typeof designation === 'string' && !/^[a-fA-F0-9]{24}$/.test(designation)) return designation;
+    const label = formatDesignationLabel(designation);
+    return label || 'Not specified';
   };
 
   // Helper to display location name
@@ -491,13 +517,13 @@ export default function WorkforcePage() {
                     <div>
                       <Label htmlFor="designation">Designation *</Label>
                       <Select
-                        value={employeeForm.designation}
+                        value={addFormDesignationId || undefined}
                         onValueChange={handleDesignationChange}
                       >
                         <SelectTrigger id="designation">
                           <SelectValue placeholder="Select designation">
-                            {employeeForm.designation
-                              ? designations.find((d: any) => (d._id || d.id) === employeeForm.designation)?.name || employeeForm.designation
+                            {addFormDesignationId
+                              ? addFormDesignationLabel || addFormDesignationId
                               : 'Select designation'}
                           </SelectValue>
                         </SelectTrigger>

@@ -10,6 +10,7 @@ import { useEmployees } from '@/lib/hooks/useEmployees';
 import { useJobs } from '@/lib/hooks/useJobs';
 import { useState, useEffect } from 'react';
 import { apiService } from '@/lib/api';
+import { formatDesignationLabel } from '@/lib/utils';
 
 export default function TenantAdminDashboard() {
   const { jobs } = useJobs({ status: 'Open' });
@@ -238,7 +239,7 @@ export default function TenantAdminDashboard() {
                     <div key={empId} className="flex items-center justify-between p-3 border rounded-lg">
                       <div>
                         <p className="font-medium">{emp.firstName} {emp.lastName}</p>
-                        <p className="text-sm text-muted-foreground">{emp.designation} • {emp.department}</p>
+                        <p className="text-sm text-muted-foreground">{formatDesignationLabel(emp.designation)} • {emp.department}</p>
                       </div>
                       <Badge variant="outline">{emp.status}</Badge>
                     </div>

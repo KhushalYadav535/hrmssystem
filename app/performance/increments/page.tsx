@@ -13,6 +13,7 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { DollarSign, TrendingUp, Wand2, CheckCircle, AlertCircle, BarChart3, RefreshCw, Play } from "lucide-react";
 import apiService from "@/lib/api";
+import { formatDesignationLabel } from "@/lib/utils";
 
 const STATUS_COLORS: Record<string, string> = {
     Computed: "bg-blue-100 text-blue-700",
@@ -251,7 +252,7 @@ export default function IncrementManagementPage() {
                                                 <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{r.employeeId?.employeeCode}</span>
                                                 <Badge className={STATUS_COLORS[r.status]}>{r.status}</Badge>
                                             </div>
-                                            <p className="text-sm text-muted-foreground">{r.employeeId?.designation} • {r.employeeId?.department}</p>
+                                            <p className="text-sm text-muted-foreground">{formatDesignationLabel(r.employeeId?.designation)} • {r.employeeId?.department}</p>
                                             <div className="flex items-center gap-3 mt-1 text-sm">
                                                 <span className="text-muted-foreground">Rating: <b>{r.finalAppraisalRating}</b> ({r.ratingLabel})</span>
                                                 <span>₹{r.previousGross?.toLocaleString("en-IN")} → <b className="text-green-700">₹{r.newGross?.toLocaleString("en-IN")}</b></span>

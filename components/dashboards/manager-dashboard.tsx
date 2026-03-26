@@ -9,6 +9,7 @@ import { useLeaves } from '@/lib/hooks/useLeaves';
 import { useExpenses } from '@/lib/hooks/useExpenses';
 import { useEmployees } from '@/lib/hooks/useEmployees';
 import { useAuth } from '@/lib/auth-context';
+import { formatDesignationLabel } from '@/lib/utils';
 
 const performanceData = [
   { employee: 'Rajesh', rating: 4.2 },
@@ -204,7 +205,7 @@ export default function ManagerDashboard() {
                     <div key={memberId} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg hover:bg-secondary transition-colors">
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm text-foreground">{member.firstName} {member.lastName}</p>
-                        <p className="text-xs text-muted-foreground">{member.designation}</p>
+                        <p className="text-xs text-muted-foreground">{formatDesignationLabel(member.designation)}</p>
                       </div>
                       <Badge className={member.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}>
                         {member.status}

@@ -16,6 +16,7 @@ import { Plus, Edit, Trash2, Search, UserPlus, Save, X, Key, UserCheck, UserX, L
 import apiService from '@/lib/api';
 import { toast } from 'sonner';
 import Link from 'next/link';
+import { formatDesignationLabel } from '@/lib/utils';
 
 interface User {
   _id?: string;
@@ -43,8 +44,11 @@ const ALL_ROLE_OPTIONS = [
 ] as const;
 
 function userEffectiveRoles(u: User): string[] {
-  if (u.roles && Array.isArray(u.roles) && u.roles.length) return u.roles;
-  return u.role ? [u.role] : [];
+  const fromArr = u.roles && Array.isArray(u.roles) && u.roles.length ? [...u.roles] : [];
+  const primary = u.role;
+  const merged = [...fromArr];
+  if (primary && !merged.includes(primary)) merged.push(primary);
+  return merged.length ? [...new Set(merged)] : primary ? [primary] : [];
 }
 
 /** Roles provisioned at platform level — Tenant Admin cannot change or reset these accounts. */
@@ -152,7 +156,7 @@ export default function UsersPage() {
         (user.payrollSubRole === 'Maker' || user.payrollSubRole === 'Checker')
           ? user.payrollSubRole
           : '',
-      designation: user.designation || '',
+      designation: formatDesignationLabel(user.designation) || (typeof user.designation === 'string' ? user.designation : ''),
       department: user.department || '',
       status: user.status === 'active' || user.status === 'Active' ? 'active' : 'inactive',
     });
@@ -308,7 +312,7 @@ export default function UsersPage() {
     const matchesSearch = 
       (user.name && typeof user.name === 'string' && user.name.toLowerCase().includes(searchLower)) ||
       (user.email && typeof user.email === 'string' && user.email.toLowerCase().includes(searchLower)) ||
-      (user.designation && typeof user.designation === 'string' && user.designation.toLowerCase().includes(searchLower));
+      (formatDesignationLabel(user.designation).toLowerCase().includes(searchLower));
     return matchesSearch;
   });
 
@@ -435,15 +439,15 @@ export default function UsersPage() {
                           </div>
                           <div className="flex items-center gap-4 text-sm text-muted-foreground">
                             {user.email && <span>{user.email}</span>}
-                            {user.designation && (
+                            {formatDesignationLabel(user.designation) && (
                               <>
                                 {user.email && <span>•</span>}
-                                <span>{user.designation}</span>
+                                <span>{formatDesignationLabel(user.designation)}</span>
                               </>
                             )}
                             {user.department && (
                               <>
-                                {(user.email || user.designation) && <span>•</span>}
+                                {(user.email || formatDesignationLabel(user.designation)) && <span>•</span>}
                                 <span>{user.department}</span>
                               </>
                             )}

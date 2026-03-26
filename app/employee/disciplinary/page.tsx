@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { AlertTriangle, Plus, Search, Eye, CheckCircle, Clock, User, Shield } from "lucide-react";
 import apiService from "@/lib/api";
+import { formatDesignationLabel } from "@/lib/utils";
 
 const RECORD_TYPES = ["Verbal Warning", "Written Warning", "Show Cause Notice", "Memo", "Suspension", "Termination", "Other"];
 const STATUS_COLORS: Record<string, string> = {
@@ -190,7 +191,7 @@ export default function DisciplinaryPage() {
                                     </div>
                                     <div>
                                         <p className="font-semibold">{r.employeeId?.firstName} {r.employeeId?.lastName}</p>
-                                        <p className="text-sm text-muted-foreground">{r.employeeId?.employeeCode} • {r.employeeId?.designation}</p>
+                                        <p className="text-sm text-muted-foreground">{r.employeeId?.employeeCode} • {formatDesignationLabel(r.employeeId?.designation)}</p>
                                         <p className="text-sm mt-1">{r.type}</p>
                                         <p className="text-xs text-muted-foreground mt-0.5">Incident: {formatDateDDMMYYYY(r.incidentDate)} • Issued by: {r.issuedByName}</p>
                                         <p className="text-sm text-muted-foreground mt-1 line-clamp-1">{r.reason}</p>

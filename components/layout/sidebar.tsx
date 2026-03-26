@@ -175,6 +175,7 @@ const navigationItems: NavItem[] = [
     moduleCode: 'LEAVE', // BRD: Dynamic Module Management - matches seed script
     subItems: [
       { label: 'My Leaves', href: '/leave', roles: ['Employee', 'Manager'] },
+      { label: 'Leave policies', href: '/settings/leave-policies', roles: ['HR Administrator', 'Tenant Admin'] },
       { label: 'Comp-Off', href: '/leave/comp-off', roles: ['Employee', 'Manager', 'HR Administrator', 'Tenant Admin'] },
       { label: 'Holiday Calendar', href: '/admin/leave/holiday-calendar', roles: ['HR Administrator', 'Tenant Admin'] },
       { label: 'Leave Encashment', href: '/admin/leave/encashment', roles: ['HR Administrator', 'Tenant Admin'] },
@@ -432,6 +433,24 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const [enabledModules, setEnabledModules] = React.useState<Set<string>>(new Set());
   const [modulesLoading, setModulesLoading] = React.useState(true);
 
+  /** Union of all assigned roles (multi-hat users). */
+  const effectiveRoleList = React.useMemo(() => {
+    if (!currentUser) return [] as string[];
+    if (currentUser.roles && currentUser.roles.length > 0) {
+      return currentUser.roles as string[];
+    }
+    if (currentUser.role) return [currentUser.role];
+    return [];
+  }, [currentUser?.role, currentUser?.roles]);
+
+  const navMatchesRoles = React.useCallback(
+    (allowed?: string[]) => {
+      if (!allowed || allowed.length === 0) return true;
+      return allowed.some((r) => effectiveRoleList.includes(r));
+    },
+    [effectiveRoleList]
+  );
+
   // BRD: Dynamic Module Management - DM-036
   // Fetch enabled modules for current tenant
   React.useEffect(() => {
@@ -443,7 +462,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
 
       try {
         // Super Admin can see everything
-        if (currentUser.role === 'Super Admin') {
+        if (effectiveRoleList.includes('Super Admin')) {
           setEnabledModules(new Set());
           setModulesLoading(false);
           return;
@@ -452,7 +471,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
         // BRD: Only Tenant Admin and HR Administrator can call /api/company/modules
         // Other roles (Payroll Maker, Payroll Checker, etc.) skip this call
         const adminRoles = ['Tenant Admin', 'HR Administrator'];
-        if (!adminRoles.includes(currentUser?.role || '')) {
+        if (!effectiveRoleList.some((r) => adminRoles.includes(r))) {
           setEnabledModules(new Set());
           setModulesLoading(false);
           return;
@@ -480,7 +499,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
     };
 
     loadEnabledModules();
-  }, [currentUser?.tenantId, currentUser?.role]);
+  }, [currentUser?.tenantId, effectiveRoleList.join('|')]);
 
   // Auto-expand parent items if current path matches a sub-item
   const getInitialExpandedItems = () => {
@@ -517,27 +536,43 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
     'Learning & Development', 'Approvals'
   ];
   
-  const isAdminRole = ['Tenant Admin', 'HR Administrator'].includes(currentUser?.role || '');
-  const isSystemAdmin = currentUser?.role === 'Tenant Admin';
-  
+  const isAdminRole = effectiveRoleList.some((r) =>
+    ['Tenant Admin', 'HR Administrator'].includes(r)
+  );
+  // Hub mode: Tenant Admin with no operational "hat" — hide org HR menus (US-B2-01)
+  const canSeeHrOperationalNav = effectiveRoleList.some((r) =>
+    [
+      'HR Administrator',
+      'Payroll Administrator',
+      'Finance Administrator',
+      'Manager',
+      'Employee',
+      'Auditor',
+    ].includes(r)
+  );
+  const hideHrOpsForTenantHub =
+    effectiveRoleList.includes('Tenant Admin') && !canSeeHrOperationalNav;
+
   const visibleItems =
-    currentUser?.role === 'Super Admin'
+    effectiveRoleList.includes('Super Admin')
       ? platformAdminNavItems.filter((item) => !item.roles || item.roles.includes('Super Admin'))
       : navigationItems.filter((item) => {
-        // US-B2-01: Hide HR operational menus from System Admin (Tenant Admin)
-        if (isSystemAdmin && hrOperationalMenus.includes(item.label)) {
+        // US-B2-01: Hide HR operational menus from System Admin (Tenant Admin) hub-only users
+        if (hideHrOpsForTenantHub && hrOperationalMenus.includes(item.label)) {
           return false;
         }
 
         // System Admin hub: only one "Reports" — hide module-scoped REPORTS_BASIC (operational) entry
-        if (isSystemAdmin && item.href === '/reports' && item.moduleCode === 'REPORTS_BASIC') {
+        if (hideHrOpsForTenantHub && item.href === '/reports' && item.moduleCode === 'REPORTS_BASIC') {
           return false;
         }
         
         // Module filtering: only applies when we fetched enabled modules (Tenant Admin, HR Admin)
         // Employee, Manager, etc. don't call getMyCompanyModules - show all items matching their role
         if (item.moduleCode && isAdminRole) {
-          const isPayrollRole = ['Payroll Administrator', 'Finance Administrator'].includes(currentUser?.role || '');
+          const isPayrollRole = effectiveRoleList.some((r) =>
+            ['Payroll Administrator', 'Finance Administrator'].includes(r)
+          );
           const isPayrollItem = item.moduleCode === 'PAYROLL';
           if (isPayrollItem && isPayrollRole) {
             // Payroll roles always see Payroll
@@ -547,7 +582,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
           }
         }
         if (!item.roles || item.roles.length === 0) return true;
-        return item.roles.includes(currentUser?.role || '');
+        return navMatchesRoles(item.roles);
       });
 
   const toggleExpanded = (href: string) => {
@@ -596,10 +631,10 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
           </div>
           <div>
             <h2 className="text-base font-bold text-sidebar-foreground leading-tight">
-              {currentUser?.role === 'Tenant Admin' ? 'System Admin Hub' : 'Indian Bank'}
+              {hideHrOpsForTenantHub ? 'System Admin Hub' : 'Indian Bank'}
             </h2>
             <p className="text-xs text-sidebar-foreground/70">
-              {currentUser?.role === 'Tenant Admin' 
+              {hideHrOpsForTenantHub
                 ? `${currentTenant?.name || 'System Configuration'}`
                 : currentTenant?.code}
             </p>
@@ -653,7 +688,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                         }
                         // Filter sub-items based on roles if specified
                         if (subItem.roles && subItem.roles.length > 0) {
-                          return subItem.roles.includes(currentUser?.role || '');
+                          return navMatchesRoles(subItem.roles);
                         }
                         return true;
                       }).map((subItem, subIdx) => (
@@ -707,8 +742,12 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold text-sidebar-foreground truncate">{currentUser?.name}</p>
-            <p className="text-xs text-sidebar-foreground/70 truncate">
-              {currentUser?.role === 'Tenant Admin' ? 'System Admin' : currentUser?.role}
+            <p className="text-xs text-sidebar-foreground/70 truncate" title={effectiveRoleList.join(', ')}>
+              {hideHrOpsForTenantHub
+                ? 'System Admin'
+                : effectiveRoleList.length > 1
+                  ? `${effectiveRoleList.length} roles`
+                  : (currentUser?.role ?? '')}
             </p>
           </div>
         </div>

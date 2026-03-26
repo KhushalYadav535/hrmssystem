@@ -13,6 +13,7 @@ import apiService from '@/lib/api';
 import { toast } from 'sonner';
 import { maskAadhaar, maskPAN, maskAccountNumber } from '@/lib/masking';
 import { formatDateDDMMYYYY } from '@/lib/date-format';
+import { formatDesignationLabel } from '@/lib/utils';
 
 interface Employee {
   _id?: string;
@@ -176,7 +177,7 @@ export default function EmployeeDetailPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Employee Profile</h1>
-            <p className="text-muted-foreground mt-2">{fullName} - {employee.designation}</p>
+            <p className="text-muted-foreground mt-2">{fullName} - {formatDesignationLabel(employee.designation) || '—'}</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" className="gap-2 bg-transparent">
@@ -305,7 +306,7 @@ export default function EmployeeDetailPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <p className="text-sm text-muted-foreground">Designation</p>
-                      <p className="text-lg font-semibold">{employee.designation}</p>
+                      <p className="text-lg font-semibold">{formatDesignationLabel(employee.designation) || '—'}</p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Department</p>

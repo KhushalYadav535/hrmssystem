@@ -6,17 +6,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Building2, Users, MapPin, Briefcase, Loader2, Plus } from 'lucide-react';
+import { Building2, MapPin, Briefcase, Loader2, Info } from 'lucide-react';
 import apiService from '@/lib/api';
 import { toast } from 'sonner';
-import { useAuth } from '@/lib/auth-context';
+import Link from 'next/link';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 /**
  * Vacant Positions Page
  * BR-HRMS-06: Branch-wise vacant positions for transfers and promotions
  */
 export default function VacantPositionsPage() {
-  const { currentUser } = useAuth();
   const [positions, setPositions] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,6 +90,30 @@ export default function VacantPositionsPage() {
             </p>
           </div>
         </div>
+
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertTitle>Where does this list come from?</AlertTitle>
+          <AlertDescription className="text-sm mt-1 space-y-2">
+            <p>
+              Records are loaded from the <strong>Position</strong> collection in your tenant: entries with status{' '}
+              <strong>Vacant</strong>, returned by the workforce API (grouped by branch). They are created when HR opens a
+              role in <strong>Recruitment</strong> / job requisitions or when positions are seeded — not from the employee
+              table directly.
+            </p>
+            <p>
+              To fill a role, transfer or onboard an employee: use{' '}
+              <Link href="/settings/org-structure/employee-transfer" className="underline font-medium text-foreground">
+                Employee transfer
+              </Link>{' '}
+              or{' '}
+              <Link href="/recruitment" className="underline font-medium text-foreground">
+                Recruitment
+              </Link>
+              .
+            </p>
+          </AlertDescription>
+        </Alert>
 
         {/* Filter */}
         <Card>
@@ -185,16 +209,8 @@ export default function VacantPositionsPage() {
                   </div>
                 )}
                 <div className="pt-2 border-t">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => {
-                      // Navigate to employee transfer page with position pre-filled
-                      window.location.href = `/workforce/transfers?positionId=${position._id}`;
-                    }}
-                  >
-                    Fill Position
+                  <Button size="sm" variant="outline" className="w-full" asChild>
+                    <Link href="/settings/org-structure/employee-transfer">Employee transfer / fill role</Link>
                   </Button>
                 </div>
               </CardContent>
@@ -204,9 +220,13 @@ export default function VacantPositionsPage() {
 
         {positions.length === 0 && (
           <Card>
-            <CardContent className="py-12 text-center">
+            <CardContent className="py-12 text-center space-y-2">
               <Briefcase className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No vacant positions found</p>
+              <p className="text-muted-foreground font-medium">No vacant positions found for this filter</p>
+              <p className="text-sm text-muted-foreground max-w-lg mx-auto">
+                Add positions with status <strong>Vacant</strong> via your recruitment workflow or HR master data. If the API
+                returns nothing, confirm the backend exposes vacant positions for this tenant.
+              </p>
             </CardContent>
           </Card>
         )}

@@ -36,11 +36,13 @@ import { useState, useEffect } from 'react';
 import { apiService } from '@/lib/api';
 import { toast } from 'sonner';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { formatDesignationLabel } from '@/lib/utils';
+import type { UserRole } from '@/lib/types';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
 export default function PayrollAdminDashboard() {
-  const { isAuthenticated, hasPermission, currentUser } = useAuth();
+  const { isAuthenticated, hasPermission, currentUser, hasRole } = useAuth();
   const [selectedMonth, setSelectedMonth] = useState(new Date().toLocaleString('default', { month: 'long' }));
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [payrolls, setPayrolls] = useState<any[]>([]);
@@ -298,7 +300,7 @@ export default function PayrollAdminDashboard() {
       const isOwn = employee?.email && employee.email === currentUser?.email;
       if (isOwn) return false;
       const isMaker = p.makerId && currentUserId && p.makerId.toString() === currentUserId.toString();
-      const isPayrollAdmin = currentUser?.role === 'Payroll Administrator' || currentUser?.role === 'Finance Administrator' || currentUser?.role === 'Super Admin';
+      const isPayrollAdmin = hasRole('Payroll Administrator') || hasRole('Finance Administrator') || hasRole('Super Admin');
       const canApproveDraft = p.status === 'Draft' && isPayrollAdmin && (!p.makerId || !isMaker);
       const canApproveSubmitted = p.status === 'Submitted' && !isMaker && isPayrollAdmin;
       return canApproveDraft || canApproveSubmitted;
@@ -359,20 +361,26 @@ export default function PayrollAdminDashboard() {
   // Checker can VIEW, APPROVE, REJECT (cannot EDIT or CREATE)
   // Logic: If user has process_payroll permission, they are Maker. If they have approve_payroll, they are Checker.
   // A user can be both Maker and Checker, but cannot approve their own created payrolls (enforced per transaction).
-  const isMaker = hasPermission('process_payroll') || (currentUser?.role === 'Payroll Administrator' && !hasPermission('approve_payroll_only'));
-  const isChecker = hasPermission('approve_payroll') || currentUser?.role === 'Payroll Administrator' || currentUser?.role === 'Finance Administrator';
+  const isMaker =
+    hasPermission('process_payroll') ||
+    (hasRole('Payroll Administrator') && !hasPermission('approve_payroll_only'));
+  const isChecker =
+    hasPermission('approve_payroll') ||
+    hasRole('Payroll Administrator') ||
+    hasRole('Finance Administrator');
 
-  // BR-P0-001 Bug 4: Maker can process payroll, Checker cannot
-  const canProcessPayroll = isMaker || currentUser?.role === 'Super Admin';
+  const canProcessPayroll = isMaker || hasRole('Super Admin');
 
-  // BR-P0-001 Bug 4: Checker can approve payroll (but not their own created ones - enforced per transaction)
-  const canApprovePayroll = isChecker || currentUser?.role === 'Super Admin';
+  const canApprovePayroll = isChecker || hasRole('Super Admin');
 
-  const canViewPayroll = hasPermission('view_payroll_reports') || hasPermission('process_payroll') || hasPermission('approve_payroll') || allowedRoles.includes(currentUser?.role || '');
+  const canViewPayroll =
+    hasPermission('view_payroll_reports') ||
+    hasPermission('process_payroll') ||
+    hasPermission('approve_payroll') ||
+    allowedRoles.some((r) => hasRole(r as UserRole));
 
-  if (!canViewPayroll && currentUser?.role !== 'Super Admin') {
-    // Employees and Managers should use /payroll page
-    if (currentUser?.role === 'Employee' || currentUser?.role === 'Manager') {
+  if (!canViewPayroll && !hasRole('Super Admin')) {
+    if (hasRole('Employee') || hasRole('Manager')) {
       redirect('/payroll');
     } else {
       redirect('/dashboard');
@@ -543,7 +551,7 @@ export default function PayrollAdminDashboard() {
                   const isOwn = employee?.email && employee.email === currentUser?.email;
                   if (isOwn) return false;
                   const isMaker = p.makerId && currentUserId && p.makerId.toString() === currentUserId.toString();
-                  const isPayrollAdmin = currentUser?.role === 'Payroll Administrator' || currentUser?.role === 'Finance Administrator' || currentUser?.role === 'Super Admin';
+                  const isPayrollAdmin = hasRole('Payroll Administrator') || hasRole('Finance Administrator') || hasRole('Super Admin');
                   const canApproveDraft = p.status === 'Draft' && isPayrollAdmin && (!p.makerId || !isMaker);
                   const canApproveSubmitted = p.status === 'Submitted' && !isMaker && isPayrollAdmin;
                   return canApproveDraft || canApproveSubmitted;
@@ -588,7 +596,7 @@ export default function PayrollAdminDashboard() {
                   const payrollId = payroll._id || payroll.id;
                   const currentUserId = currentUser?.id || currentUser?._id;
                   const isMaker = payroll.makerId && currentUserId && payroll.makerId.toString() === currentUserId.toString();
-                  const isPayrollAdmin = currentUser?.role === 'Payroll Administrator' || currentUser?.role === 'Finance Administrator' || currentUser?.role === 'Super Admin';
+                  const isPayrollAdmin = hasRole('Payroll Administrator') || hasRole('Finance Administrator') || hasRole('Super Admin');
                   const isOwn = employee?.email && employee.email === currentUser?.email;
                   const canApproveDraft = payroll.status === 'Draft' && isPayrollAdmin && (!payroll.makerId || !isMaker);
                   const canApproveSubmitted = payroll.status === 'Submitted' && !isMaker && isPayrollAdmin;
@@ -617,7 +625,7 @@ export default function PayrollAdminDashboard() {
                               )}
                               <div className="flex-1">
                                 <p className="font-semibold text-sm">{employee?.firstName || ''} {employee?.lastName || ''}</p>
-                                <p className="text-xs text-muted-foreground">{employee?.employeeCode || ''} • {employee?.designation || ''}</p>
+                                <p className="text-xs text-muted-foreground">{employee?.employeeCode || ''} • {formatDesignationLabel(employee?.designation) || ''}</p>
                               </div>
                             </div>
                             <Badge className={isProcessed ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}>
@@ -962,7 +970,7 @@ export default function PayrollAdminDashboard() {
                               <td colSpan={(canProcessPayroll ? 1 : 0) + (payrolls.some((p: any) => {
                                 const currentUserId = currentUser?.id || currentUser?._id;
                                 const isMaker = p.makerId && currentUserId && p.makerId.toString() === currentUserId.toString();
-                                const isPayrollAdmin = currentUser?.role === 'Payroll Administrator' || currentUser?.role === 'Finance Administrator' || currentUser?.role === 'Super Admin';
+                                const isPayrollAdmin = hasRole('Payroll Administrator') || hasRole('Finance Administrator') || hasRole('Super Admin');
                                 const canApproveDraft = p.status === 'Draft' && isPayrollAdmin && (!p.makerId || !isMaker);
                                 const canApproveSubmitted = p.status === 'Submitted' && !isMaker && isPayrollAdmin;
                                 return canApproveDraft || canApproveSubmitted;
@@ -1002,7 +1010,7 @@ export default function PayrollAdminDashboard() {
                             // Checker can approve Draft payrolls created by different Maker OR Submitted payrolls
                             // For Draft: If makerId is set, current user must NOT be the maker. If makerId is not set, allow approval (backward compatibility)
                             // For Submitted: Current user must NOT be the maker
-                            const isPayrollAdmin = currentUser?.role === 'Payroll Administrator' || currentUser?.role === 'Finance Administrator' || currentUser?.role === 'Super Admin';
+                            const isPayrollAdmin = hasRole('Payroll Administrator') || hasRole('Finance Administrator') || hasRole('Super Admin');
                             const isOwn = employee?.email && employee.email === currentUser?.email;
 
                             // Draft approval: Allow if makerId is not set (backward compatibility) OR if makerId is set and user is not the maker
@@ -1048,7 +1056,8 @@ export default function PayrollAdminDashboard() {
                                     <div className="font-medium">{employee?.firstName || ''} {employee?.lastName || ''}</div>
                                     <div className="text-xs text-muted-foreground">
                                       {employee?.employeeCode || ''}
-                                      {employee?.designation && ` • ${employee.designation}`}
+                                      {formatDesignationLabel(employee?.designation) &&
+                                        ` • ${formatDesignationLabel(employee?.designation)}`}
                                     </div>
                                   </div>
                                 </td>
@@ -1120,7 +1129,7 @@ export default function PayrollAdminDashboard() {
                                       </Button>
                                     )}
                                     {/* Debug: Show why approve button is not visible */}
-                                    {(payroll.status === 'Draft' || payroll.status === 'Submitted') && !canApprove && (currentUser?.role === 'Payroll Administrator' || currentUser?.role === 'Finance Administrator' || currentUser?.role === 'Super Admin') && (
+                                    {(payroll.status === 'Draft' || payroll.status === 'Submitted') && !canApprove && (hasRole('Payroll Administrator') || hasRole('Finance Administrator') || hasRole('Super Admin')) && (
                                       <span className="text-xs text-muted-foreground" title={`Cannot approve: ${isMaker ? 'Own payroll' : !payroll.makerId ? 'No maker set' : 'Unknown reason'}`}>
                                         {isMaker ? 'Own' : 'N/A'}
                                       </span>
@@ -1407,7 +1416,7 @@ export default function PayrollAdminDashboard() {
                                     <div className="text-xs text-muted-foreground">{employee?.employeeCode || ''}</div>
                                   </div>
                                 </td>
-                                <td className="p-3">{employee?.designation || '-'}</td>
+                                <td className="p-3">{formatDesignationLabel(employee?.designation) || '-'}</td>
                                 <td className="p-3">{employee?.department || '-'}</td>
                                 <td className="text-right p-3">₹{payroll.basicSalary?.toLocaleString() || '0'}</td>
                                 <td className="text-right p-3 font-medium">₹{grossSalary.toLocaleString()}</td>

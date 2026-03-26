@@ -39,9 +39,10 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import apiService from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import Link from 'next/link';
 
 export default function LeavePage() {
-  const { isAuthenticated, hasPermission, user } = useAuth();
+  const { isAuthenticated, hasPermission, hasRole, currentUser } = useAuth();
   const { toast } = useToast();
   const [isApplyDialogOpen, setIsApplyDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -71,7 +72,7 @@ export default function LeavePage() {
   useEffect(() => {
     loadCurrentEmployee();
     loadLeavePolicies();
-  }, []);
+  }, [currentUser?.email]);
 
   useEffect(() => {
     if (currentEmployee) {
@@ -101,7 +102,7 @@ export default function LeavePage() {
   const loadCurrentEmployee = async () => {
     try {
       // Get current user's employee record
-      const empResponse = await apiService.getEmployees({ email: user?.email });
+      const empResponse = await apiService.getEmployees({ email: currentUser?.email });
       if (empResponse.success && empResponse.data && Array.isArray(empResponse.data) && empResponse.data.length > 0) {
         setCurrentEmployee(empResponse.data[0]);
       }
@@ -372,10 +373,28 @@ export default function LeavePage() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex justify-between items-start">
+        <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Leave Management</h1>
             <p className="text-muted-foreground mt-2">Apply and manage your leaves</p>
+            {(hasRole('HR Administrator') || hasRole('Tenant Admin')) && (
+              <Card className="mt-4 border-primary/20 bg-primary/5 shadow-none">
+                <CardContent className="py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-2">
+                    <Info className="h-5 w-5 shrink-0 text-primary mt-0.5" />
+                    <div className="text-sm">
+                      <p className="font-medium text-foreground">Leave policies (HR)</p>
+                      <p className="text-muted-foreground">
+                        Add or edit leave types, entitlements, and rules — used by Apply Leave and balances.
+                      </p>
+                    </div>
+                  </div>
+                  <Button asChild variant="default" className="shrink-0">
+                    <Link href="/settings/leave-policies">Manage leave policies</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </div>
           {hasPermission('apply_leave') && (
             <Dialog open={isApplyDialogOpen} onOpenChange={setIsApplyDialogOpen}>

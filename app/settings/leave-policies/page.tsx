@@ -30,7 +30,7 @@ interface LeavePolicy {
 }
 
 export default function LeavePoliciesPage() {
-  const { isAuthenticated, currentUser } = useAuth();
+  const { isAuthenticated, currentUser, hasRole } = useAuth();
   const [leavePolicies, setLeavePolicies] = useState<LeavePolicy[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -53,8 +53,7 @@ export default function LeavePoliciesPage() {
     redirect('/login');
   }
 
-  // Leave policies are owned by HR Administrator only (not Tenant Admin / System Admin hub)
-  if (currentUser?.role !== 'HR Administrator') {
+  if (!hasRole('HR Administrator') && !hasRole('Tenant Admin')) {
     redirect('/dashboard');
   }
 

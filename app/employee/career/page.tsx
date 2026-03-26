@@ -14,6 +14,7 @@ import apiService from '@/lib/api';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { formatDesignationLabel } from '@/lib/utils';
 
 function CareerPlanningContent() {
   const { isAuthenticated, currentUser } = useAuth();
@@ -101,7 +102,7 @@ function CareerPlanningContent() {
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">Designation</p>
-                        <p className="text-lg font-semibold">{careerPath.employee?.designation}</p>
+                        <p className="text-lg font-semibold">{formatDesignationLabel(careerPath.employee?.designation)}</p>
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">Years of Service</p>

@@ -21,10 +21,14 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function rolesFromApiUser(user: Record<string, unknown>): UserRole[] {
   const raw = user?.roles;
-  if (Array.isArray(raw) && raw.length) {
-    return raw.filter(Boolean) as UserRole[];
-  }
-  if (typeof user?.role === 'string' && user.role) return [user.role as UserRole];
+  const primary = typeof user?.role === 'string' && user.role ? (user.role as UserRole) : null;
+  const fromArr =
+    Array.isArray(raw) && raw.length > 0 ? (raw.filter(Boolean) as UserRole[]) : [];
+  const merged: UserRole[] = [...fromArr];
+  if (primary && !merged.includes(primary)) merged.push(primary);
+  const unique = [...new Set(merged)];
+  if (unique.length) return unique;
+  if (primary) return [primary];
   return [];
 }
 
