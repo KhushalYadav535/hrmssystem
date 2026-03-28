@@ -12,6 +12,7 @@ interface AuthContextType {
   loginWithUserSelect: (email: string, tenantId: string) => Promise<void>;
   logout: () => void;
   switchTenant: (tenantId: string) => Promise<void>;
+  refreshUser: () => Promise<void>;
   hasPermission: (permission: string) => boolean;
   hasRole: (role: UserRole) => boolean;
   registerTenant: (tenantName: string, email: string, password: string) => Promise<{ success: boolean; message: string; tenantId?: string }>;
@@ -37,6 +38,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const applySessionFromMe = useCallback((user: Record<string, any>) => {
+    setCurrentUser({
+      id: user._id || user.id,
+      tenantId: user.tenantId._id ? user.tenantId._id.toString() : user.tenantId.toString(),
+      email: user.email,
+      password: '',
+      name: user.name,
+      role: user.role,
+      roles: rolesFromApiUser(user as Record<string, unknown>),
+      employeeId: user.employeeId || null,
+      payrollSubRole: user.payrollSubRole || null,
+      designation: user.designation || '',
+      department: user.department || '',
+      status: user.status,
+      joinDate: user.joinDate,
+      avatar: user.avatar || '',
+    });
+
+    const tenantData = user.tenantId._id ? user.tenantId : { id: user.tenantId };
+    setCurrentTenant({
+      id: tenantData._id ? tenantData._id.toString() : tenantData.id || user.tenantId,
+      name: tenantData.name || '',
+      code: tenantData.code || '',
+      location: tenantData.location || '',
+      employees: tenantData.employees || 0,
+      status: tenantData.status || 'active',
+    });
+
+    localStorage.setItem('currentUserId', user._id || user.id);
+    localStorage.setItem('currentTenantId', user.tenantId._id ? user.tenantId._id.toString() : user.tenantId.toString());
+  }, []);
+
+  const refreshUser = useCallback(async () => {
+    try {
+      const response = await apiService.getMe();
+      if (response.success && response.data) {
+        applySessionFromMe(response.data as Record<string, any>);
+      }
+    } catch (e) {
+      console.error('refreshUser failed', e);
+    }
+  }, [applySessionFromMe]);
+
   // BR-P0-001 Bug 3: Restore session on mount using HttpOnly cookie
   useEffect(() => {
     const restoreSession = async () => {
@@ -46,36 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const response = await apiService.getMe();
         if (response.success && response.data) {
           const user = response.data;
-          setCurrentUser({
-            id: user._id || user.id,
-            tenantId: user.tenantId._id ? user.tenantId._id.toString() : user.tenantId.toString(),
-            email: user.email,
-            password: '', // Don't store password
-            name: user.name,
-            role: user.role,
-            roles: rolesFromApiUser(user as Record<string, unknown>),
-            employeeId: user.employeeId || null,
-            payrollSubRole: user.payrollSubRole || null,
-            designation: user.designation || '',
-            department: user.department || '',
-            status: user.status,
-            joinDate: user.joinDate,
-            avatar: user.avatar || '',
-          });
-
-          const tenantData = user.tenantId._id ? user.tenantId : { id: user.tenantId };
-          setCurrentTenant({
-            id: tenantData._id ? tenantData._id.toString() : tenantData.id || user.tenantId,
-            name: tenantData.name || '',
-            code: tenantData.code || '',
-            location: tenantData.location || '',
-            employees: tenantData.employees || 0,
-            status: tenantData.status || 'active',
-          });
-
-          // Store user/tenant IDs for reference (not token)
-          localStorage.setItem('currentUserId', user._id || user.id);
-          localStorage.setItem('currentTenantId', user.tenantId._id ? user.tenantId._id.toString() : user.tenantId.toString());
+          applySessionFromMe(user as Record<string, any>);
         } else {
           // Session expired or invalid, clear storage
           localStorage.removeItem('currentUserId');
@@ -90,7 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     restoreSession();
-  }, []);
+  }, [applySessionFromMe]);
 
   const login = useCallback(async (email: string, password: string, tenantId?: string) => {
     try {
@@ -336,6 +351,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'approve_appraisal', 'view_team', 'manage_finance', 'view_financial_reports',
           'manage_departments', 'manage_designations', 'view_audit_logs',
           'manage_attendance', 'view_attendance',
+          'view_employee_salary',
           // Employee-level permissions for Tenant Admin
           'apply_leave', 'submit_expense', 'view_profile', 'view_payslip', 'view_tax', 'submit_appraisal', 'view_own_data',
           // Merged System Administrator permissions
@@ -347,6 +363,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'manage_onboarding', 'manage_recruitment', 'approve_leave', 'approve_expense',
           'view_team', 'manage_departments', 'manage_designations', 'view_audit_logs',
           'manage_users', 'manage_roles', 'manage_attendance', 'view_attendance',
+          // Compensation on employee record (payroll processing still uses Payroll Admin)
+          'view_employee_salary',
           // HR Admin is also an employee, so they can apply for their own leave
           'apply_leave', 'submit_expense', 'view_profile', 'view_payslip', 'view_tax',
           'submit_appraisal', 'view_own_data'
@@ -413,6 +431,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loginWithUserSelect,
     logout,
     switchTenant,
+    refreshUser,
     hasPermission,
     hasRole,
     registerTenant,

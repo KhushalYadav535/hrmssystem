@@ -133,11 +133,17 @@ export default function LeaveEncashmentPage() {
     }
   };
 
-  // Filter encashable leave types (Annual Leave, Compensatory Off)
-  const encashableBalances = leaveBalances.filter(b => 
-    b.leaveType.toLowerCase().includes('annual') || 
-    b.leaveType.toLowerCase().includes('compensatory')
-  );
+  const isEncashableBalance = (b: {
+    leaveType: string;
+    allowEncashment?: boolean;
+  }) => {
+    if (b.allowEncashment === true) return true;
+    if (b.allowEncashment === false) return false;
+    const t = b.leaveType.toLowerCase();
+    return t.includes('annual') || t.includes('compensatory');
+  };
+
+  const encashableBalances = leaveBalances.filter(isEncashableBalance);
 
   return (
     <DashboardLayout>
@@ -185,8 +191,7 @@ export default function LeaveEncashmentPage() {
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       {leaveBalances.map((balance) => {
-                        const isEncashable = balance.leaveType.toLowerCase().includes('annual') || 
-                                            balance.leaveType.toLowerCase().includes('compensatory');
+                        const isEncashable = isEncashableBalance(balance);
                         return (
                           <div 
                             key={balance.leaveType} 

@@ -35,6 +35,10 @@ interface LeavePolicy {
   carryForward: boolean;
   maxCarryForward?: number;
   requiresApproval: boolean;
+  allowEncashment?: boolean;
+  allowHalfDay?: boolean;
+  requiresMedicalCertificate?: boolean;
+  medicalCertificateAfterDays?: number;
   description?: string;
   status: string;
 }
@@ -73,9 +77,16 @@ export default function AdminPage() {
   const [leavePolicyForm, setLeavePolicyForm] = useState({
     leaveType: '',
     daysPerYear: 0,
+    accrualFrequency: 'Monthly',
+    accrualRate: 1,
+    accrualDate: 1,
     carryForward: false,
     maxCarryForward: 0,
     requiresApproval: true,
+    allowEncashment: false,
+    allowHalfDay: false,
+    requiresMedicalCertificate: false,
+    medicalCertificateAfterDays: 3,
     description: '',
     status: 'Active',
   });
@@ -207,6 +218,10 @@ export default function AdminPage() {
           accrualFrequency: policy.accrualFrequency || 'Monthly',
           accrualRate: policy.accrualRate ?? (policy.daysPerYear ? policy.daysPerYear / 12 : 1),
           accrualDate: policy.accrualDate || 1,
+          allowEncashment: !!policy.allowEncashment,
+          allowHalfDay: !!policy.allowHalfDay,
+          requiresMedicalCertificate: !!policy.requiresMedicalCertificate,
+          medicalCertificateAfterDays: policy.medicalCertificateAfterDays ?? 3,
         }));
         setLeavePolicies(policiesWithDefaults);
       }
@@ -308,6 +323,10 @@ export default function AdminPage() {
       carryForward: policy.carryForward,
       maxCarryForward: policy.maxCarryForward || 0,
       requiresApproval: policy.requiresApproval,
+      allowEncashment: !!policy.allowEncashment,
+      allowHalfDay: !!policy.allowHalfDay,
+      requiresMedicalCertificate: !!policy.requiresMedicalCertificate,
+      medicalCertificateAfterDays: policy.medicalCertificateAfterDays ?? 3,
       description: policy.description || '',
       status: policy.status,
     });
@@ -319,9 +338,16 @@ export default function AdminPage() {
     setLeavePolicyForm({
       leaveType: '',
       daysPerYear: 0,
+      accrualFrequency: 'Monthly',
+      accrualRate: 1,
+      accrualDate: 1,
       carryForward: false,
       maxCarryForward: 0,
       requiresApproval: true,
+      allowEncashment: false,
+      allowHalfDay: false,
+      requiresMedicalCertificate: false,
+      medicalCertificateAfterDays: 3,
       description: '',
       status: 'Active',
     });
@@ -790,7 +816,7 @@ export default function AdminPage() {
 
         {/* Edit Leave Policy Dialog */}
         <Dialog open={isLeavePolicyDialogOpen} onOpenChange={setIsLeavePolicyDialogOpen}>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingLeavePolicy ? 'Edit Leave Policy' : 'Create Leave Policy'}</DialogTitle>
               <DialogDescription>
@@ -834,17 +860,29 @@ export default function AdminPage() {
                     <SelectContent>
                       <SelectItem value="Monthly">Monthly</SelectItem>
                       <SelectItem value="Quarterly">Quarterly</SelectItem>
+                      <SelectItem value="Half Yearly">Half Yearly</SelectItem>
                       <SelectItem value="Yearly">Yearly</SelectItem>
-                      <SelectItem value="None">None (No Accrual)</SelectItem>
+                      <SelectItem value="None">None (full grant upfront)</SelectItem>
+                      <SelectItem value="Not Applicable">Not Applicable</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 
-                {leavePolicyForm.accrualFrequency && leavePolicyForm.accrualFrequency !== 'None' && (
+                {leavePolicyForm.accrualFrequency &&
+                  leavePolicyForm.accrualFrequency !== 'None' &&
+                  leavePolicyForm.accrualFrequency !== 'Not Applicable' && (
                   <>
                     <div>
                       <Label htmlFor="accrualRate">
-                        Accrual Rate (Days per {leavePolicyForm.accrualFrequency?.toLowerCase()?.slice(0, -2) || 'period'}) *
+                        Accrual Rate (days per{' '}
+                        {leavePolicyForm.accrualFrequency === 'Monthly'
+                          ? 'month'
+                          : leavePolicyForm.accrualFrequency === 'Quarterly'
+                            ? 'quarter'
+                            : leavePolicyForm.accrualFrequency === 'Half Yearly'
+                              ? 'half-year'
+                              : 'year'}
+                        ) *
                       </Label>
                       <Input
                         id="accrualRate"
@@ -852,10 +890,25 @@ export default function AdminPage() {
                         step="0.1"
                         value={leavePolicyForm.accrualRate || 0}
                         onChange={(e) => setLeavePolicyForm({ ...leavePolicyForm, accrualRate: parseFloat(e.target.value) || 0 })}
-                        placeholder={leavePolicyForm.accrualFrequency === 'Monthly' ? 'e.g., 1 (1 day per month)' : leavePolicyForm.accrualFrequency === 'Quarterly' ? 'e.g., 3 (3 days per quarter)' : 'e.g., 12 (12 days per year)'}
+                        placeholder={
+                          leavePolicyForm.accrualFrequency === 'Monthly'
+                            ? 'e.g., 1 (1 day per month)'
+                            : leavePolicyForm.accrualFrequency === 'Quarterly'
+                              ? 'e.g., 3 (3 days per quarter)'
+                              : leavePolicyForm.accrualFrequency === 'Half Yearly'
+                                ? 'e.g., 6 (6 days per half-year)'
+                                : 'e.g., 12 (12 days per year)'
+                        }
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        Example: {leavePolicyForm.accrualFrequency === 'Monthly' ? '1 day per month = 12 days/year' : leavePolicyForm.accrualFrequency === 'Quarterly' ? '3 days per quarter = 12 days/year' : '12 days per year'}
+                        Example:{' '}
+                        {leavePolicyForm.accrualFrequency === 'Monthly'
+                          ? '1 day per month = 12 days/year'
+                          : leavePolicyForm.accrualFrequency === 'Quarterly'
+                            ? '3 days per quarter = 12 days/year'
+                            : leavePolicyForm.accrualFrequency === 'Half Yearly'
+                              ? '6 days per half-year = 12 days/year'
+                              : '12 days per year'}
                       </p>
                     </div>
                     
@@ -907,6 +960,61 @@ export default function AdminPage() {
                   onCheckedChange={(checked) => setLeavePolicyForm({ ...leavePolicyForm, requiresApproval: checked as boolean })}
                 />
                 <Label htmlFor="requiresApproval" className="cursor-pointer">Requires Approval</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="allowEncashment"
+                  checked={leavePolicyForm.allowEncashment}
+                  onCheckedChange={(checked) =>
+                    setLeavePolicyForm({ ...leavePolicyForm, allowEncashment: checked as boolean })
+                  }
+                />
+                <Label htmlFor="allowEncashment" className="cursor-pointer">Encashment</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="allowHalfDay"
+                  checked={leavePolicyForm.allowHalfDay}
+                  onCheckedChange={(checked) =>
+                    setLeavePolicyForm({ ...leavePolicyForm, allowHalfDay: checked as boolean })
+                  }
+                />
+                <Label htmlFor="allowHalfDay" className="cursor-pointer">Half-Day</Label>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="requiresMedicalCertificate"
+                    checked={leavePolicyForm.requiresMedicalCertificate}
+                    onCheckedChange={(checked) =>
+                      setLeavePolicyForm({
+                        ...leavePolicyForm,
+                        requiresMedicalCertificate: checked as boolean,
+                      })
+                    }
+                  />
+                  <Label htmlFor="requiresMedicalCertificate" className="cursor-pointer">
+                    Medical Certificate
+                  </Label>
+                </div>
+                {leavePolicyForm.requiresMedicalCertificate && (
+                  <div>
+                    <Label htmlFor="medicalCertificateAfterDays">When leave exceeds (days)</Label>
+                    <Input
+                      id="medicalCertificateAfterDays"
+                      type="number"
+                      min={1}
+                      max={365}
+                      value={leavePolicyForm.medicalCertificateAfterDays}
+                      onChange={(e) =>
+                        setLeavePolicyForm({
+                          ...leavePolicyForm,
+                          medicalCertificateAfterDays: parseInt(e.target.value, 10) || 3,
+                        })
+                      }
+                    />
+                  </div>
+                )}
               </div>
               <div>
                 <Label htmlFor="description">Description</Label>

@@ -63,7 +63,7 @@ function userHasPlatformManagedRole(user: User) {
 }
 
 export default function UsersPage() {
-  const { isAuthenticated, hasPermission, hasRole, currentUser } = useAuth();
+  const { isAuthenticated, hasPermission, hasRole, currentUser, refreshUser } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const isTenantAdmin = hasRole('Tenant Admin');
@@ -86,12 +86,45 @@ export default function UsersPage() {
     department: '',
     status: 'active',
   });
+  const [designations, setDesignations] = useState<{ _id?: string; id?: string; name: string }[]>([]);
+  /** Master list value (ObjectId), empty, or __custom__ for free text */
+  const [designationPick, setDesignationPick] = useState<string>('');
+
+  const assignableRoles = ALL_ROLE_OPTIONS.filter((r) => {
+    if (r === 'Super Admin') return false;
+    if (!isTenantAdmin && r === 'Tenant Admin') return false;
+    return true;
+  });
 
   useEffect(() => {
     if (isAuthenticated) {
       loadUsers();
     }
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    (async () => {
+      try {
+        const res = await apiService.getActiveDesignations();
+        if (res.success && res.data) {
+          setDesignations(Array.isArray(res.data) ? res.data : []);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isEditDialogOpen || !editingUser || designations.length === 0) return;
+    const raw = typeof editingUser.designation === 'string' ? editingUser.designation : '';
+    if (!/^[a-fA-F0-9]{24}$/.test(raw)) return;
+    const d = designations.find((x) => String(x._id || x.id) === raw);
+    if (!d) return;
+    setDesignationPick(raw);
+    setUserFormData((prev) => ({ ...prev, designation: d.name }));
+  }, [designations, isEditDialogOpen, editingUser]);
 
   // After creating a user/employee, redirect includes ?refresh=1 so list reloads even when session was already active.
   useEffect(() => {
@@ -148,6 +181,25 @@ export default function UsersPage() {
     setEditingUser(user);
     const eff = userEffectiveRoles(user);
     setSelectedRoles(eff.length ? eff : user.role ? [user.role] : []);
+    const rawDesig = typeof user.designation === 'string' ? user.designation : '';
+    let pick = '';
+    let desigDisplay = '';
+    if (/^[a-fA-F0-9]{24}$/.test(rawDesig)) {
+      const d = designations.find((x) => String(x._id || x.id) === rawDesig);
+      if (d) {
+        pick = rawDesig;
+        desigDisplay = d.name;
+      } else {
+        pick = '__custom__';
+        desigDisplay = rawDesig;
+      }
+    } else {
+      const label = formatDesignationLabel(user.designation) || rawDesig;
+      desigDisplay = label;
+      const found = designations.find((d) => d.name === label);
+      pick = found ? String(found._id || found.id) : label ? '__custom__' : '';
+    }
+    setDesignationPick(pick);
     setUserFormData({
       name: user.name || '',
       email: user.email || '',
@@ -156,7 +208,7 @@ export default function UsersPage() {
         (user.payrollSubRole === 'Maker' || user.payrollSubRole === 'Checker')
           ? user.payrollSubRole
           : '',
-      designation: formatDesignationLabel(user.designation) || (typeof user.designation === 'string' ? user.designation : ''),
+      designation: desigDisplay,
       department: user.department || '',
       status: user.status === 'active' || user.status === 'Active' ? 'active' : 'inactive',
     });
@@ -177,9 +229,14 @@ export default function UsersPage() {
         toast.error('Select at least one role');
         return;
       }
+      let designationOut = userFormData.designation.trim();
+      if (designationPick && designationPick !== '__custom__') {
+        const d = designations.find((x) => String(x._id || x.id) === designationPick);
+        if (d?.name) designationOut = d.name;
+      }
       const payload = {
         name: userFormData.name,
-        designation: userFormData.designation,
+        designation: designationOut,
         department: userFormData.department,
         status: userFormData.status === 'active' ? 'Active' : 'Inactive',
         roles: selectedRoles,
@@ -193,6 +250,9 @@ export default function UsersPage() {
         setIsEditDialogOpen(false);
         setEditingUser(null);
         loadUsers();
+        if (currentUser && String(currentUser.id) === String(userId)) {
+          await refreshUser();
+        }
       } else {
         toast.error(response.message || 'Failed to update user');
       }
@@ -229,8 +289,10 @@ export default function UsersPage() {
       setIsActionLoading(userId);
       const response = await apiService.resetUserPassword(userId);
       if (response.success) {
-        const data = response.data as { tempPassword?: string } | undefined;
-        const temp = data && typeof data === 'object' && 'tempPassword' in data ? data.tempPassword : undefined;
+        const raw = response.data as Record<string, unknown> | undefined;
+        const temp =
+          (typeof raw?.tempPassword === 'string' ? raw.tempPassword : undefined) ??
+          (response as unknown as { tempPassword?: string }).tempPassword;
         if (temp && typeof temp === 'string') {
           toast.success(`Password reset. Temporary password: ${temp}`, { duration: 20_000 });
         } else {
@@ -567,7 +629,7 @@ export default function UsersPage() {
                 <Label>Roles</Label>
                 <p className="text-xs text-muted-foreground">User can hold multiple roles; permissions are combined.</p>
                 <div className="rounded-lg border border-border divide-y max-h-48 overflow-y-auto">
-                  {ALL_ROLE_OPTIONS.filter((r) => !isTenantAdmin || r !== 'Super Admin').map((r) => (
+                  {assignableRoles.map((r) => (
                     <div key={r} className="flex items-center gap-3 px-3 py-2">
                       <Checkbox
                         id={`edit-role-${r}`}
@@ -614,13 +676,48 @@ export default function UsersPage() {
                 </div>
               )}
               <div className="space-y-2">
-                <Label htmlFor="edit-designation">Designation</Label>
-                <Input
-                  id="edit-designation"
-                  value={userFormData.designation}
-                  onChange={(e) => setUserFormData({ ...userFormData, designation: e.target.value })}
-                  placeholder="Enter designation"
-                />
+                <Label>Designation</Label>
+                <p className="text-xs text-muted-foreground">
+                  Choose from Designation Master (same as HR settings) or enter a custom title.
+                </p>
+                <Select
+                  value={designationPick === '' ? '__none__' : designationPick}
+                  onValueChange={(v) => {
+                    if (v === '__none__') {
+                      setDesignationPick('');
+                      setUserFormData({ ...userFormData, designation: '' });
+                      return;
+                    }
+                    if (v === '__custom__') {
+                      setDesignationPick('__custom__');
+                      return;
+                    }
+                    setDesignationPick(v);
+                    const d = designations.find((x) => String(x._id || x.id) === v);
+                    if (d) setUserFormData({ ...userFormData, designation: d.name });
+                  }}
+                >
+                  <SelectTrigger id="edit-designation-master">
+                    <SelectValue placeholder="Select from master…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— None —</SelectItem>
+                    {designations.map((d) => (
+                      <SelectItem key={String(d._id || d.id)} value={String(d._id || d.id)}>
+                        {d.name}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="__custom__">Custom (type below)</SelectItem>
+                  </SelectContent>
+                </Select>
+                {designationPick === '__custom__' && (
+                  <Input
+                    id="edit-designation-custom"
+                    value={userFormData.designation}
+                    onChange={(e) => setUserFormData({ ...userFormData, designation: e.target.value })}
+                    placeholder="Custom designation"
+                  />
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-department">Department</Label>

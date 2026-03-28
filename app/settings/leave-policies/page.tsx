@@ -25,6 +25,10 @@ interface LeavePolicy {
   carryForward: boolean;
   maxCarryForward?: number;
   requiresApproval: boolean;
+  allowEncashment?: boolean;
+  allowHalfDay?: boolean;
+  requiresMedicalCertificate?: boolean;
+  medicalCertificateAfterDays?: number;
   description?: string;
   status: string;
 }
@@ -44,9 +48,16 @@ export default function LeavePoliciesPage() {
     carryForward: false,
     maxCarryForward: 0,
     requiresApproval: true,
+    allowEncashment: false,
+    allowHalfDay: false,
+    requiresMedicalCertificate: false,
+    medicalCertificateAfterDays: 3,
     description: '',
     status: 'Active',
   });
+
+  const noAccrual =
+    formData.accrualFrequency === 'None' || formData.accrualFrequency === 'Not Applicable';
 
   // Role-based access control: Only HR Administrators can access this page
   if (!isAuthenticated) {
@@ -72,6 +83,10 @@ export default function LeavePoliciesPage() {
           accrualFrequency: policy.accrualFrequency || 'Monthly',
           accrualRate: policy.accrualRate ?? (policy.daysPerYear ? policy.daysPerYear / 12 : 1),
           accrualDate: policy.accrualDate || 1,
+          allowEncashment: !!policy.allowEncashment,
+          allowHalfDay: !!policy.allowHalfDay,
+          requiresMedicalCertificate: !!policy.requiresMedicalCertificate,
+          medicalCertificateAfterDays: policy.medicalCertificateAfterDays ?? 3,
         }));
         setLeavePolicies(policiesWithDefaults);
       }
@@ -95,6 +110,10 @@ export default function LeavePoliciesPage() {
         carryForward: policy.carryForward,
         maxCarryForward: policy.maxCarryForward || 0,
         requiresApproval: policy.requiresApproval,
+        allowEncashment: !!policy.allowEncashment,
+        allowHalfDay: !!policy.allowHalfDay,
+        requiresMedicalCertificate: !!policy.requiresMedicalCertificate,
+        medicalCertificateAfterDays: policy.medicalCertificateAfterDays ?? 3,
         description: policy.description || '',
         status: policy.status,
       });
@@ -109,6 +128,10 @@ export default function LeavePoliciesPage() {
         carryForward: false,
         maxCarryForward: 0,
         requiresApproval: true,
+        allowEncashment: false,
+        allowHalfDay: false,
+        requiresMedicalCertificate: false,
+        medicalCertificateAfterDays: 3,
         description: '',
         status: 'Active',
       });
@@ -308,33 +331,43 @@ export default function LeavePoliciesPage() {
                   <option value="Quarterly">Quarterly</option>
                   <option value="Half Yearly">Half Yearly</option>
                   <option value="Yearly">Yearly</option>
+                  <option value="None">None (full grant upfront)</option>
+                  <option value="Not Applicable">Not Applicable</option>
                 </select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="accrual-rate">Accrual Rate (per period)</Label>
-                <Input
-                  id="accrual-rate"
-                  type="number"
-                  step="0.1"
-                  placeholder="e.g., 1.0"
-                  value={formData.accrualRate}
-                  onChange={(e) => setFormData({ ...formData, accrualRate: parseFloat(e.target.value) || 0 })}
-                />
-              </div>
+              {!noAccrual && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="accrual-rate">Accrual Rate (per period)</Label>
+                    <Input
+                      id="accrual-rate"
+                      type="number"
+                      step="0.1"
+                      placeholder="e.g., 1.0"
+                      value={formData.accrualRate}
+                      onChange={(e) =>
+                        setFormData({ ...formData, accrualRate: parseFloat(e.target.value) || 0 })
+                      }
+                    />
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="accrual-date">Accrual Date (day of month)</Label>
-                <Input
-                  id="accrual-date"
-                  type="number"
-                  min="1"
-                  max="31"
-                  placeholder="e.g., 1"
-                  value={formData.accrualDate}
-                  onChange={(e) => setFormData({ ...formData, accrualDate: parseInt(e.target.value) || 1 })}
-                />
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="accrual-date">Accrual Date (day of month)</Label>
+                    <Input
+                      id="accrual-date"
+                      type="number"
+                      min="1"
+                      max="31"
+                      placeholder="e.g., 1"
+                      value={formData.accrualDate}
+                      onChange={(e) =>
+                        setFormData({ ...formData, accrualDate: parseInt(e.target.value) || 1 })
+                      }
+                    />
+                  </div>
+                </>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="status">Status</Label>
@@ -395,6 +428,61 @@ export default function LeavePoliciesPage() {
                     className="w-4 h-4"
                   />
                   <Label htmlFor="requires-approval">Requires Manager Approval</Label>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="allow-encashment"
+                    checked={formData.allowEncashment}
+                    onChange={(e) => setFormData({ ...formData, allowEncashment: e.target.checked })}
+                    className="w-4 h-4"
+                  />
+                  <Label htmlFor="allow-encashment">Encashment</Label>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="allow-half-day"
+                    checked={formData.allowHalfDay}
+                    onChange={(e) => setFormData({ ...formData, allowHalfDay: e.target.checked })}
+                    className="w-4 h-4"
+                  />
+                  <Label htmlFor="allow-half-day">Half-Day</Label>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="requires-medical-certificate"
+                      checked={formData.requiresMedicalCertificate}
+                      onChange={(e) =>
+                        setFormData({ ...formData, requiresMedicalCertificate: e.target.checked })
+                      }
+                      className="w-4 h-4"
+                    />
+                    <Label htmlFor="requires-medical-certificate">Medical Certificate</Label>
+                  </div>
+                  {formData.requiresMedicalCertificate && (
+                    <div className="space-y-2 ml-7">
+                      <Label htmlFor="medical-after-days">Required when leave exceeds (days)</Label>
+                      <Input
+                        id="medical-after-days"
+                        type="number"
+                        min={1}
+                        max={365}
+                        value={formData.medicalCertificateAfterDays}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            medicalCertificateAfterDays: parseInt(e.target.value, 10) || 3,
+                          })
+                        }
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

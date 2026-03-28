@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import apiService from '@/lib/api';
-import { Plus, Search, Edit2, Eye, FileText } from 'lucide-react';
+import { Plus, Search, Edit2, Eye, FileText, MapPin, Banknote } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -33,6 +33,17 @@ interface Employee {
   grade: any;
   status: string;
   [key: string]: any;
+}
+
+function employeeLocationId(employee: Employee): string {
+  const loc = employee?.location;
+  if (loc == null || loc === '') return '';
+  if (typeof loc === 'string') return loc;
+  if (typeof loc === 'object' && loc !== null && '_id' in loc) {
+    const id = (loc as { _id: unknown })._id;
+    return id != null ? String(id) : '';
+  }
+  return '';
 }
 
 export default function WorkforcePage() {
@@ -68,6 +79,13 @@ export default function WorkforcePage() {
   const [grades, setGrades] = useState<any[]>([]);
 
   const [isCreating, setIsCreating] = useState(false);
+  const [editLocationId, setEditLocationId] = useState('');
+  const [isSavingLocation, setIsSavingLocation] = useState(false);
+  const [showPayrollDialog, setShowPayrollDialog] = useState(false);
+  const [payrollAssignEmployee, setPayrollAssignEmployee] = useState<Employee | null>(null);
+  const [payrollSalary, setPayrollSalary] = useState('');
+  const [payrollCtc, setPayrollCtc] = useState('');
+  const [isSavingPayroll, setIsSavingPayroll] = useState(false);
   const [employeeForm, setEmployeeForm] = useState({
     employeeCode: '',
     firstName: '',
@@ -158,21 +176,6 @@ export default function WorkforcePage() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const generateNextEmployeeCode = () => {
-    if (!employees || employees.length === 0) return 'EMP001';
-    let maxNumber = 0;
-    employees.forEach((emp: any) => {
-      const rawCode = emp.employeeCode || emp.employee_code || '';
-      if (!rawCode) return;
-      const match = String(rawCode).match(/EMP(\d+)/i);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        if (!isNaN(num) && num > maxNumber) maxNumber = num;
-      }
-    });
-    return `EMP${String(maxNumber + 1).padStart(3, '0')}`;
   };
 
   useEffect(() => {
@@ -270,7 +273,87 @@ export default function WorkforcePage() {
       id: empId,
     };
     setSelectedEmployee(normalizedEmployee);
+    setEditLocationId(employeeLocationId(normalizedEmployee));
     setShowEditDialog(true);
+  };
+
+  const handleOpenPayrollAssign = (employee: Employee) => {
+    const empId = employee._id || employee.id;
+    const normalized = {
+      ...employee,
+      _id: empId,
+      id: empId,
+    };
+    setPayrollAssignEmployee(normalized);
+    setPayrollSalary(
+      employee.salary != null && employee.salary !== '' ? String(employee.salary) : ''
+    );
+    setPayrollCtc(employee.ctc != null && employee.ctc !== '' ? String(employee.ctc) : '');
+    setShowPayrollDialog(true);
+  };
+
+  const handleSavePayrollAssignment = async () => {
+    if (!payrollAssignEmployee) return;
+    const employeeId = payrollAssignEmployee._id || payrollAssignEmployee.id;
+    if (!employeeId) {
+      toast.error('Employee ID not found. Please refresh the page.');
+      return;
+    }
+    const salary = parseFloat(payrollSalary);
+    const ctcParsed = parseFloat(payrollCtc);
+    if (Number.isNaN(salary) || salary <= 0 || Number.isNaN(ctcParsed) || ctcParsed <= 0) {
+      toast.error('Enter valid monthly salary and annual CTC (both must be greater than 0).');
+      return;
+    }
+    setIsSavingPayroll(true);
+    try {
+      const response = await apiService.updateEmployee(employeeId, {
+        salary,
+        ctc: ctcParsed,
+      });
+      if (response.success) {
+        toast.success('Payroll details (salary & CTC) saved on employee record');
+        setShowPayrollDialog(false);
+        setPayrollAssignEmployee(null);
+        await loadEmployees();
+      } else {
+        toast.error((response as { message?: string }).message || 'Failed to update payroll details');
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to update payroll details';
+      toast.error(message);
+    } finally {
+      setIsSavingPayroll(false);
+    }
+  };
+
+  const handleSaveLocationAssignment = async () => {
+    if (!selectedEmployee) return;
+    const employeeId = selectedEmployee._id || selectedEmployee.id;
+    if (!employeeId) {
+      toast.error('Employee ID not found. Please refresh the page.');
+      return;
+    }
+    if (!editLocationId) {
+      toast.error('Please select a location');
+      return;
+    }
+    setIsSavingLocation(true);
+    try {
+      const response = await apiService.updateEmployee(employeeId, { location: editLocationId });
+      if (response.success) {
+        toast.success('Employee location updated');
+        setShowEditDialog(false);
+        await loadEmployees();
+      } else {
+        toast.error((response as { message?: string }).message || 'Failed to update location');
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to update location';
+      toast.error(message);
+    } finally {
+      setIsSavingLocation(false);
+    }
   };
 
   const handleCreateEmployee = async () => {
@@ -348,7 +431,10 @@ export default function WorkforcePage() {
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Workforce Management</h1>
-            <p className="text-muted-foreground mt-2">Manage employee records and information</p>
+            <p className="text-muted-foreground mt-2">
+              Manage employee records: locations (Location Master), and payroll inputs — monthly salary and annual CTC
+              used when payroll is run.
+            </p>
           </div>
           {hasPermission('manage_employees') && currentUser?.role !== 'Auditor' && (
             <Dialog
@@ -356,8 +442,7 @@ export default function WorkforcePage() {
               onOpenChange={(open) => {
                 setShowAddDialog(open);
                 if (open) {
-                  const nextCode = generateNextEmployeeCode();
-                  setEmployeeForm((prev) => ({ ...prev, employeeCode: nextCode }));
+                  setEmployeeForm((prev) => ({ ...prev, employeeCode: '' }));
                 } else {
                   setEmployeeForm({
                     employeeCode: '',
@@ -399,7 +484,7 @@ export default function WorkforcePage() {
                         id="employeeCode"
                         value={employeeForm.employeeCode}
                         onChange={(e) => setEmployeeForm({ ...employeeForm, employeeCode: e.target.value })}
-                        placeholder="EMP001"
+                        placeholder="Client reference / employee code (your format)"
                       />
                     </div>
                     <div>
@@ -714,13 +799,39 @@ export default function WorkforcePage() {
                             <Eye className="w-4 h-4" />
                           </Button>
                           {hasPermission('manage_employees') && currentUser?.role !== 'Auditor' && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleEditEmployee(employee)}
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </Button>
+                            <>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                title="Assign to location"
+                                onClick={() => handleEditEmployee(employee)}
+                              >
+                                <MapPin className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                title="Assign payroll (salary & CTC)"
+                                onClick={() => handleOpenPayrollAssign(employee)}
+                              >
+                                <Banknote className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                title="Full profile"
+                                onClick={() => {
+                                  const id = employee._id || employee.id;
+                                  if (!id) {
+                                    toast.error('Employee ID not found.');
+                                    return;
+                                  }
+                                  window.location.href = `/employee/${encodeURIComponent(id)}`;
+                                }}
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </Button>
+                            </>
                           )}
                         </div>
                       </td>
@@ -783,6 +894,26 @@ export default function WorkforcePage() {
                         ? formatDateDDMMYYYY(selectedEmployee.joinDate): 'N/A'}
                     </p>
                   </div>
+                  {(hasPermission('view_employee_salary') || hasPermission('manage_employees')) && (
+                    <>
+                      <div>
+                        <Label className="text-muted-foreground">Monthly salary</Label>
+                        <p className="font-medium">
+                          {selectedEmployee.salary != null && selectedEmployee.salary !== ''
+                            ? `₹${Number(selectedEmployee.salary).toLocaleString('en-IN')}`
+                            : '—'}
+                        </p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Annual CTC</Label>
+                        <p className="font-medium">
+                          {selectedEmployee.ctc != null && selectedEmployee.ctc !== ''
+                            ? `₹${Number(selectedEmployee.ctc).toLocaleString('en-IN')}`
+                            : '—'}
+                        </p>
+                      </div>
+                    </>
+                  )}
                 </div>
                 {selectedEmployee?.documents && selectedEmployee.documents.length > 0 && (
                   <div className="pt-4 border-t">
@@ -810,7 +941,7 @@ export default function WorkforcePage() {
                     </div>
                   </div>
                 )}
-                <div className="flex gap-2 pt-4">
+                <div className="flex flex-col gap-2 pt-4 sm:flex-row sm:flex-wrap">
                   <Button
                     variant="outline"
                     onClick={() => {
@@ -821,17 +952,32 @@ export default function WorkforcePage() {
                       }
                       window.location.href = `/employee/${encodeURIComponent(employeeId)}`;
                     }}
-                    className="flex-1"
+                    className="flex-1 min-w-[140px]"
                   >
                     View Full Profile
                   </Button>
                   {hasPermission('manage_employees') && currentUser?.role !== 'Auditor' && (
-                    <Button onClick={() => {
-                      setShowViewDialog(false);
-                      handleEditEmployee(selectedEmployee);
-                    }} className="flex-1">
-                      Edit Employee
-                    </Button>
+                    <>
+                      <Button
+                        onClick={() => {
+                          setShowViewDialog(false);
+                          handleEditEmployee(selectedEmployee);
+                        }}
+                        className="flex-1 min-w-[140px]"
+                      >
+                        Assign location
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setShowViewDialog(false);
+                          handleOpenPayrollAssign(selectedEmployee);
+                        }}
+                        className="flex-1 min-w-[140px]"
+                      >
+                        Assign payroll
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -839,31 +985,150 @@ export default function WorkforcePage() {
           </DialogContent>
         </Dialog>
 
-        {/* Edit Employee Dialog */}
-        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        {/* Assign payroll — monthly salary & annual CTC on employee (HR Admin) */}
+        <Dialog
+          open={showPayrollDialog}
+          onOpenChange={(open) => {
+            setShowPayrollDialog(open);
+            if (!open) {
+              setPayrollAssignEmployee(null);
+              setPayrollSalary('');
+              setPayrollCtc('');
+            }
+          }}
+        >
+          <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Edit Employee</DialogTitle>
-              <DialogDescription>Update employee information</DialogDescription>
+              <DialogTitle>Assign payroll</DialogTitle>
+              <DialogDescription>
+                {payrollAssignEmployee
+                  ? `${payrollAssignEmployee.firstName} ${payrollAssignEmployee.lastName} · ${payrollAssignEmployee.employeeCode || '—'}`
+                  : 'Set compensation used for payroll runs.'}
+              </DialogDescription>
+            </DialogHeader>
+            {payrollAssignEmployee && (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  These values are stored on the employee record. Payroll processing uses them to build payslips
+                  (along with attendance and leave).
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="payroll-salary">Monthly salary *</Label>
+                  <Input
+                    id="payroll-salary"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={payrollSalary}
+                    onChange={(e) => setPayrollSalary(e.target.value)}
+                    placeholder="e.g., 50000"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="payroll-ctc">Annual CTC *</Label>
+                  <Input
+                    id="payroll-ctc"
+                    type="number"
+                    min={0}
+                    step="1"
+                    value={payrollCtc}
+                    onChange={(e) => setPayrollCtc(e.target.value)}
+                    placeholder="e.g., 600000"
+                  />
+                </div>
+                <div className="flex flex-col gap-2 pt-2">
+                  <Button onClick={() => void handleSavePayrollAssignment()} disabled={isSavingPayroll}>
+                    {isSavingPayroll ? 'Saving…' : 'Save payroll details'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      const id = payrollAssignEmployee._id || payrollAssignEmployee.id;
+                      if (!id) return;
+                      window.location.href = `/employee/${encodeURIComponent(id)}`;
+                    }}
+                  >
+                    Open full employee profile
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Assign location (HR Admin) — uses Location Master */}
+        <Dialog
+          open={showEditDialog}
+          onOpenChange={(open) => {
+            setShowEditDialog(open);
+            if (!open) setEditLocationId('');
+          }}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Assign to location</DialogTitle>
+              <DialogDescription>
+                {selectedEmployee
+                  ? `${selectedEmployee.firstName} ${selectedEmployee.lastName} · ${selectedEmployee.employeeCode || '—'}`
+                  : 'Select an employee from the directory.'}
+              </DialogDescription>
             </DialogHeader>
             {selectedEmployee && (
               <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Click below to navigate to the employee detail page for editing.
-                </p>
-                <Button
-                  onClick={() => {
-                    const employeeId = selectedEmployee._id || selectedEmployee.id;
-                    if (!employeeId) {
-                      toast.error('Employee ID not found. Please refresh the page.');
-                      return;
-                    }
-                    window.location.href = `/employee/${encodeURIComponent(employeeId)}`;
-                  }}
-                  className="w-full"
-                >
-                  Go to Employee Page
-                </Button>
+                <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
+                  <span className="text-muted-foreground">Current location: </span>
+                  <span className="font-medium">{getLocationName(selectedEmployee.location)}</span>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="assign-location">Location *</Label>
+                  <Select value={editLocationId} onValueChange={setEditLocationId}>
+                    <SelectTrigger id="assign-location">
+                      <SelectValue placeholder="Select location">
+                        {editLocationId
+                          ? locations.find((l: any) => String(l._id || l.id) === editLocationId)?.name ||
+                            'Selected'
+                          : 'Select location'}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {locations.length > 0 ? (
+                        locations.map((loc: any) => (
+                          <SelectItem key={loc._id || loc.id} value={String(loc._id || loc.id)}>
+                            {loc.name}
+                            {loc.state ? ` (${loc.state})` : ''}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="_none" disabled>
+                          No locations — add in Settings → Org structure
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Locations are maintained in Location Master (tenant settings).
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2 pt-2">
+                  <Button onClick={() => void handleSaveLocationAssignment()} disabled={isSavingLocation}>
+                    {isSavingLocation ? 'Saving…' : 'Save location'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      const employeeId = selectedEmployee._id || selectedEmployee.id;
+                      if (!employeeId) {
+                        toast.error('Employee ID not found.');
+                        return;
+                      }
+                      window.location.href = `/employee/${encodeURIComponent(employeeId)}`;
+                    }}
+                  >
+                    Open full employee profile
+                  </Button>
+                </div>
               </div>
             )}
           </DialogContent>

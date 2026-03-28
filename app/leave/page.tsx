@@ -605,10 +605,20 @@ export default function LeavePage() {
                       <div>
                         <p className="text-2xl font-bold">{balance.available}</p>
                         <p className="text-xs text-muted-foreground">Available</p>
-                        {balance.accrualFrequency && balance.accrualFrequency !== 'None' && (
+                        {balance.accrualFrequency &&
+                          balance.accrualFrequency !== 'None' &&
+                          balance.accrualFrequency !== 'Not Applicable' && (
                           <p className="text-xs text-muted-foreground mt-1">
-                            Accrual: {balance.accrualFrequency === 'Monthly' ? 'Monthly' : balance.accrualFrequency === 'Quarterly' ? 'Quarterly' : 'Yearly'} 
-                            {balance.accrualRate && ` (${balance.accrualRate} day${balance.accrualRate !== 1 ? 's' : ''} per ${balance.accrualFrequency === 'Monthly' ? 'month' : balance.accrualFrequency === 'Quarterly' ? 'quarter' : 'year'})`}
+                            Accrual:{' '}
+                            {balance.accrualFrequency === 'Monthly'
+                              ? 'Monthly'
+                              : balance.accrualFrequency === 'Quarterly'
+                                ? 'Quarterly'
+                                : balance.accrualFrequency === 'Half Yearly'
+                                  ? 'Half-yearly'
+                                  : 'Yearly'}
+                            {balance.accrualRate &&
+                              ` (${balance.accrualRate} day${balance.accrualRate !== 1 ? 's' : ''} per ${balance.accrualFrequency === 'Monthly' ? 'month' : balance.accrualFrequency === 'Quarterly' ? 'quarter' : balance.accrualFrequency === 'Half Yearly' ? 'half-year' : 'year'})`}
                           </p>
                         )}
                       </div>

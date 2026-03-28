@@ -7,13 +7,40 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { User, FileText, MapPin, Award, BookOpen, AlertCircle, Download, Edit } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { FileText, Award, BookOpen, AlertCircle, Download, Edit } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import apiService from '@/lib/api';
 import { toast } from 'sonner';
 import { maskAadhaar, maskPAN, maskAccountNumber } from '@/lib/masking';
 import { formatDateDDMMYYYY } from '@/lib/date-format';
-import { formatDesignationLabel } from '@/lib/utils';
+import { designationToIdString, formatDesignationLabel } from '@/lib/utils';
+
+function mixedRefToId(val: unknown): string {
+  if (val == null || val === '') return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object' && val !== null && '_id' in val) {
+    const id = (val as { _id: unknown })._id;
+    return id != null ? String(id) : '';
+  }
+  return '';
+}
+
+function toDateInput(val: string | Date | undefined): string {
+  if (!val) return '';
+  const d = new Date(val);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toISOString().split('T')[0];
+}
 
 interface Employee {
   _id?: string;
@@ -51,6 +78,31 @@ export default function EmployeeDetailPage() {
   const [nominees, setNominees] = useState<any[]>([]);
   const [previousEmployments, setPreviousEmployments] = useState<any[]>([]);
   const [familyDetails, setFamilyDetails] = useState<any | null>(null);
+
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [designations, setDesignations] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
+  const [grades, setGrades] = useState<any[]>([]);
+  const [editForm, setEditForm] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    dateOfBirth: '',
+    gender: 'Male',
+    maritalStatus: '',
+    designation: '',
+    department: '',
+    status: 'Active',
+    joinDate: '',
+    location: '',
+    grade: '',
+    salary: '',
+    ctc: '',
+    employmentType: 'Permanent',
+  });
 
   useEffect(() => {
     // Ensure params are available and extract ID
@@ -108,6 +160,157 @@ export default function EmployeeDetailPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const canManageEmployee =
+    hasPermission('manage_employees') && currentUser?.role !== 'Auditor';
+
+  const handleEditDesignationChange = (designationId: string) => {
+    setEditForm((prev) => {
+      const selectedDesig = designations.find((d: any) => (d._id || d.id) === designationId);
+      let grade = prev.grade;
+      if (selectedDesig?.defaultGradeId) {
+        const gradeId =
+          typeof selectedDesig.defaultGradeId === 'object'
+            ? selectedDesig.defaultGradeId._id || selectedDesig.defaultGradeId
+            : selectedDesig.defaultGradeId;
+        grade = String(gradeId);
+        toast.info('Grade auto-filled from Designation mapping');
+      }
+      return { ...prev, designation: designationId, grade };
+    });
+  };
+
+  const openEditDialog = async () => {
+    if (!employee || !employeeId) return;
+    try {
+      const [deptRes, desigRes, locRes, gradeRes] = await Promise.all([
+        apiService.getDepartments(),
+        apiService.getActiveDesignations(),
+        apiService.getActiveLocations(),
+        apiService.getActiveGrades(),
+      ]);
+      if (deptRes.success && deptRes.data) {
+        setDepartments(Array.isArray(deptRes.data) ? deptRes.data : []);
+      }
+      if (desigRes.success && desigRes.data) {
+        setDesignations(Array.isArray(desigRes.data) ? desigRes.data : []);
+      }
+      if (locRes.success && locRes.data) {
+        setLocations(Array.isArray(locRes.data) ? locRes.data : []);
+      }
+      if (gradeRes.success && gradeRes.data) {
+        setGrades(Array.isArray(gradeRes.data) ? gradeRes.data : []);
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to load edit form data');
+      return;
+    }
+
+    const desigId = designationToIdString(employee.designation);
+    setEditForm({
+      firstName: employee.firstName || '',
+      lastName: employee.lastName || '',
+      email: employee.email || '',
+      phone: employee.phone || '',
+      dateOfBirth: toDateInput(employee.dateOfBirth),
+      gender: employee.gender || 'Male',
+      maritalStatus: employee.maritalStatus || '',
+      designation: desigId,
+      department: employee.department || '',
+      status: employee.status || 'Active',
+      joinDate: toDateInput(employee.joinDate),
+      location: mixedRefToId(employee.location),
+      grade: mixedRefToId(employee.grade),
+      salary: employee.salary != null ? String(employee.salary) : '',
+      ctc: employee.ctc != null ? String(employee.ctc) : '',
+      employmentType: employee.employmentType || 'Permanent',
+    });
+    setShowEditDialog(true);
+  };
+
+  const saveEmployeeEdit = async () => {
+    if (!employeeId) return;
+    if (
+      !editForm.firstName?.trim() ||
+      !editForm.lastName?.trim() ||
+      !editForm.email?.trim() ||
+      !editForm.phone?.trim() ||
+      !editForm.dateOfBirth ||
+      !editForm.department ||
+      !editForm.designation ||
+      !editForm.joinDate ||
+      !editForm.location
+    ) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+    const salary = parseFloat(editForm.salary);
+    const ctc = parseFloat(editForm.ctc);
+    if (Number.isNaN(salary) || Number.isNaN(ctc)) {
+      toast.error('Salary and CTC must be valid numbers');
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const payload: Record<string, unknown> = {
+        firstName: editForm.firstName.trim(),
+        lastName: editForm.lastName.trim(),
+        email: editForm.email.trim().toLowerCase(),
+        phone: editForm.phone.trim(),
+        dateOfBirth: editForm.dateOfBirth,
+        gender: editForm.gender,
+        department: editForm.department.trim(),
+        designation: editForm.designation,
+        status: editForm.status,
+        joinDate: editForm.joinDate,
+        location: editForm.location,
+        salary,
+        ctc,
+        employmentType: editForm.employmentType,
+      };
+      if (editForm.maritalStatus) payload.maritalStatus = editForm.maritalStatus;
+      if (editForm.grade) payload.grade = editForm.grade;
+
+      const res = await apiService.updateEmployee(employeeId, payload);
+      if (res.success) {
+        toast.success('Employee updated successfully');
+        setShowEditDialog(false);
+        await loadEmployee();
+      } else {
+        toast.error((res as { message?: string }).message || 'Update failed');
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Update failed';
+      toast.error(message);
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleExportProfile = () => {
+    if (!employee) return;
+    const exportPayload = {
+      employeeCode: employee.employeeCode,
+      name: `${employee.firstName} ${employee.lastName}`,
+      email: employee.email,
+      department: employee.department,
+      designation: formatDesignationLabel(employee.designation),
+      status: employee.status,
+      joinDate: employee.joinDate,
+      exportedAt: new Date().toISOString(),
+    };
+    const blob = new Blob([JSON.stringify(exportPayload, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${employee.employeeCode || 'employee'}-profile-export.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Profile exported');
   };
 
   // Check permissions: Allow Tenant Admin, HR Admin, Manager, and users with manage_employees permission
@@ -170,6 +373,12 @@ export default function EmployeeDetailPage() {
   }
 
   const fullName = `${employee.firstName} ${employee.lastName}`;
+  const editFormDesignationId = designationToIdString(editForm.designation);
+  const editFormDesignationLabel = editFormDesignationId
+    ? designations.find((d: any) => String(d._id || d.id) === editFormDesignationId)?.name ||
+      ''
+    : '';
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -180,11 +389,23 @@ export default function EmployeeDetailPage() {
             <p className="text-muted-foreground mt-2">{fullName} - {formatDesignationLabel(employee.designation) || '—'}</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" className="gap-2 bg-transparent">
-              <Edit className="w-4 h-4" />
-              Edit
-            </Button>
-            <Button variant="outline" className="gap-2 bg-transparent">
+            {canManageEmployee && (
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2 bg-transparent"
+                onClick={() => void openEditDialog()}
+              >
+                <Edit className="w-4 h-4" />
+                Edit
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              className="gap-2 bg-transparent"
+              onClick={handleExportProfile}
+            >
               <Download className="w-4 h-4" />
               Export
             </Button>
@@ -713,6 +934,257 @@ export default function EmployeeDetailPage() {
             </div>
           </TabsContent>
         </Tabs>
+
+        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit employee</DialogTitle>
+              <DialogDescription>
+                Update core employment details. Changes apply after you save.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-firstName">First name *</Label>
+                  <Input
+                    id="edit-firstName"
+                    value={editForm.firstName}
+                    onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-lastName">Last name *</Label>
+                  <Input
+                    id="edit-lastName"
+                    value={editForm.lastName}
+                    onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-email">Email *</Label>
+                  <Input
+                    id="edit-email"
+                    type="email"
+                    value={editForm.email}
+                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-phone">Phone *</Label>
+                  <Input
+                    id="edit-phone"
+                    value={editForm.phone}
+                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-dob">Date of birth *</Label>
+                  <Input
+                    id="edit-dob"
+                    type="date"
+                    value={editForm.dateOfBirth}
+                    onChange={(e) => setEditForm({ ...editForm, dateOfBirth: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label>Gender *</Label>
+                  <Select
+                    value={editForm.gender}
+                    onValueChange={(value) => setEditForm({ ...editForm, gender: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Male">Male</SelectItem>
+                      <SelectItem value="Female">Female</SelectItem>
+                      <SelectItem value="Other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Marital status</Label>
+                  <Select
+                    value={editForm.maritalStatus || '__none__'}
+                    onValueChange={(value) =>
+                      setEditForm({ ...editForm, maritalStatus: value === '__none__' ? '' : value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Not specified" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Not specified</SelectItem>
+                      <SelectItem value="Single">Single</SelectItem>
+                      <SelectItem value="Married">Married</SelectItem>
+                      <SelectItem value="Divorced">Divorced</SelectItem>
+                      <SelectItem value="Widowed">Widowed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Department *</Label>
+                  <Select
+                    value={editForm.department}
+                    onValueChange={(value) => setEditForm({ ...editForm, department: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.map((dept) => (
+                        <SelectItem key={dept._id || dept.id} value={dept.name}>
+                          {dept.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Designation *</Label>
+                  <Select
+                    value={editFormDesignationId || undefined}
+                    onValueChange={handleEditDesignationChange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select designation">
+                        {editFormDesignationId
+                          ? editFormDesignationLabel || editFormDesignationId
+                          : 'Select designation'}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {designations.map((desig: any) => (
+                        <SelectItem key={desig._id || desig.id} value={String(desig._id || desig.id)}>
+                          {desig.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Location *</Label>
+                  <Select
+                    value={editForm.location}
+                    onValueChange={(value) => setEditForm({ ...editForm, location: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {locations.map((loc: any) => (
+                        <SelectItem key={loc._id || loc.id} value={String(loc._id || loc.id)}>
+                          {loc.name}
+                          {loc.state ? ` (${loc.state})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Grade</Label>
+                  <Select
+                    value={editForm.grade || '__none__'}
+                    onValueChange={(value) =>
+                      setEditForm({ ...editForm, grade: value === '__none__' ? '' : value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Not specified" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Not specified</SelectItem>
+                      {grades.map((g: any) => (
+                        <SelectItem key={g._id || g.id} value={String(g._id || g.id)}>
+                          {g.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Status *</Label>
+                  <Select
+                    value={editForm.status}
+                    onValueChange={(value) => setEditForm({ ...editForm, status: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Active">Active</SelectItem>
+                      <SelectItem value="Inactive">Inactive</SelectItem>
+                      <SelectItem value="On Leave">On Leave</SelectItem>
+                      <SelectItem value="Retired">Retired</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="edit-join">Join date *</Label>
+                  <Input
+                    id="edit-join"
+                    type="date"
+                    value={editForm.joinDate}
+                    onChange={(e) => setEditForm({ ...editForm, joinDate: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label>Employment type</Label>
+                  <Select
+                    value={editForm.employmentType}
+                    onValueChange={(value) => setEditForm({ ...editForm, employmentType: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Permanent">Permanent</SelectItem>
+                      <SelectItem value="Contract">Contract</SelectItem>
+                      <SelectItem value="Probation">Probation</SelectItem>
+                      <SelectItem value="Internship">Internship</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="edit-salary">Monthly salary *</Label>
+                  <Input
+                    id="edit-salary"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={editForm.salary}
+                    onChange={(e) => setEditForm({ ...editForm, salary: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-ctc">Annual CTC *</Label>
+                  <Input
+                    id="edit-ctc"
+                    type="number"
+                    min={0}
+                    step="1024"
+                    value={editForm.ctc}
+                    onChange={(e) => setEditForm({ ...editForm, ctc: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowEditDialog(false)}
+                  disabled={editSaving}
+                >
+                  Cancel
+                </Button>
+                <Button type="button" onClick={() => void saveEmployeeEdit()} disabled={editSaving}>
+                  {editSaving ? 'Saving…' : 'Save changes'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

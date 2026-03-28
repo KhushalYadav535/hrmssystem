@@ -349,7 +349,7 @@ const navigationItems: NavItem[] = [
     label: 'Configuration',
     href: '/settings',
     icon: <Settings className="w-5 h-5" />,
-    roles: ['Tenant Admin'],
+    roles: ['Tenant Admin', 'HR Administrator'],
     subItems: [
       { label: 'Tenant Settings', href: '/settings', roles: ['Tenant Admin'] },
       { label: 'Organization Structure', href: '/settings/org-structure/org-tree', roles: ['Tenant Admin'] },
@@ -357,8 +357,8 @@ const navigationItems: NavItem[] = [
       { label: 'Head Office', href: '/settings/org-structure/zone-master?create=ho', roles: ['Tenant Admin'] },
       { label: 'Zone Master', href: '/settings/org-structure/zone-master', roles: ['Tenant Admin'] },
       { label: 'Branch Master', href: '/settings/org-structure/branch-master', roles: ['Tenant Admin'] },
-      { label: 'Employee Transfer', href: '/settings/org-structure/employee-transfer', roles: ['Tenant Admin'] },
-      { label: 'Transfer Log', href: '/settings/org-structure/transfer-log', roles: ['Tenant Admin'] },
+      { label: 'Employee Transfer', href: '/settings/org-structure/employee-transfer', roles: ['Tenant Admin', 'HR Administrator'] },
+      { label: 'Transfer Log', href: '/settings/org-structure/transfer-log', roles: ['Tenant Admin', 'HR Administrator'] },
       { label: 'Workflow Settings', href: '/settings/workflows', roles: ['Tenant Admin'] },
       { label: 'Designations', href: '/settings/designations', roles: ['Tenant Admin'] },
       { label: 'Modules', href: '/company/modules', roles: ['Tenant Admin'] },
@@ -581,6 +581,18 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
             if (!enabledModules.has(item.moduleCode)) return false;
           }
         }
+
+        // Approvals: visible for all Managers and for roles/permissions that can approve workflows
+        if (item.label === 'Approvals') {
+          return (
+            effectiveRoleList.includes('Manager') ||
+            (item.roles && item.roles.length > 0 && navMatchesRoles(item.roles)) ||
+            hasPermission('approve_leave') ||
+            hasPermission('approve_expense') ||
+            hasPermission('approve_travel')
+          );
+        }
+
         if (!item.roles || item.roles.length === 0) return true;
         return navMatchesRoles(item.roles);
       });
