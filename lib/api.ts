@@ -3191,6 +3191,11 @@ class ApiService {
     return this.request('/company/modules');
   }
 
+  /** Enabled module codes for current tenant; any logged-in tenant user. */
+  async getMyEnabledModuleCodes() {
+    return this.request<{ codes: string[] }>('/company/enabled-module-codes');
+  }
+
   async requestModuleActivation(data: {
     moduleId: string;
     requestType: string;

@@ -51,6 +51,29 @@ interface NavItem {
   subItems?: { label: string; href: string; roles?: string[]; moduleCode?: string; permissionRequired?: string }[];
 }
 
+/** Normalize API payloads — request() may set data to { codes } or a wider envelope. */
+function parseEnabledModuleCodesPayload(payload: unknown): string[] | null {
+  if (payload == null || typeof payload !== 'object') return null;
+  const p = payload as Record<string, unknown>;
+  if (Array.isArray(p.codes)) return p.codes.map((x) => String(x));
+  const nested = p.data;
+  if (nested && typeof nested === 'object' && Array.isArray((nested as Record<string, unknown>).codes)) {
+    return ((nested as { codes: unknown[] }).codes).map((x) => String(x));
+  }
+  return null;
+}
+
+/** getMyCompanyModules: backend returns { modules: [] } merged into response.data as full JSON body. */
+function parseCodesFromCompanyModulesPayload(payload: unknown): string[] | null {
+  if (payload == null || typeof payload !== 'object') return null;
+  const p = payload as Record<string, unknown>;
+  const modules = Array.isArray(p.modules) ? p.modules : null;
+  if (!modules) return null;
+  return modules
+    .filter((cm: any) => cm?.isEnabled && cm?.moduleId?.moduleCode)
+    .map((cm: any) => String(cm.moduleId.moduleCode));
+}
+
 // BRD: Platform Admin (Super Admin) - Full Platform Control
 const platformAdminNavItems: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
@@ -430,8 +453,9 @@ const navigationItems: NavItem[] = [
 export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const { currentUser, currentTenant, hasPermission } = useAuth();
   const pathname = usePathname();
-  const [enabledModules, setEnabledModules] = React.useState<Set<string>>(new Set());
-  const [modulesLoading, setModulesLoading] = React.useState(true);
+  /** Uppercased module codes enabled for this tenant (subscription). Always a Set once ready — empty = no optional modules. */
+  const [tenantEnabledModuleCodes, setTenantEnabledModuleCodes] = React.useState<Set<string>>(new Set());
+  const [tenantModulesReady, setTenantModulesReady] = React.useState(false);
 
   /** Union of all assigned roles (multi-hat users). */
   const effectiveRoleList = React.useMemo(() => {
@@ -451,55 +475,68 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
     [effectiveRoleList]
   );
 
-  // BRD: Dynamic Module Management - DM-036
-  // Fetch enabled modules for current tenant
+  // BRD: Dynamic Module Management - DM-036 — hide nav for modules the tenant has not subscribed to (all users)
   React.useEffect(() => {
-    const loadEnabledModules = async () => {
+    const loadTenantModuleCodes = async () => {
       if (!currentUser?.tenantId) {
-        setModulesLoading(false);
+        setTenantEnabledModuleCodes(new Set());
+        setTenantModulesReady(true);
         return;
       }
 
+      if (effectiveRoleList.includes('Super Admin')) {
+        setTenantEnabledModuleCodes(new Set());
+        setTenantModulesReady(true);
+        return;
+      }
+
+      setTenantModulesReady(false);
       try {
-        // Super Admin can see everything
-        if (effectiveRoleList.includes('Super Admin')) {
-          setEnabledModules(new Set());
-          setModulesLoading(false);
-          return;
+        let codes: string[] | null = null;
+
+        const resCodes = await apiService.getMyEnabledModuleCodes();
+        if (resCodes.success && resCodes.data) {
+          codes = parseEnabledModuleCodesPayload(resCodes.data);
         }
 
-        // BRD: Only Tenant Admin and HR Administrator can call /api/company/modules
-        // Other roles (Payroll Maker, Payroll Checker, etc.) skip this call
-        const adminRoles = ['Tenant Admin', 'HR Administrator'];
-        if (!effectiveRoleList.some((r) => adminRoles.includes(r))) {
-          setEnabledModules(new Set());
-          setModulesLoading(false);
-          return;
+        const canUseCompanyModulesApi = effectiveRoleList.some((r) =>
+          ['Tenant Admin', 'HR Administrator'].includes(r)
+        );
+        if (codes === null && canUseCompanyModulesApi) {
+          const resMod = await apiService.getMyCompanyModules();
+          if (resMod.success && resMod.data) {
+            codes = parseCodesFromCompanyModulesPayload(resMod.data);
+          }
         }
 
-        const res = await apiService.getMyCompanyModules();
-        if (res.success) {
-          const enabled = new Set<string>();
-          const raw = (res as any).data;
-          const modules = Array.isArray(raw) ? raw : (raw?.modules ?? (res as any).modules ?? []);
-          modules.forEach((cm: any) => {
-            if (cm.isEnabled && cm.moduleId?.moduleCode) {
-              enabled.add(cm.moduleId.moduleCode);
-            }
-          });
-          setEnabledModules(enabled);
+        if (codes === null) {
+          codes = [];
         }
+        setTenantEnabledModuleCodes(
+          new Set(codes.map((c) => c.toUpperCase().trim()).filter(Boolean))
+        );
       } catch (error) {
-        console.error('Failed to load enabled modules:', error);
-        // On error, show all items (graceful degradation)
-        setEnabledModules(new Set());
+        console.error('Failed to load enabled module codes:', error);
+        setTenantEnabledModuleCodes(new Set());
       } finally {
-        setModulesLoading(false);
+        setTenantModulesReady(true);
       }
     };
 
-    loadEnabledModules();
+    loadTenantModuleCodes();
   }, [currentUser?.tenantId, effectiveRoleList.join('|')]);
+
+  const isModuleSubscribed = React.useCallback(
+    (moduleCode?: string) => {
+      if (!moduleCode) return true;
+      if (effectiveRoleList.includes('Super Admin')) return true;
+      if (!tenantModulesReady) return false;
+      // HMR / legacy state can briefly leave null; never call .has on null
+      const enabled = tenantEnabledModuleCodes ?? new Set<string>();
+      return enabled.has(moduleCode.toUpperCase());
+    },
+    [effectiveRoleList, tenantModulesReady, tenantEnabledModuleCodes]
+  );
 
   // Auto-expand parent items if current path matches a sub-item
   const getInitialExpandedItems = () => {
@@ -536,9 +573,6 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
     'Learning & Development', 'Approvals'
   ];
   
-  const isAdminRole = effectiveRoleList.some((r) =>
-    ['Tenant Admin', 'HR Administrator'].includes(r)
-  );
   // Hub mode: Tenant Admin with no operational "hat" — hide org HR menus (US-B2-01)
   const canSeeHrOperationalNav = effectiveRoleList.some((r) =>
     [
@@ -567,19 +601,8 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
           return false;
         }
         
-        // Module filtering: only applies when we fetched enabled modules (Tenant Admin, HR Admin)
-        // Employee, Manager, etc. don't call getMyCompanyModules - show all items matching their role
-        if (item.moduleCode && isAdminRole) {
-          const isPayrollRole = effectiveRoleList.some((r) =>
-            ['Payroll Administrator', 'Finance Administrator'].includes(r)
-          );
-          const isPayrollItem = item.moduleCode === 'PAYROLL';
-          if (isPayrollItem && isPayrollRole) {
-            // Payroll roles always see Payroll
-          } else {
-            if (modulesLoading) return false;
-            if (!enabledModules.has(item.moduleCode)) return false;
-          }
+        if (item.moduleCode && !isModuleSubscribed(item.moduleCode)) {
+          return false;
         }
 
         // Approvals: visible for all Managers and for roles/permissions that can approve workflows
@@ -688,11 +711,8 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                   {isExpanded && (
                     <div className="ml-4 space-y-1 border-l-2 border-sidebar-border pl-2">
                       {item.subItems?.filter((subItem) => {
-                        // Module check only for admin roles who fetched enabled modules
-                        if (subItem.moduleCode && isAdminRole) {
-                          if (modulesLoading || !enabledModules.has(subItem.moduleCode)) {
-                            return false;
-                          }
+                        if (subItem.moduleCode && !isModuleSubscribed(subItem.moduleCode)) {
+                          return false;
                         }
                         // Permission-based: e.g. Process Payroll only for Maker (process_payroll)
                         if (subItem.permissionRequired && !hasPermission(subItem.permissionRequired)) {
