@@ -35,6 +35,25 @@ function mixedRefToId(val: unknown): string {
   return '';
 }
 
+function formatEmployeeRef(ref: unknown): string {
+  if (!ref) return '—';
+  if (typeof ref === 'object' && ref !== null && 'firstName' in ref) {
+    const o = ref as { firstName?: string; lastName?: string; employeeCode?: string };
+    const name = `${o.firstName || ''} ${o.lastName || ''}`.trim();
+    if (!name) return '—';
+    return o.employeeCode ? `${name} (${o.employeeCode})` : name;
+  }
+  return '—';
+}
+
+function gradeDisplayLabel(grade: unknown): string {
+  if (grade == null || grade === '') return '—';
+  if (typeof grade === 'object' && grade !== null && 'name' in grade) {
+    return String((grade as { name?: string }).name || '—');
+  }
+  return String(grade);
+}
+
 function toDateInput(val: string | Date | undefined): string {
   if (!val) return '';
   const d = new Date(val);
@@ -85,6 +104,8 @@ export default function EmployeeDetailPage() {
   const [designations, setDesignations] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [grades, setGrades] = useState<any[]>([]);
+  const [salaryStructures, setSalaryStructures] = useState<any[]>([]);
+  const [managersForEdit, setManagersForEdit] = useState<any[]>([]);
   const [editForm, setEditForm] = useState({
     firstName: '',
     lastName: '',
@@ -102,6 +123,9 @@ export default function EmployeeDetailPage() {
     salary: '',
     ctc: '',
     employmentType: 'Permanent',
+    reportingManager: '',
+    secondLevelManager: '',
+    salaryStructure: '',
   });
 
   useEffect(() => {
@@ -183,12 +207,17 @@ export default function EmployeeDetailPage() {
 
   const openEditDialog = async () => {
     if (!employee || !employeeId) return;
+    setManagersForEdit([]);
+    setSalaryStructures([]);
     try {
-      const [deptRes, desigRes, locRes, gradeRes] = await Promise.all([
+      const selfId = String(employee._id || employee.id || '');
+      const [deptRes, desigRes, locRes, gradeRes, structRes, empRes] = await Promise.all([
         apiService.getDepartments(),
         apiService.getActiveDesignations(),
         apiService.getActiveLocations(),
         apiService.getActiveGrades(),
+        apiService.getSalaryStructures({ status: 'Active' }),
+        apiService.getEmployees({ status: 'Active' }),
       ]);
       if (deptRes.success && deptRes.data) {
         setDepartments(Array.isArray(deptRes.data) ? deptRes.data : []);
@@ -197,10 +226,29 @@ export default function EmployeeDetailPage() {
         setDesignations(Array.isArray(desigRes.data) ? desigRes.data : []);
       }
       if (locRes.success && locRes.data) {
-        setLocations(Array.isArray(locRes.data) ? locRes.data : []);
+        const raw = locRes.data as unknown;
+        const list = Array.isArray(raw)
+          ? raw
+          : raw && typeof raw === 'object' && Array.isArray((raw as { data?: unknown[] }).data)
+            ? (raw as { data: unknown[] }).data
+            : [];
+        setLocations(list as any[]);
       }
       if (gradeRes.success && gradeRes.data) {
         setGrades(Array.isArray(gradeRes.data) ? gradeRes.data : []);
+      }
+      if (structRes.success && structRes.data) {
+        setSalaryStructures(Array.isArray(structRes.data) ? structRes.data : []);
+      }
+      if (empRes.success && empRes.data) {
+        const raw = empRes.data as unknown;
+        const list = Array.isArray(raw)
+          ? raw
+          : raw && typeof raw === 'object' && Array.isArray((raw as { data?: unknown[] }).data)
+            ? (raw as { data: unknown[] }).data
+            : [];
+        const all = list as any[];
+        setManagersForEdit(all.filter((e) => String(e._id || e.id) !== selfId));
       }
     } catch (e) {
       console.error(e);
@@ -209,6 +257,7 @@ export default function EmployeeDetailPage() {
     }
 
     const desigId = designationToIdString(employee.designation);
+    const empAny = employee as any;
     setEditForm({
       firstName: employee.firstName || '',
       lastName: employee.lastName || '',
@@ -226,6 +275,9 @@ export default function EmployeeDetailPage() {
       salary: employee.salary != null ? String(employee.salary) : '',
       ctc: employee.ctc != null ? String(employee.ctc) : '',
       employmentType: employee.employmentType || 'Permanent',
+      reportingManager: mixedRefToId(empAny.reportingManager),
+      secondLevelManager: mixedRefToId(empAny.secondLevelManager),
+      salaryStructure: mixedRefToId(empAny.salaryStructure),
     });
     setShowEditDialog(true);
   };
@@ -272,6 +324,9 @@ export default function EmployeeDetailPage() {
       };
       if (editForm.maritalStatus) payload.maritalStatus = editForm.maritalStatus;
       if (editForm.grade) payload.grade = editForm.grade;
+      payload.reportingManager = editForm.reportingManager || null;
+      payload.secondLevelManager = editForm.secondLevelManager || null;
+      payload.salaryStructure = editForm.salaryStructure || null;
 
       const res = await apiService.updateEmployee(employeeId, payload);
       if (res.success) {
@@ -1163,7 +1218,7 @@ export default function EmployeeDetailPage() {
                     id="edit-ctc"
                     type="number"
                     min={0}
-                    step="1024"
+                    step="0.01"
                     value={editForm.ctc}
                     onChange={(e) => setEditForm({ ...editForm, ctc: e.target.value })}
                   />

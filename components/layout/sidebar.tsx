@@ -609,6 +609,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
         if (item.label === 'Approvals') {
           return (
             effectiveRoleList.includes('Manager') ||
+            (currentUser as any)?.isManager ||
             (item.roles && item.roles.length > 0 && navMatchesRoles(item.roles)) ||
             hasPermission('approve_leave') ||
             hasPermission('approve_expense') ||

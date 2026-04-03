@@ -3356,6 +3356,19 @@ class ApiService {
     });
   }
 
+  async updateWeeklyOff(id: string, data: any) {
+    return this.request(`/weekly-off/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteWeeklyOff(id: string) {
+    return this.request(`/weekly-off/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   async getEmployeeWeeklyOffCalendar(employeeId: string, params?: { startDate?: string; endDate?: string }) {
     const query = new URLSearchParams();
     if (params?.startDate) query.append('startDate', params.startDate);

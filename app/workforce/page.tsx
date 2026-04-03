@@ -77,6 +77,7 @@ export default function WorkforcePage() {
   const [designations, setDesignations] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [grades, setGrades] = useState<any[]>([]);
+  const [salaryStructures, setSalaryStructures] = useState<any[]>([]);
 
   const [isCreating, setIsCreating] = useState(false);
   const [editLocationId, setEditLocationId] = useState('');
@@ -85,8 +86,9 @@ export default function WorkforcePage() {
   const [payrollAssignEmployee, setPayrollAssignEmployee] = useState<Employee | null>(null);
   const [payrollSalary, setPayrollSalary] = useState('');
   const [payrollCtc, setPayrollCtc] = useState('');
+  const [payrollSalaryStructureId, setPayrollSalaryStructureId] = useState('');
   const [isSavingPayroll, setIsSavingPayroll] = useState(false);
-  const [employeeForm, setEmployeeForm] = useState({
+  const [employeeForm, setEmployeeForm] = useState<any>({
     employeeCode: '',
     firstName: '',
     lastName: '',
@@ -103,6 +105,9 @@ export default function WorkforcePage() {
     grade: '',
     salary: '',
     ctc: '',
+    salaryStructure: '',
+    reportingManager: '',
+    secondLevelManager: '',
   });
 
   useEffect(() => {
@@ -124,11 +129,12 @@ export default function WorkforcePage() {
   const loadMasterData = async () => {
     try {
       // Load all master data in parallel
-      const [deptRes, desigRes, locRes, gradeRes] = await Promise.all([
+      const [deptRes, desigRes, locRes, gradeRes, structRes] = await Promise.all([
         apiService.getDepartments(),
         apiService.getActiveDesignations(),
         apiService.getActiveLocations(),
         apiService.getActiveGrades(),
+        apiService.getSalaryStructures({ status: 'Active' }),
       ]);
 
       if (deptRes.success && deptRes.data) {
@@ -138,10 +144,19 @@ export default function WorkforcePage() {
         setDesignations(Array.isArray(desigRes.data) ? desigRes.data : []);
       }
       if (locRes.success && locRes.data) {
-        setLocations(Array.isArray(locRes.data) ? locRes.data : []);
+        const raw = locRes.data as unknown;
+        const list = Array.isArray(raw)
+          ? raw
+          : raw && typeof raw === 'object' && Array.isArray((raw as { data?: unknown[] }).data)
+            ? (raw as { data: unknown[] }).data
+            : [];
+        setLocations(list as any[]);
       }
       if (gradeRes.success && gradeRes.data) {
         setGrades(Array.isArray(gradeRes.data) ? gradeRes.data : []);
+      }
+      if (structRes.success && structRes.data) {
+        setSalaryStructures(Array.isArray(structRes.data) ? structRes.data : []);
       }
     } catch (error: any) {
       console.error('Failed to load master data:', error);
@@ -289,6 +304,14 @@ export default function WorkforcePage() {
       employee.salary != null && employee.salary !== '' ? String(employee.salary) : ''
     );
     setPayrollCtc(employee.ctc != null && employee.ctc !== '' ? String(employee.ctc) : '');
+    const rawStruct = (employee as any).salaryStructure;
+    const structId =
+      rawStruct && typeof rawStruct === 'object' && '_id' in rawStruct
+        ? String((rawStruct as { _id: unknown })._id)
+        : rawStruct != null && rawStruct !== ''
+          ? String(rawStruct)
+          : '';
+    setPayrollSalaryStructureId(structId);
     setShowPayrollDialog(true);
   };
 
@@ -310,11 +333,13 @@ export default function WorkforcePage() {
       const response = await apiService.updateEmployee(employeeId, {
         salary,
         ctc: ctcParsed,
+        salaryStructure: payrollSalaryStructureId || undefined,
       });
       if (response.success) {
         toast.success('Payroll details (salary & CTC) saved on employee record');
         setShowPayrollDialog(false);
         setPayrollAssignEmployee(null);
+        setPayrollSalaryStructureId('');
         await loadEmployees();
       } else {
         toast.error((response as { message?: string }).message || 'Failed to update payroll details');
@@ -389,6 +414,8 @@ export default function WorkforcePage() {
         grade: employeeForm.grade || undefined,
         salary: parseFloat(employeeForm.salary),
         ctc: parseFloat(employeeForm.ctc),
+        reportingManager: employeeForm.reportingManager && employeeForm.reportingManager !== 'none' ? employeeForm.reportingManager : undefined,
+        secondLevelManager: employeeForm.secondLevelManager && employeeForm.secondLevelManager !== 'none' ? employeeForm.secondLevelManager : undefined,
       };
 
       const response = await apiService.createEmployee(employeeData);
@@ -412,6 +439,9 @@ export default function WorkforcePage() {
           grade: '',
           salary: '',
           ctc: '',
+          salaryStructure: '',
+          reportingManager: '',
+          secondLevelManager: '',
         });
         loadEmployees();
       } else {
@@ -461,6 +491,9 @@ export default function WorkforcePage() {
                     grade: '',
                     salary: '',
                     ctc: '',
+                    salaryStructure: '',
+                    reportingManager: '',
+                    secondLevelManager: '',
                   });
                 }
               }}
@@ -598,6 +631,52 @@ export default function WorkforcePage() {
                         </SelectContent>
                       </Select>
                     </div>
+                    <div>
+                      <Label htmlFor="reportingManager">Reporting Manager</Label>
+                      <Select
+                        value={employeeForm.reportingManager || undefined}
+                        onValueChange={(value) => setEmployeeForm({ ...employeeForm, reportingManager: value })}
+                      >
+                        <SelectTrigger id="reportingManager">
+                          <SelectValue placeholder="Select manager">
+                            {employeeForm.reportingManager
+                              ? employees.find((e) => (e._id || e.id) === employeeForm.reportingManager)?.firstName + ' ' + employees.find((e) => (e._id || e.id) === employeeForm.reportingManager)?.lastName
+                              : 'Select manager'}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          {employees.map((emp: any) => (
+                            <SelectItem key={emp._id || emp.id} value={emp._id || emp.id}>
+                              {emp.firstName} {emp.lastName} {emp.employeeCode ? `(${emp.employeeCode})` : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="secondLevelManager">Second Level Manager</Label>
+                      <Select
+                        value={employeeForm.secondLevelManager || undefined}
+                        onValueChange={(value) => setEmployeeForm({ ...employeeForm, secondLevelManager: value })}
+                      >
+                        <SelectTrigger id="secondLevelManager">
+                          <SelectValue placeholder="Select 2nd level manager">
+                            {employeeForm.secondLevelManager
+                              ? employees.find((e) => (e._id || e.id) === employeeForm.secondLevelManager)?.firstName + ' ' + employees.find((e) => (e._id || e.id) === employeeForm.secondLevelManager)?.lastName
+                              : 'Select manager'}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          {employees.map((emp: any) => (
+                            <SelectItem key={emp._id || emp.id} value={emp._id || emp.id}>
+                              {emp.firstName} {emp.lastName} {emp.employeeCode ? `(${emp.employeeCode})` : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                     {/* Spec C1-01: Designation dropdown from Designation Master */}
                     <div>
                       <Label htmlFor="designation">Designation *</Label>
@@ -650,7 +729,7 @@ export default function WorkforcePage() {
                               </SelectItem>
                             ))
                           ) : (
-                            <SelectItem value="no_locations" disabled>No locations available — add in Settings</SelectItem>
+                            <SelectItem value="no_locations" disabled>No workplaces — add Branches under Org structure or Location Master</SelectItem>
                           )}
                         </SelectContent>
                       </Select>
@@ -994,6 +1073,7 @@ export default function WorkforcePage() {
               setPayrollAssignEmployee(null);
               setPayrollSalary('');
               setPayrollCtc('');
+              setPayrollSalaryStructureId('');
             }
           }}
         >
@@ -1036,6 +1116,42 @@ export default function WorkforcePage() {
                     placeholder="e.g., 600000"
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="payroll-structure">Salary structure (template)</Label>
+                  <Select
+                    value={payrollSalaryStructureId || '__none__'}
+                    onValueChange={(value) =>
+                      setPayrollSalaryStructureId(value === '__none__' ? '' : value)
+                    }
+                  >
+                    <SelectTrigger id="payroll-structure">
+                      <SelectValue placeholder="Select template">
+                        {payrollSalaryStructureId
+                          ? salaryStructures.find(
+                              (s: any) => String(s._id || s.id) === payrollSalaryStructureId,
+                            )?.name || 'Selected'
+                          : 'Optional — link payslip breakdown template'}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">None</SelectItem>
+                      {salaryStructures.length > 0 ? (
+                        salaryStructures.map((struct: any) => (
+                          <SelectItem
+                            key={String(struct._id || struct.id)}
+                            value={String(struct._id || struct.id)}
+                          >
+                            {struct.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="__no_structures" disabled>
+                          No active salary structures found
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="flex flex-col gap-2 pt-2">
                   <Button onClick={() => void handleSavePayrollAssignment()} disabled={isSavingPayroll}>
                     {isSavingPayroll ? 'Saving…' : 'Save payroll details'}
@@ -1063,6 +1179,7 @@ export default function WorkforcePage() {
           onOpenChange={(open) => {
             setShowEditDialog(open);
             if (!open) setEditLocationId('');
+            if (open) void loadMasterData();
           }}
         >
           <DialogContent className="max-w-md">
@@ -1101,13 +1218,13 @@ export default function WorkforcePage() {
                         ))
                       ) : (
                         <SelectItem value="_none" disabled>
-                          No locations — add in Settings → Org structure
+                          No workplaces — add Branches (or HO/ZO/RO) under Settings → Org structure, or use Location Master
                         </SelectItem>
                       )}
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    Locations are maintained in Location Master (tenant settings).
+                    List includes Location Master entries and active HO / Zone / Region / Branch units from Org structure.
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 pt-2">
