@@ -86,7 +86,7 @@ interface Employee {
 }
 
 export default function EmployeeDetailPage() {
-  const { isAuthenticated, hasPermission, currentUser } = useAuth();
+  const { isAuthenticated, hasPermission, hasRole, currentUser } = useAuth();
   const router = useRouter();
   const params = useParams();
   const [employee, setEmployee] = useState<Employee | null>(null);
@@ -154,7 +154,7 @@ export default function EmployeeDetailPage() {
       console.error('Employee ID is missing from URL params');
       console.error('Params:', params);
       toast.error('Invalid employee ID');
-      router.push('/personnel');
+      router.push('/dashboard');
       return;
     }
 
@@ -174,13 +174,13 @@ export default function EmployeeDetailPage() {
         setFamilyDetails(empData.familyDetails || null);
       } else {
         toast.error('Employee not found');
-        router.push('/personnel');
+        router.push('/dashboard');
       }
     } catch (error: any) {
       toast.error('Failed to load employee details');
       console.error('Load employee error:', error);
       console.error('Employee ID used:', employeeId);
-      router.push('/personnel');
+      router.push('/dashboard');
     } finally {
       setIsLoading(false);
     }
@@ -381,15 +381,28 @@ export default function EmployeeDetailPage() {
       return;
     }
 
-    // Allow Tenant Admin, HR Administrator, Manager, and users with appropriate permissions
-    const allowedRoles = ['Tenant Admin', 'HR Administrator', 'Manager'];
-    const hasRoleAccess = currentUser && allowedRoles.includes(currentUser.role);
-    const hasPermissionAccess = hasPermission('manage_employees') || hasPermission('view_profile') || hasPermission('view_employee_data');
+    const hasRoleAccess =
+      hasRole('Tenant Admin') ||
+      hasRole('HR Administrator') ||
+      hasRole('Manager');
+    const hasPermissionAccess =
+      hasPermission('manage_employees') ||
+      hasPermission('view_profile') ||
+      hasPermission('view_employee_data');
 
-    // Check if the current user is an employee viewing their own profile
-    // Safely get user ID supporting both id and _id properties
-    const currentUserId = currentUser ? ((currentUser as any).id || (currentUser as any)._id) : null;
-    const isOwnProfile = currentUser && employee && (currentUser.email === employee.email || currentUserId === employee.userId);
+    const currentUserId = currentUser ? (currentUser.id || (currentUser as any)._id) : null;
+    const employeeDocId = employee ? (employee._id || employee.id) : null;
+    const linkedEmployeeId = currentUser?.employeeId
+      ? String(currentUser.employeeId)
+      : null;
+    const isOwnProfile =
+      !!currentUser &&
+      !!employee &&
+      (String(currentUser.email || '').toLowerCase() ===
+        String(employee.email || '').toLowerCase() ||
+        (!!linkedEmployeeId &&
+          !!employeeDocId &&
+          linkedEmployeeId === String(employeeDocId)));
 
     // Check both permission-based access and whether the data has loaded to check ownership
     // If we're still loading the employee data, we can't determine ownership yet
@@ -405,7 +418,7 @@ export default function EmployeeDetailPage() {
       });
       router.push('/dashboard');
     }
-  }, [isAuthenticated, currentUser, hasPermission, router, isLoading, employee]);
+  }, [isAuthenticated, currentUser, hasPermission, hasRole, router, isLoading, employee]);
 
   if (isLoading) {
     return (

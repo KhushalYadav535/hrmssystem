@@ -142,9 +142,14 @@ export default function EmployeeDashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Welcome Back!</h1>
-        <p className="text-muted-foreground mt-2">Here's your HR information at a glance</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Welcome Back!</h1>
+          <p className="text-muted-foreground mt-2">Here's your HR information at a glance</p>
+        </div>
+        <Button variant="outline" size="sm" asChild className="shrink-0 self-start sm:self-auto">
+          <Link href="/employee/me">View full profile</Link>
+        </Button>
       </div>
 
       {/* Quick Stats */}

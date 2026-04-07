@@ -35,6 +35,8 @@ export default function EmployeeTransferPage() {
     temporaryEndDate: '',
   });
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
+  /** Controlled search text; must not be derived only from employeeId or typed input never shows. */
+  const [employeeSearchInput, setEmployeeSearchInput] = useState('');
 
   useEffect(() => {
     loadUnits();
@@ -135,6 +137,7 @@ export default function EmployeeTransferPage() {
         });
         setSelectedEmployee(null);
         setEmployees([]);
+        setEmployeeSearchInput('');
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to create transfer request');
@@ -170,16 +173,25 @@ export default function EmployeeTransferPage() {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
                       placeholder="Search by name or employee code..."
-                      value={form.employeeId ? (selectedEmployee ? `${selectedEmployee.firstName} ${selectedEmployee.lastName} (${selectedEmployee.employeeCode})` : '') : ''}
+                      value={employeeSearchInput}
                       onChange={(e) => {
                         const value = e.target.value;
+                        setEmployeeSearchInput(value);
                         if (!value) {
                           setForm({ ...form, employeeId: '' });
                           setSelectedEmployee(null);
                           setEmployees([]);
-                        } else {
-                          searchEmployees(value);
+                          return;
                         }
+                        const selectedLabel =
+                          selectedEmployee && form.employeeId === selectedEmployee._id
+                            ? `${selectedEmployee.firstName} ${selectedEmployee.lastName} (${selectedEmployee.employeeCode})`
+                            : null;
+                        if (selectedLabel && value !== selectedLabel) {
+                          setForm({ ...form, employeeId: '' });
+                          setSelectedEmployee(null);
+                        }
+                        searchEmployees(value);
                       }}
                       className="pl-10"
                     />
@@ -192,6 +204,9 @@ export default function EmployeeTransferPage() {
                               setForm({ ...form, employeeId: emp._id });
                               setSelectedEmployee(emp);
                               setEmployees([]);
+                              setEmployeeSearchInput(
+                                `${emp.firstName} ${emp.lastName} (${emp.employeeCode})`
+                              );
                             }}
                             className="p-2 hover:bg-muted cursor-pointer"
                           >

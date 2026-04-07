@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 import apiService from '@/lib/api';
 
 export default function TravelRequestPage() {
-  const { isAuthenticated, hasPermission } = useAuth();
+  const { isAuthenticated } = useAuth();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [travelType, setTravelType] = useState<'Domestic' | 'International' | 'Local Conveyance'>('Domestic');
@@ -83,7 +83,27 @@ export default function TravelRequestPage() {
       const response = await apiService.createTravelRequest(payload);
 
       if (response.success) {
-        toast.success('Travel request created successfully!');
+        const created = response.data as { _id?: string; id?: string } | undefined;
+        const newId = created?._id || created?.id;
+        let submitted = false;
+        if (newId) {
+          try {
+            const sub = await apiService.submitTravelRequest(String(newId));
+            submitted = !!sub.success;
+            if (!sub.success) {
+              toast.warning(
+                sub.message || 'Request saved as Draft — submit for approval from Travel.'
+              );
+            }
+          } catch {
+            toast.warning(
+              'Request saved as Draft — submit for approval from the Travel page.'
+            );
+          }
+        }
+        if (submitted) {
+          toast.success('Travel request submitted for approval');
+        }
         router.push('/travel');
       } else {
         toast.error(response.message || 'Failed to create travel request');

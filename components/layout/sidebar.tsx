@@ -242,6 +242,7 @@ const navigationItems: NavItem[] = [
     icon: <UserPen className="w-5 h-5" />,
     roles: ['Tenant Admin', 'Employee', 'Manager', 'HR Administrator'],
     subItems: [
+      { label: 'My Profile', href: '/employee/me', roles: ['Employee', 'Manager'] },
       { label: 'My Requests', href: '/employee/profile-update', roles: ['Employee', 'Manager'] },
       { label: 'Review Requests', href: '/approvals/profile-update', roles: ['Tenant Admin', 'Manager', 'HR Administrator'] },
     ],

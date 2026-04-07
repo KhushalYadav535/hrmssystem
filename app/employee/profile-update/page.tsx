@@ -12,13 +12,6 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -34,8 +27,6 @@ const REQUEST_TYPES = [
   { value: 'PERSONAL', label: 'Personal Info' },
   { value: 'CONTACT', label: 'Contact' },
   { value: 'ADDRESS', label: 'Address' },
-  { value: 'BANK', label: 'Bank Details' },
-  { value: 'OTHER', label: 'Other' },
 ];
 
 const PERSONAL_FIELDS: { field: string; label: string; type: string }[] = [
@@ -46,24 +37,10 @@ const PERSONAL_FIELDS: { field: string; label: string; type: string }[] = [
 
 const CONTACT_FIELDS: { field: string; label: string; type: string }[] = [
   { field: 'phone', label: 'Phone Number', type: 'tel' },
-  { field: 'alternatePhone', label: 'Alternate Phone', type: 'tel' },
-  { field: 'personalEmail', label: 'Personal Email', type: 'email' },
 ];
 
 const ADDRESS_FIELDS: { field: string; label: string; type: string }[] = [
-  { field: 'currentAddress', label: 'Current Address', type: 'text' },
-  { field: 'permanentAddress', label: 'Permanent Address', type: 'text' },
-];
-
-const BANK_FIELDS: { field: string; label: string; type: string }[] = [
-  { field: 'bankAccountNumber', label: 'Account Number', type: 'text' },
-  { field: 'bankIfsc', label: 'IFSC Code', type: 'text' },
-  { field: 'bankName', label: 'Bank Name', type: 'text' },
-  { field: 'bankBranch', label: 'Branch', type: 'text' },
-];
-
-const OTHER_FIELDS: { field: string; label: string; type: string }[] = [
-  { field: 'otherDetails', label: 'Details to Update', type: 'text' },
+  { field: 'address', label: 'Address', type: 'text' },
 ];
 
 const getFieldsForRequestType = (requestType: string) => {
@@ -74,17 +51,13 @@ const getFieldsForRequestType = (requestType: string) => {
       return CONTACT_FIELDS;
     case 'ADDRESS':
       return ADDRESS_FIELDS;
-    case 'BANK':
-      return BANK_FIELDS;
-    case 'OTHER':
-      return OTHER_FIELDS;
     default:
       return PERSONAL_FIELDS;
   }
 };
 
 export default function ProfileUpdatePage() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, currentUser } = useAuth();
   const { toast } = useToast();
   const [requests, setRequests] = useState<any[]>([]);
   const [employee, setEmployee] = useState<any>(null);
@@ -100,13 +73,14 @@ export default function ProfileUpdatePage() {
   if (!isAuthenticated) redirect('/login');
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (!currentUser?.email) return;
+    void loadData();
+  }, [currentUser?.email]);
 
   const loadData = async () => {
     try {
       setIsLoading(true);
-      const empRes = await apiService.getEmployees({ email: user?.email });
+      const empRes = await apiService.getEmployees({ search: currentUser?.email });
       if (empRes.success && empRes.data && Array.isArray(empRes.data) && empRes.data.length > 0) {
         setEmployee(empRes.data[0]);
       }

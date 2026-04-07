@@ -15,7 +15,7 @@ import apiService from '@/lib/api';
 import { toast } from 'sonner';
 
 export default function TravelPage() {
-  const { isAuthenticated, hasPermission, currentUser } = useAuth();
+  const { isAuthenticated, hasPermission, hasRole, currentUser } = useAuth();
   const [travelRequests, setTravelRequests] = useState<any[]>([]);
   const [travelAdvances, setTravelAdvances] = useState<any[]>([]);
   const [travelClaims, setTravelClaims] = useState<any[]>([]);
@@ -79,14 +79,60 @@ export default function TravelPage() {
     }
   };
 
+  const handleSubmitDraftTravelRequest = async (id: string) => {
+    try {
+      const response = await apiService.submitTravelRequest(id);
+      if (response.success) {
+        toast.success('Submitted for approval');
+        loadTravelData();
+      } else {
+        toast.error(response.message || 'Submit failed');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Submit failed');
+    }
+  };
+
+  const isMyTravelRequest = (request: any) => {
+    const empRef = request.employeeId;
+    const empMongoId =
+      typeof empRef === 'object' && empRef != null
+        ? String((empRef as { _id?: string })._id ?? '')
+        : empRef
+          ? String(empRef)
+          : '';
+    const myEmp = currentUser?.employeeId ? String(currentUser.employeeId) : '';
+    return !!myEmp && !!empMongoId && empMongoId === myEmp;
+  };
+
   if (!isAuthenticated) {
     redirect('/login');
   }
 
-  // Check if user is Tenant Admin - they should see approval dashboard, not create options
-  const isTenantAdmin = currentUser?.role === 'Tenant Admin' || currentUser?.role === 'Super Admin';
-  const canSubmitTravel = hasPermission('submit_expense') && currentUser?.role !== 'Super Admin';
-  const canSubmitExpense = hasPermission('submit_expense') && currentUser?.role !== 'Super Admin';
+  const isTenantAdmin =
+    currentUser?.role === 'Tenant Admin' || currentUser?.role === 'Super Admin';
+  const canSubmitTravel =
+    hasPermission('submit_expense') && currentUser?.role !== 'Super Admin';
+  const canSubmitExpense =
+    hasPermission('submit_expense') && currentUser?.role !== 'Super Admin';
+  const canUseApprovalsHub =
+    hasRole('Tenant Admin') ||
+    hasRole('Super Admin') ||
+    hasRole('HR Administrator') ||
+    hasRole('Manager');
+
+  const uid = currentUser?.id ? String(currentUser.id) : '';
+  const canApproveThisRequest = (r: any) => {
+    if (r.status !== 'Submitted') return false;
+    const aid = r.approverId;
+    const approverUserId =
+      typeof aid === 'object' && aid !== null
+        ? String((aid as { _id?: string })._id || '')
+        : aid
+          ? String(aid)
+          : '';
+    return !!uid && approverUserId === uid;
+  };
 
   // Calculate derived data from loaded travel data
   const pendingRequests = travelRequests.filter((r) => r.status === 'Pending' || r.status === 'Submitted');
@@ -139,11 +185,11 @@ export default function TravelPage() {
               </Button>
             </div>
           )}
-          {isTenantAdmin && (
+          {canUseApprovalsHub && (
             <Button variant="outline" className="gap-2" asChild>
               <Link href="/approvals/travel">
                 <CheckCircle2 className="w-4 h-4" />
-                View All Approvals
+                Travel approvals
               </Link>
             </Button>
           )}
@@ -288,7 +334,10 @@ export default function TravelPage() {
                             </div>
                           </div>
                           <div className="flex gap-2 ml-4 flex-shrink-0">
-                            {isTenantAdmin && request.status === 'Submitted' && (
+                            {request.status === 'Submitted' &&
+                              (isTenantAdmin ||
+                                hasRole('HR Administrator') ||
+                                canApproveThisRequest(request)) && (
                               <>
                                 <Button size="sm" variant="outline" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleApproveTravelRequest(requestId)}>
                                   <CheckCircle2 className="w-4 h-4 mr-1" />
@@ -299,6 +348,15 @@ export default function TravelPage() {
                                   Reject
                                 </Button>
                               </>
+                            )}
+                            {request.status === 'Draft' && isMyTravelRequest(request) && (
+                              <Button
+                                size="sm"
+                                variant="default"
+                                onClick={() => handleSubmitDraftTravelRequest(String(requestId))}
+                              >
+                                Submit for approval
+                              </Button>
                             )}
                             <Button size="sm" variant="outline" asChild>
                               <Link href={`/travel/request?id=${requestId}`}>View</Link>
