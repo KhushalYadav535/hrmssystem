@@ -162,7 +162,7 @@ const navigationItems: NavItem[] = [
     href: '/workforce',
     subItems: [
       { label: 'Employee List', href: '/workforce/employees', roles: ['Tenant Admin', 'HR Administrator'] },
-      { label: 'Add Employee', href: '/workforce/add-employee', roles: ['Tenant Admin', 'HR Administrator'] },
+      { label: 'Add Employee', href: '/workforce/add-employee', roles: ['HR Administrator'] },
       { label: 'Branch Promotions', href: '/workforce/promotions/branch-promotion', roles: ['Tenant Admin', 'HR Administrator'] },
       { label: 'Vacant Positions', href: '/workforce/positions/vacant-positions', roles: ['Tenant Admin', 'HR Administrator'] },
       { label: 'Branch Reports', href: '/workforce/reports/branch-report', roles: ['Tenant Admin', 'HR Administrator'] },
@@ -381,9 +381,14 @@ const navigationItems: NavItem[] = [
       { label: 'Head Office', href: '/settings/org-structure/zone-master?create=ho', roles: ['Tenant Admin'] },
       { label: 'Zone Master', href: '/settings/org-structure/zone-master', roles: ['Tenant Admin'] },
       { label: 'Branch Master', href: '/settings/org-structure/branch-master', roles: ['Tenant Admin'] },
-      { label: 'Employee Transfer', href: '/settings/org-structure/employee-transfer', roles: ['Tenant Admin', 'HR Administrator'] },
-      { label: 'Transfer Log', href: '/settings/org-structure/transfer-log', roles: ['Tenant Admin', 'HR Administrator'] },
-      { label: 'Workflow Settings', href: '/settings/workflows', roles: ['Tenant Admin'] },
+      { label: 'Employee Transfer', href: '/settings/org-structure/employee-transfer', roles: ['HR Administrator'] },
+      { label: 'Position Master', href: '/settings/masters/positions', roles: ['Tenant Admin', 'HR Administrator'] },
+      { label: 'Grade / Band Master', href: '/settings/masters/grades', roles: ['Tenant Admin', 'HR Administrator'] },
+      { label: 'Reimbursement Master', href: '/settings/masters/reimbursement', roles: ['Tenant Admin', 'HR Administrator'] },
+      { label: 'Loan & Advance Master', href: '/settings/masters/loans', roles: ['Tenant Admin', 'HR Administrator'] },
+      { label: 'Approval Workflow Master', href: '/settings/workflows', roles: ['Tenant Admin', 'HR Administrator'] },
+      { label: 'Approval Hierarchy Master', href: '/settings/masters/approval-hierarchy', roles: ['Tenant Admin', 'HR Administrator'] },
+      { label: 'Delegation Rules Master', href: '/settings/delegation', roles: ['Tenant Admin', 'HR Administrator'] },
       { label: 'Designations', href: '/settings/designations', roles: ['Tenant Admin'] },
       { label: 'Modules', href: '/company/modules', roles: ['Tenant Admin'] },
     ],
@@ -418,20 +423,20 @@ const navigationItems: NavItem[] = [
     roles: ['HR Administrator'], // HR Admin sees this, not System Admin
     // Administration is a core feature, no moduleCode
     subItems: [
-      { label: 'Users', href: '/admin/users', roles: ['HR Administrator'] },
-      { label: 'Role & Permissions', href: '/admin/users/role-permissions', roles: ['HR Administrator'] },
+      { label: 'Users', href: '/admin/users', roles: ['Tenant Admin'] },
+      { label: 'Role & Permissions', href: '/admin/users/role-permissions', roles: ['Tenant Admin'] },
       { label: 'Access Certification', href: '/admin/access-certification', roles: ['HR Administrator'] },
-      { label: 'Session Management', href: '/admin/sessions', roles: ['HR Administrator'] },
+      { label: 'Session Management', href: '/admin/sessions', roles: ['Tenant Admin'] },
       { label: 'Promotions', href: '/employee/promotions', roles: ['HR Administrator', 'Manager'] },
       { label: 'Disciplinary Records', href: '/employee/disciplinary', roles: ['HR Administrator', 'Manager'] },
-      { label: 'LDAP Config', href: '/admin/ldap-config', roles: ['HR Administrator'] },
+      { label: 'LDAP Config', href: '/admin/ldap-config', roles: ['Tenant Admin'] },
       { label: 'Organization Chart', href: '/org/chart', roles: ['HR Administrator', 'Manager'] },
       { label: 'Bulk Import/Export', href: '/admin/employees/bulk-import', roles: ['HR Administrator'] },
       { label: 'Departments', href: '/settings/departments', roles: ['HR Administrator'] },
       { label: 'Leave Policies', href: '/settings/leave-policies', roles: ['HR Administrator'] },
-      { label: 'Designations', href: '/settings/designations', roles: ['HR Administrator'] },
-      { label: 'Module Permissions', href: '/settings/permissions', roles: ['HR Administrator'] },
-      { label: 'Audit Log', href: '/admin/audit-log', roles: ['HR Administrator'] },
+      { label: 'Designations', href: '/settings/designations', roles: ['Tenant Admin'] },
+      { label: 'Module Permissions', href: '/settings/permissions', roles: ['Tenant Admin'] },
+      { label: 'Audit Log', href: '/admin/audit-log', roles: ['Tenant Admin'] },
       { label: 'Settings', href: '/settings', roles: ['HR Administrator'] },
     ],
   },
@@ -680,7 +685,11 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
       </div>
 
       {/* Navigation Section - Scrollable */}
-      <nav id="sidebar-nav" className="flex-1 overflow-y-auto overscroll-contain [overflow-anchor:none] p-4 space-y-2 pb-20">
+      <nav
+        id="sidebar-nav"
+        data-lenis-prevent-wheel
+        className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain p-4 space-y-2 pb-20 [-ms-overflow-style:auto] [scrollbar-gutter:stable]"
+      >
         {visibleItems.map((item) => {
           const hasSubItems = item.subItems && item.subItems.length > 0;
           const isExpanded = expandedItems.includes(item.href);

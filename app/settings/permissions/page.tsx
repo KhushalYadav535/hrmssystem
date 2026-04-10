@@ -37,6 +37,9 @@ const SYSTEM_MODULE_ROLES: ModuleRoleDef[] = [
   { id: 'Auditor', name: 'Auditor', color: 'bg-slate-600' },
 ];
 
+/** Tenant Module Permissions: Super Admin is not shown or edited here (platform scope only). */
+const TENANT_MODULE_MATRIX_ROLES: ModuleRoleDef[] = SYSTEM_MODULE_ROLES.filter((r) => r.id !== 'Super Admin');
+
 const LEGACY_ROLE_MAP: Record<string, string> = {
   hr_admin: 'HR Administrator',
   manager: 'Manager',
@@ -83,7 +86,6 @@ function buildInitialMatrix(moduleNames: string[], roleIds: string[], actions: A
 }
 
 function applyTemplateDefaults(base: CellMatrix): CellMatrix {
-  const SA = 'Super Admin';
   const TA = 'Tenant Admin';
   const HR = 'HR Administrator';
   const M = 'Manager';
@@ -93,10 +95,8 @@ function applyTemplateDefaults(base: CellMatrix): CellMatrix {
   const AU = 'Auditor';
 
   for (const mod of PERMISSION_MODULES) {
-    for (const rid of [SA, TA]) {
-      if (base[mod]?.[rid]) {
-        for (const a of PERMISSION_ACTIONS) base[mod][rid][a.key] = true;
-      }
+    if (base[mod]?.[TA]) {
+      for (const a of PERMISSION_ACTIONS) base[mod][TA][a.key] = true;
     }
   }
 
@@ -151,7 +151,7 @@ function ensureRoleAcrossModules(matrix: CellMatrix, roleId: string) {
 
 function migrateV1Raw(raw: unknown, extraRoleIds: string[]): { matrix: CellMatrix; customRoles: ModuleRoleDef[] } {
   const modules = [...PERMISSION_MODULES];
-  const systemIds = SYSTEM_MODULE_ROLES.map((r) => r.id);
+  const systemIds = TENANT_MODULE_MATRIX_ROLES.map((r) => r.id);
   const allIds = [...new Set([...systemIds, ...extraRoleIds])];
   const actionKeys = PERMISSION_ACTIONS.map((a) => a.key);
   const base = makeDefaultPermissionMatrix(allIds);
@@ -168,7 +168,7 @@ function migrateV1Raw(raw: unknown, extraRoleIds: string[]): { matrix: CellMatri
     if (!row || typeof row !== 'object') continue;
     for (const [oldKey, cells] of Object.entries(row)) {
       if (typeof cells !== 'object' || !cells) continue;
-      let targetId = LEGACY_MAP[oldKey] ?? (systemIds.includes(oldKey) ? oldKey : oldKey);
+      let targetId = LEGACY_ROLE_MAP[oldKey] ?? (systemIds.includes(oldKey) ? oldKey : oldKey);
       if (!systemIds.includes(targetId) && !customSeen.has(targetId)) {
         customSeen.add(targetId);
         customRoles.push({
@@ -192,7 +192,7 @@ function parseStored(
   v2Raw: string | null,
   v1Raw: string | null
 ): { matrix: CellMatrix; customRoles: ModuleRoleDef[] } {
-  const systemIds = SYSTEM_MODULE_ROLES.map((r) => r.id);
+  const systemIds = TENANT_MODULE_MATRIX_ROLES.map((r) => r.id);
 
   if (v2Raw) {
     try {
@@ -229,7 +229,7 @@ export default function PermissionMatrixPage() {
   const [showCloneDialog, setShowCloneDialog] = useState(false);
   const [cloneSourceRole, setCloneSourceRole] = useState('');
   const [cloneTargetName, setCloneTargetName] = useState('');
-  const [activeRoleTab, setActiveRoleTab] = useState<string>(SYSTEM_MODULE_ROLES[0]?.id ?? '');
+  const [activeRoleTab, setActiveRoleTab] = useState<string>(TENANT_MODULE_MATRIX_ROLES[0]?.id ?? '');
   const [customRoles, setCustomRoles] = useState<ModuleRoleDef[]>([]);
   const tenantId = currentTenant?.id ?? null;
 
@@ -239,7 +239,7 @@ export default function PermissionMatrixPage() {
   }, [tenantId]);
 
   const [permissions, setPermissions] = useState<CellMatrix>(() =>
-    makeDefaultPermissionMatrix(SYSTEM_MODULE_ROLES.map((r) => r.id))
+    makeDefaultPermissionMatrix(TENANT_MODULE_MATRIX_ROLES.map((r) => r.id))
   );
 
   useEffect(() => {
@@ -250,13 +250,16 @@ export default function PermissionMatrixPage() {
       const { matrix, customRoles: cr } = parseStored(v2, v1);
       setPermissions(matrix);
       setCustomRoles(cr);
-      setActiveRoleTab(SYSTEM_MODULE_ROLES[0]?.id ?? '');
+      setActiveRoleTab(TENANT_MODULE_MATRIX_ROLES[0]?.id ?? '');
     } catch {
       /* ignore */
     }
   }, [storageKeys.v1, storageKeys.v2]);
 
-  const allRoles = useMemo(() => [...SYSTEM_MODULE_ROLES, ...customRoles], [customRoles]);
+  const allRoles = useMemo(
+    () => [...TENANT_MODULE_MATRIX_ROLES, ...customRoles.filter((c) => c.id !== 'Super Admin')],
+    [customRoles]
+  );
 
   const modules = PERMISSION_MODULES;
   const actions = PERMISSION_ACTIONS;
@@ -330,6 +333,16 @@ export default function PermissionMatrixPage() {
     setActiveRoleTab(newRoleId);
   };
 
+  const stripSuperAdminFromMatrix = (m: CellMatrix): CellMatrix => {
+    const next: CellMatrix = { ...m };
+    for (const mod of PERMISSION_MODULES) {
+      const row = next[mod] ? { ...next[mod] } : {};
+      delete row['Super Admin'];
+      next[mod] = row;
+    }
+    return next;
+  };
+
   const handleSave = () => {
     if (!storageKeys.v2) {
       toast.error('Tenant context not ready. Refresh the page and try again.');
@@ -338,7 +351,7 @@ export default function PermissionMatrixPage() {
     try {
       const payload = JSON.stringify({
         version: 2,
-        matrix: permissions,
+        matrix: stripSuperAdminFromMatrix(permissions),
         customRoles,
       });
       localStorage.setItem(storageKeys.v2, payload);
@@ -358,7 +371,8 @@ export default function PermissionMatrixPage() {
           <div>
             <h1 className="text-3xl font-bold text-foreground">Module Permissions</h1>
             <p className="text-muted-foreground mt-2">
-              Planning matrix stored in this browser per tenant. It does not replace{' '}
+              Planning matrix stored in this browser per tenant. <strong>Super Admin</strong> is not listed here — it is
+              managed only at platform level. This screen does not replace{' '}
               <strong>Admin → Roles &amp; Permissions</strong> (API-backed access for menus and APIs).
             </p>
           </div>
@@ -513,7 +527,7 @@ export default function PermissionMatrixPage() {
                                         setPermission(module, role.id, action.key, v === true)
                                       }
                                       aria-label={`${module}, ${role.name}, ${action.label}`}
-                                      className="data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600 data-[state=checked]:text-white"
+                                      className="h-5 w-5 border-2 border-foreground/40 bg-background shadow-sm data-[state=checked]:bg-primary data-[state=checked]:border-primary data-[state=checked]:text-primary-foreground"
                                     />
                                   </div>
                                 </td>
@@ -540,7 +554,7 @@ export default function PermissionMatrixPage() {
               {actions.map((a) => (
                 <div key={a.key} className="flex items-center gap-2">
                   <span
-                    className="inline-block size-4 rounded border border-green-600 bg-green-600 shrink-0"
+                    className="inline-block size-4 rounded border-2 border-primary bg-primary shrink-0"
                     aria-hidden
                   />
                   <span>{a.label}</span>

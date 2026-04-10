@@ -4,16 +4,29 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Users, BarChart3, TrendingUp, Briefcase, DollarSign, Building2, Award } from 'lucide-react';
+import { Users, BarChart3, TrendingUp, Briefcase, DollarSign, Building2, Award, Settings, Link2, Package } from 'lucide-react';
 import Link from 'next/link';
-import { useEmployees } from '@/lib/hooks/useEmployees';
-import { useJobs } from '@/lib/hooks/useJobs';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { apiService } from '@/lib/api';
 import { formatDesignationLabel } from '@/lib/utils';
+import { useAuth } from '@/lib/auth-context';
 
 export default function TenantAdminDashboard() {
-  const { jobs } = useJobs({ status: 'Open' });
+  const { currentUser } = useAuth();
+
+  const effectiveRoleList = useMemo(() => {
+    if (!currentUser) return [] as string[];
+    if (currentUser.roles && currentUser.roles.length > 0) return currentUser.roles as string[];
+    if (currentUser.role) return [currentUser.role];
+    return [];
+  }, [currentUser?.role, currentUser?.roles]);
+
+  const canSeeHrOperationalNav = effectiveRoleList.some((r) =>
+    ['HR Administrator', 'Payroll Administrator', 'Finance Administrator', 'Manager', 'Employee', 'Auditor'].includes(r)
+  );
+  const isTenantHubOnly =
+    effectiveRoleList.includes('Tenant Admin') && !canSeeHrOperationalNav;
+
   const [dashboardStats, setDashboardStats] = useState({
     totalEmployees: 0,
     newJoinings: 0,
@@ -29,7 +42,6 @@ export default function TenantAdminDashboard() {
   
   const [departmentData, setDepartmentData] = useState<any[]>([]);
   const [financialData, setFinancialData] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -50,17 +62,13 @@ export default function TenantAdminDashboard() {
         }
       } catch (error) {
         console.error('Failed to fetch dashboard stats', error);
-      } finally {
-        setIsLoading(false);
       }
     };
 
     fetchStats();
   }, []);
 
-  const totalRevenue = financialData.reduce((sum, m) => sum + (m.revenue || 0), 0);
   const totalExpenses = financialData.reduce((sum, m) => sum + (m.expenses || 0), 0);
-  const netProfit = totalRevenue - totalExpenses; // Or just show Total Cost since it's HRMS
 
   const recentJoinings = dashboardStats.recentJoiningsList || [];
 
@@ -68,8 +76,14 @@ export default function TenantAdminDashboard() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground">CEO Dashboard</h1>
-        <p className="text-muted-foreground mt-2">Executive overview and company insights</p>
+        <h1 className="text-3xl font-bold text-foreground">
+          {isTenantHubOnly ? 'System Administration' : 'CEO Dashboard'}
+        </h1>
+        <p className="text-muted-foreground mt-2">
+          {isTenantHubOnly
+            ? 'Tenant configuration, security, and reporting'
+            : 'Executive overview and company insights'}
+        </p>
       </div>
 
       {/* Key Metrics */}
@@ -92,7 +106,7 @@ export default function TenantAdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Total Cost (6M)</p>
-                <p className="text-2xl font-bold text-foreground">₹{(totalExpenses / 100000).toFixed(1)}L</p>
+                <p className="text-2xl font-bold text-foreground">{'₹'}{(totalExpenses / 100000).toFixed(1)}L</p>
                 <p className="text-xs text-muted-foreground mt-1">Payroll & Expenses</p>
               </div>
               <DollarSign className="w-10 h-10 text-primary/30" />
@@ -100,33 +114,52 @@ export default function TenantAdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Pending Approvals</p>
-                <p className="text-2xl font-bold text-foreground">
-                  {dashboardStats.pendingApprovals.leaves + dashboardStats.pendingApprovals.expenses}
-                </p>
-                <p className="text-xs text-yellow-600 mt-1">Action required</p>
+        {!isTenantHubOnly && (
+          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Pending Approvals</p>
+                  <p className="text-2xl font-bold text-foreground">
+                    {dashboardStats.pendingApprovals.leaves + dashboardStats.pendingApprovals.expenses}
+                  </p>
+                  <p className="text-xs text-yellow-600 mt-1">Action required</p>
+                </div>
+                <TrendingUp className="w-10 h-10 text-primary/30" />
               </div>
-              <TrendingUp className="w-10 h-10 text-primary/30" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
-        <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Open Positions</p>
-                <p className="text-2xl font-bold text-foreground">{dashboardStats.openPositions}</p>
-                <p className="text-xs text-muted-foreground mt-1">{dashboardStats.applications} applications</p>
+        {!isTenantHubOnly && (
+          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Open Positions</p>
+                  <p className="text-2xl font-bold text-foreground">{dashboardStats.openPositions}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{dashboardStats.applications} applications</p>
+                </div>
+                <Briefcase className="w-10 h-10 text-primary/30" />
               </div>
-              <Briefcase className="w-10 h-10 text-primary/30" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
+
+        {isTenantHubOnly && (
+          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow md:col-span-2 lg:col-span-3">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Tenant</p>
+                  <p className="text-lg font-semibold text-foreground">Use Quick Actions for users, settings, and modules</p>
+                  <p className="text-xs text-muted-foreground mt-1">HR operations are handled by your HR team</p>
+                </div>
+                <Building2 className="w-10 h-10 text-primary/30" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Charts */}
@@ -186,36 +219,76 @@ export default function TenantAdminDashboard() {
           <CardDescription>Frequently used functions</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Button variant="outline" className="h-auto p-4 flex-col items-start" asChild>
-              <Link href="/personnel">
-                <Users className="w-5 h-5 mb-2" />
-                <span className="font-medium">View Employees</span>
-                <span className="text-xs text-muted-foreground">Manage workforce</span>
-              </Link>
-            </Button>
-            <Button variant="outline" className="h-auto p-4 flex-col items-start" asChild>
-              <Link href="/reports">
-                <BarChart3 className="w-5 h-5 mb-2" />
-                <span className="font-medium">View Reports</span>
-                <span className="text-xs text-muted-foreground">Analytics & insights</span>
-              </Link>
-            </Button>
-            <Button variant="outline" className="h-auto p-4 flex-col items-start" asChild>
-              <Link href="/admin">
-                <Building2 className="w-5 h-5 mb-2" />
-                <span className="font-medium">Administration</span>
-                <span className="text-xs text-muted-foreground">System settings</span>
-              </Link>
-            </Button>
-            <Button variant="outline" className="h-auto p-4 flex-col items-start" asChild>
-              <Link href="/performance">
-                <Award className="w-5 h-5 mb-2" />
-                <span className="font-medium">Performance</span>
-                <span className="text-xs text-muted-foreground">Appraisals & reviews</span>
-              </Link>
-            </Button>
-          </div>
+          {isTenantHubOnly ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+              <Button variant="outline" className="h-auto p-4 flex-col items-start" asChild>
+                <Link href="/admin/users">
+                  <Users className="w-5 h-5 mb-2" />
+                  <span className="font-medium">Users</span>
+                  <span className="text-xs text-muted-foreground">Security & access</span>
+                </Link>
+              </Button>
+              <Button variant="outline" className="h-auto p-4 flex-col items-start" asChild>
+                <Link href="/settings">
+                  <Settings className="w-5 h-5 mb-2" />
+                  <span className="font-medium">Tenant settings</span>
+                  <span className="text-xs text-muted-foreground">Configuration</span>
+                </Link>
+              </Button>
+              <Button variant="outline" className="h-auto p-4 flex-col items-start" asChild>
+                <Link href="/reports">
+                  <BarChart3 className="w-5 h-5 mb-2" />
+                  <span className="font-medium">Reports</span>
+                  <span className="text-xs text-muted-foreground">Analytics</span>
+                </Link>
+              </Button>
+              <Button variant="outline" className="h-auto p-4 flex-col items-start" asChild>
+                <Link href="/company/modules">
+                  <Package className="w-5 h-5 mb-2" />
+                  <span className="font-medium">Modules</span>
+                  <span className="text-xs text-muted-foreground">Subscriptions</span>
+                </Link>
+              </Button>
+              <Button variant="outline" className="h-auto p-4 flex-col items-start" asChild>
+                <Link href="/admin/integrations">
+                  <Link2 className="w-5 h-5 mb-2" />
+                  <span className="font-medium">Integrations</span>
+                  <span className="text-xs text-muted-foreground">API & SSO</span>
+                </Link>
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Button variant="outline" className="h-auto p-4 flex-col items-start" asChild>
+                <Link href="/workforce/employees">
+                  <Users className="w-5 h-5 mb-2" />
+                  <span className="font-medium">View Employees</span>
+                  <span className="text-xs text-muted-foreground">Manage workforce</span>
+                </Link>
+              </Button>
+              <Button variant="outline" className="h-auto p-4 flex-col items-start" asChild>
+                <Link href="/reports">
+                  <BarChart3 className="w-5 h-5 mb-2" />
+                  <span className="font-medium">View Reports</span>
+                  <span className="text-xs text-muted-foreground">Analytics & insights</span>
+                </Link>
+              </Button>
+              <Button variant="outline" className="h-auto p-4 flex-col items-start" asChild>
+                <Link href="/admin/users">
+                  <Building2 className="w-5 h-5 mb-2" />
+                  <span className="font-medium">Administration</span>
+                  <span className="text-xs text-muted-foreground">Users & security</span>
+                </Link>
+              </Button>
+              <Button variant="outline" className="h-auto p-4 flex-col items-start" asChild>
+                <Link href="/performance">
+                  <Award className="w-5 h-5 mb-2" />
+                  <span className="font-medium">Performance</span>
+                  <span className="text-xs text-muted-foreground">Appraisals & reviews</span>
+                </Link>
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -250,43 +323,45 @@ export default function TenantAdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Pending Approvals</CardTitle>
-            <CardDescription>Requires your attention</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <div>
-                  <p className="font-medium">Leave Requests</p>
-                  <p className="text-sm text-muted-foreground">{dashboardStats.pendingApprovals.leaves} pending approvals</p>
+        {!isTenantHubOnly && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Pending Approvals</CardTitle>
+              <CardDescription>Requires your attention</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 border rounded-lg">
+                  <div>
+                    <p className="font-medium">Leave Requests</p>
+                    <p className="text-sm text-muted-foreground">{dashboardStats.pendingApprovals.leaves} pending approvals</p>
+                  </div>
+                  <Button size="sm" variant="outline" asChild>
+                    <Link href="/approvals/leave">Review</Link>
+                  </Button>
                 </div>
-                <Button size="sm" variant="outline" asChild>
-                  <Link href="/approvals/leave">Review</Link>
-                </Button>
-              </div>
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <div>
-                  <p className="font-medium">Expense Claims</p>
-                  <p className="text-sm text-muted-foreground">{dashboardStats.pendingApprovals.expenses} pending approvals</p>
+                <div className="flex items-center justify-between p-3 border rounded-lg">
+                  <div>
+                    <p className="font-medium">Expense Claims</p>
+                    <p className="text-sm text-muted-foreground">{dashboardStats.pendingApprovals.expenses} pending approvals</p>
+                  </div>
+                  <Button size="sm" variant="outline" asChild>
+                    <Link href="/approvals/expense">Review</Link>
+                  </Button>
                 </div>
-                <Button size="sm" variant="outline" asChild>
-                  <Link href="/approvals/expense">Review</Link>
-                </Button>
-              </div>
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <div>
-                  <p className="font-medium">Onboarding</p>
-                  <p className="text-sm text-muted-foreground">{dashboardStats.pendingApprovals.onboarding} candidates pending</p>
+                <div className="flex items-center justify-between p-3 border rounded-lg">
+                  <div>
+                    <p className="font-medium">Onboarding</p>
+                    <p className="text-sm text-muted-foreground">{dashboardStats.pendingApprovals.onboarding} candidates pending</p>
+                  </div>
+                  <Button size="sm" variant="outline" asChild>
+                    <Link href="/onboarding">Review</Link>
+                  </Button>
                 </div>
-                <Button size="sm" variant="outline" asChild>
-                  <Link href="/onboarding">Review</Link>
-                </Button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

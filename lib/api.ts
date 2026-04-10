@@ -230,18 +230,24 @@ class ApiService {
   }
 
   async createUser(data: {
-    email: string;
-    name: string;
+    email?: string;
+    name?: string;
     employeeId?: string;
     role: string;
+    roles?: string[];
     designation?: string;
     department?: string;
     username?: string;
+    payrollSubRole?: 'Maker' | 'Checker' | null;
   }) {
     return this.request('/users', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  async getProvisionableEmployees() {
+    return this.request('/users/provisionable-employees');
   }
 
   async resetUserPassword(id: string) {
@@ -2857,6 +2863,81 @@ class ApiService {
 
   async getLoanType(id: string) {
     return this.request(`/loan-types/${id}`);
+  }
+
+  async createLoanType(data: Record<string, unknown>) {
+    return this.request('/loan-types', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateLoanType(id: string, data: Record<string, unknown>) {
+    return this.request(`/loan-types/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteLoanType(id: string) {
+    return this.request(`/loan-types/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== WORKFLOW RULES (APPROVAL MASTER) ====================
+
+  async getWorkflowRules() {
+    return this.request('/workflow-rules');
+  }
+
+  async createWorkflowRule(data: Record<string, unknown>) {
+    return this.request('/workflow-rules', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateWorkflowRule(id: string, data: Record<string, unknown>) {
+    return this.request(`/workflow-rules/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteWorkflowRule(id: string) {
+    return this.request(`/workflow-rules/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== REIMBURSEMENT CATEGORIES (MASTER) ====================
+
+  async getReimbursementCategories(params?: { isActive?: string }) {
+    const q = new URLSearchParams();
+    if (params?.isActive != null) q.append('isActive', params.isActive);
+    const qs = q.toString();
+    return this.request(`/reimbursement-categories${qs ? `?${qs}` : ''}`);
+  }
+
+  async createReimbursementCategory(data: Record<string, unknown>) {
+    return this.request('/reimbursement-categories', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateReimbursementCategory(id: string, data: Record<string, unknown>) {
+    return this.request(`/reimbursement-categories/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteReimbursementCategory(id: string) {
+    return this.request(`/reimbursement-categories/${id}`, {
+      method: 'DELETE',
+    });
   }
 
   // ==================== EMPLOYEE LOANS ====================

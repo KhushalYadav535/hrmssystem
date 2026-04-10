@@ -26,7 +26,7 @@ interface WorkflowRule {
 }
 
 export default function WorkflowsPage() {
-  const { isAuthenticated, hasPermission } = useAuth();
+  const { isAuthenticated, hasPermission, currentUser } = useAuth();
   const [workflowRules, setWorkflowRules] = useState<WorkflowRule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -40,7 +40,13 @@ export default function WorkflowsPage() {
     status: 'Active',
   });
 
-  if (!isAuthenticated || !hasPermission('configure_system')) {
+  const canAccess =
+    hasPermission('configure_system') ||
+    hasPermission('manage_settings') ||
+    currentUser?.role === 'Tenant Admin' ||
+    currentUser?.role === 'HR Administrator';
+
+  if (!isAuthenticated || !canAccess) {
     redirect('/dashboard');
   }
 
@@ -92,7 +98,7 @@ export default function WorkflowsPage() {
     try {
       setIsLoading(true);
       if (editingRule) {
-        const response = await apiService.updateWorkflowRule?.(editingRule._id!, formData);
+        const response = await apiService.updateWorkflowRule(editingRule._id!, formData);
         if (response?.success) {
           toast.success('Workflow rule updated successfully');
           setIsDialogOpen(false);
@@ -101,7 +107,7 @@ export default function WorkflowsPage() {
           toast.error(response?.message || 'Failed to update workflow rule');
         }
       } else {
-        const response = await apiService.createWorkflowRule?.(formData);
+        const response = await apiService.createWorkflowRule(formData);
         if (response?.success) {
           toast.success('Workflow rule created successfully');
           setIsDialogOpen(false);
@@ -120,7 +126,7 @@ export default function WorkflowsPage() {
   const handleDeleteRule = async (id: string) => {
     if (!confirm('Are you sure you want to delete this workflow rule?')) return;
     try {
-      const response = await apiService.deleteWorkflowRule?.(id);
+      const response = await apiService.deleteWorkflowRule(id);
       if (response?.success) {
         toast.success('Workflow rule deleted successfully');
         loadWorkflowRules();
@@ -154,6 +160,16 @@ export default function WorkflowsPage() {
             New Workflow Rule
           </Button>
         </div>
+
+        <Card className="border-primary/20 bg-primary/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">How this works</CardTitle>
+            <CardDescription>
+              Rules are saved in the database per tenant and returned by the Workflow Rules API. Feature modules (leave,
+              expense, etc.) can read these rules to drive approval steps when that integration is enabled.
+            </CardDescription>
+          </CardHeader>
+        </Card>
 
         {/* Workflow Rules Table */}
         <Card>

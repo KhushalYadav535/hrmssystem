@@ -2,10 +2,10 @@
 
 import { useAuth } from '@/lib/auth-context';
 import { useRouter, usePathname } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Shield, AlertCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 
 /**
  * US-B2-01: Route Guard for System Admin (Tenant Admin)
@@ -16,9 +16,24 @@ export default function SystemAdminGuard({ children }: { children: React.ReactNo
   const router = useRouter();
   const pathname = usePathname();
 
+  const effectiveRoleList = useMemo(() => {
+    if (!currentUser) return [] as string[];
+    if (currentUser.roles && currentUser.roles.length > 0) return currentUser.roles as string[];
+    if (currentUser.role) return [currentUser.role];
+    return [];
+  }, [currentUser?.role, currentUser?.roles]);
+
+  const canSeeHrOperationalNav = effectiveRoleList.some((r) =>
+    ['HR Administrator', 'Payroll Administrator', 'Finance Administrator', 'Manager', 'Employee', 'Auditor'].includes(r)
+  );
+  /** Same as sidebar: Tenant Admin with no operational “hat” — configuration only. */
+  const isTenantHubOnly =
+    effectiveRoleList.includes('Tenant Admin') && !canSeeHrOperationalNav;
+
   // HR operational routes that System Admin should not access
   const hrOperationalRoutes = [
     '/workforce',
+    '/personnel',
     '/payroll',
     '/leave',
     '/travel',
@@ -38,25 +53,18 @@ export default function SystemAdminGuard({ children }: { children: React.ReactNo
   useEffect(() => {
     if (!isAuthenticated || !currentUser) return;
 
-    // Check if user is System Admin (Tenant Admin)
-    if (currentUser.role === 'Tenant Admin') {
-      // Check if current path is an HR operational route
-      const isHROperationalRoute = hrOperationalRoutes.some(route => 
-        pathname.startsWith(route)
-      );
+    if (isTenantHubOnly) {
+      const isHROperationalRoute = hrOperationalRoutes.some(route => pathname.startsWith(route));
 
       if (isHROperationalRoute) {
-        // Redirect to dashboard with access denied message
         router.push('/dashboard');
       }
     }
-  }, [isAuthenticated, currentUser, pathname, router]);
+  }, [isAuthenticated, currentUser, pathname, router, isTenantHubOnly]);
 
   // If System Admin tries to access HR route, show access denied
-  if (currentUser?.role === 'Tenant Admin') {
-    const isHROperationalRoute = hrOperationalRoutes.some(route => 
-      pathname.startsWith(route)
-    );
+  if (isTenantHubOnly) {
+    const isHROperationalRoute = hrOperationalRoutes.some(route => pathname.startsWith(route));
 
     if (isHROperationalRoute) {
       return (

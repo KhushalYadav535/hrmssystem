@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import apiService from '@/lib/api';
 import { Plus, Search, Edit2, Eye, FileText, MapPin, Banknote } from 'lucide-react';
@@ -17,7 +17,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import DocumentViewer from '@/components/document-viewer';
-import { designationToIdString, formatDesignationLabel } from '@/lib/utils';
+import { formatDesignationLabel } from '@/lib/utils';
 
 interface Employee {
   _id?: string;
@@ -68,18 +68,13 @@ export default function WorkforcePage() {
 
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
-  const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<any>(null);
 
   // Master data for dropdowns (Spec C1)
-  const [departments, setDepartments] = useState<any[]>([]);
   const [designations, setDesignations] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
-  const [grades, setGrades] = useState<any[]>([]);
   const [salaryStructures, setSalaryStructures] = useState<any[]>([]);
-
-  const [isCreating, setIsCreating] = useState(false);
   const [editLocationId, setEditLocationId] = useState('');
   const [isSavingLocation, setIsSavingLocation] = useState(false);
   const [showPayrollDialog, setShowPayrollDialog] = useState(false);
@@ -88,27 +83,6 @@ export default function WorkforcePage() {
   const [payrollCtc, setPayrollCtc] = useState('');
   const [payrollSalaryStructureId, setPayrollSalaryStructureId] = useState('');
   const [isSavingPayroll, setIsSavingPayroll] = useState(false);
-  const [employeeForm, setEmployeeForm] = useState<any>({
-    employeeCode: '',
-    firstName: '',
-    lastName: '',
-    email: '',
-    password: '',
-    phone: '',
-    dateOfBirth: '',
-    gender: 'Male',
-    designation: '',
-    department: '',
-    status: 'Active',
-    joinDate: new Date().toISOString().split('T')[0],
-    location: '',
-    grade: '',
-    salary: '',
-    ctc: '',
-    salaryStructure: '',
-    reportingManager: '',
-    secondLevelManager: '',
-  });
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -129,17 +103,12 @@ export default function WorkforcePage() {
   const loadMasterData = async () => {
     try {
       // Load all master data in parallel
-      const [deptRes, desigRes, locRes, gradeRes, structRes] = await Promise.all([
-        apiService.getDepartments(),
+      const [desigRes, locRes, structRes] = await Promise.all([
         apiService.getActiveDesignations(),
         apiService.getActiveLocations(),
-        apiService.getActiveGrades(),
         apiService.getSalaryStructures({ status: 'Active' }),
       ]);
 
-      if (deptRes.success && deptRes.data) {
-        setDepartments(Array.isArray(deptRes.data) ? deptRes.data : []);
-      }
       if (desigRes.success && desigRes.data) {
         setDesignations(Array.isArray(desigRes.data) ? desigRes.data : []);
       }
@@ -151,9 +120,6 @@ export default function WorkforcePage() {
             ? (raw as { data: unknown[] }).data
             : [];
         setLocations(list as any[]);
-      }
-      if (gradeRes.success && gradeRes.data) {
-        setGrades(Array.isArray(gradeRes.data) ? gradeRes.data : []);
       }
       if (structRes.success && structRes.data) {
         setSalaryStructures(Array.isArray(structRes.data) ? structRes.data : []);
@@ -203,34 +169,15 @@ export default function WorkforcePage() {
     redirect('/dashboard');
   }
 
+  const canAssignPayroll =
+    hasRole('Tenant Admin') || hasRole('Payroll Administrator');
+
   const filteredEmployees = employees.filter(
     (emp) =>
       emp.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       emp.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       emp.employeeCode?.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  // BR-C1-14: Auto-fill Grade from Designation mapping
-  const handleDesignationChange = (designationId: string) => {
-    setEmployeeForm(prev => ({ ...prev, designation: designationId }));
-
-    // Find the selected designation and check for default grade mapping
-    const selectedDesig = designations.find((d: any) => (d._id || d.id) === designationId);
-    if (selectedDesig?.defaultGradeId) {
-      const gradeId = typeof selectedDesig.defaultGradeId === 'object'
-        ? selectedDesig.defaultGradeId._id || selectedDesig.defaultGradeId
-        : selectedDesig.defaultGradeId;
-      setEmployeeForm(prev => ({ ...prev, designation: designationId, grade: gradeId }));
-      toast.info('Grade auto-filled from Designation mapping');
-    }
-  };
-
-  const addFormDesignationId = designationToIdString(employeeForm.designation);
-  const addFormDesignationLabel =
-    addFormDesignationId
-      ? designations.find((d: any) => String(d._id || d.id) === addFormDesignationId)?.name ||
-        formatDesignationLabel(employeeForm.designation)
-      : '';
 
   // Helper to display designation name (API may send { _id, name } or a legacy ObjectId string)
   const getDesignationName = (designation: any) => {
@@ -381,79 +328,6 @@ export default function WorkforcePage() {
     }
   };
 
-  const handleCreateEmployee = async () => {
-    if (!employeeForm.firstName || !employeeForm.lastName || !employeeForm.email ||
-      !employeeForm.password || !employeeForm.phone || !employeeForm.department || !employeeForm.designation ||
-      !employeeForm.employeeCode || !employeeForm.dateOfBirth || !employeeForm.joinDate ||
-      !employeeForm.location || !employeeForm.salary || !employeeForm.ctc) {
-      toast.error('Please fill all required fields');
-      return;
-    }
-
-    if (employeeForm.password.length < 6) {
-      toast.error('Password must be at least 6 characters long');
-      return;
-    }
-
-    setIsCreating(true);
-    try {
-      const employeeData = {
-        employeeCode: employeeForm.employeeCode.trim(),
-        firstName: employeeForm.firstName.trim(),
-        lastName: employeeForm.lastName.trim(),
-        email: employeeForm.email.trim().toLowerCase(),
-        password: employeeForm.password,
-        phone: employeeForm.phone.trim(),
-        dateOfBirth: employeeForm.dateOfBirth,
-        gender: employeeForm.gender,
-        designation: employeeForm.designation,
-        department: employeeForm.department.trim(),
-        status: employeeForm.status,
-        joinDate: employeeForm.joinDate,
-        location: employeeForm.location,
-        grade: employeeForm.grade || undefined,
-        salary: parseFloat(employeeForm.salary),
-        ctc: parseFloat(employeeForm.ctc),
-        reportingManager: employeeForm.reportingManager && employeeForm.reportingManager !== 'none' ? employeeForm.reportingManager : undefined,
-        secondLevelManager: employeeForm.secondLevelManager && employeeForm.secondLevelManager !== 'none' ? employeeForm.secondLevelManager : undefined,
-      };
-
-      const response = await apiService.createEmployee(employeeData);
-      if (response.success) {
-        toast.success('Employee created successfully!');
-        setShowAddDialog(false);
-        setEmployeeForm({
-          employeeCode: '',
-          firstName: '',
-          lastName: '',
-          email: '',
-          password: '',
-          phone: '',
-          dateOfBirth: '',
-          gender: 'Male',
-          designation: '',
-          department: '',
-          status: 'Active',
-          joinDate: new Date().toISOString().split('T')[0],
-          location: '',
-          grade: '',
-          salary: '',
-          ctc: '',
-          salaryStructure: '',
-          reportingManager: '',
-          secondLevelManager: '',
-        });
-        loadEmployees();
-      } else {
-        toast.error(response.message || 'Failed to create employee');
-      }
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to create employee');
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -462,352 +336,21 @@ export default function WorkforcePage() {
           <div>
             <h1 className="text-3xl font-bold text-foreground">Workforce Management</h1>
             <p className="text-muted-foreground mt-2">
-              Manage employee records: locations (Location Master), and payroll inputs — monthly salary and annual CTC
-              used when payroll is run.
+              Manage employee records and locations.
+              {canAssignPayroll
+                ? ' Payroll (salary & CTC) can be assigned here for payroll runs.'
+                : ' Payroll assignment is done by Tenant Admin or Payroll Administrator.'}
             </p>
           </div>
-          {hasPermission('manage_employees') && currentUser?.role !== 'Auditor' && (
-            <Dialog
-              open={showAddDialog}
-              onOpenChange={(open) => {
-                setShowAddDialog(open);
-                if (open) {
-                  setEmployeeForm((prev) => ({ ...prev, employeeCode: '' }));
-                } else {
-                  setEmployeeForm({
-                    employeeCode: '',
-                    firstName: '',
-                    lastName: '',
-                    email: '',
-                    password: '',
-                    phone: '',
-                    dateOfBirth: '',
-                    gender: 'Male',
-                    designation: '',
-                    department: '',
-                    status: 'Active',
-                    joinDate: new Date().toISOString().split('T')[0],
-                    location: '',
-                    grade: '',
-                    salary: '',
-                    ctc: '',
-                    salaryStructure: '',
-                    reportingManager: '',
-                    secondLevelManager: '',
-                  });
-                }
-              }}
-            >
-              <DialogTrigger asChild>
-                <Button className="gap-2">
-                  <Plus className="w-4 h-4" />
-                  Add Employee
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add New Employee</DialogTitle>
-                  <DialogDescription>Create a new employee record</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="employeeCode">Employee Code *</Label>
-                      <Input
-                        id="employeeCode"
-                        value={employeeForm.employeeCode}
-                        onChange={(e) => setEmployeeForm({ ...employeeForm, employeeCode: e.target.value })}
-                        placeholder="Client reference / employee code (your format)"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="status">Status *</Label>
-                      <Select value={employeeForm.status} onValueChange={(value) => setEmployeeForm({ ...employeeForm, status: value })}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Active">Active</SelectItem>
-                          <SelectItem value="Inactive">Inactive</SelectItem>
-                          <SelectItem value="On Leave">On Leave</SelectItem>
-                          <SelectItem value="Retired">Retired</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="firstName">First Name *</Label>
-                      <Input
-                        id="firstName"
-                        value={employeeForm.firstName}
-                        onChange={(e) => setEmployeeForm({ ...employeeForm, firstName: e.target.value })}
-                        placeholder="John"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="lastName">Last Name *</Label>
-                      <Input
-                        id="lastName"
-                        value={employeeForm.lastName}
-                        onChange={(e) => setEmployeeForm({ ...employeeForm, lastName: e.target.value })}
-                        placeholder="Doe"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="email">Email *</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={employeeForm.email}
-                        onChange={(e) => setEmployeeForm({ ...employeeForm, email: e.target.value })}
-                        placeholder="john.doe@example.com"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="password">Password *</Label>
-                      <Input
-                        id="password"
-                        type="password"
-                        value={employeeForm.password}
-                        onChange={(e) => setEmployeeForm({ ...employeeForm, password: e.target.value })}
-                        placeholder="Enter password for login"
-                        minLength={6}
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">Minimum 6 characters</p>
-                    </div>
-                    <div>
-                      <Label htmlFor="phone">Phone *</Label>
-                      <Input
-                        id="phone"
-                        value={employeeForm.phone}
-                        onChange={(e) => setEmployeeForm({ ...employeeForm, phone: e.target.value })}
-                        placeholder="+91 9876543210"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="dateOfBirth">Date of Birth *</Label>
-                      <Input
-                        id="dateOfBirth"
-                        type="date"
-                        value={employeeForm.dateOfBirth}
-                        onChange={(e) => setEmployeeForm({ ...employeeForm, dateOfBirth: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="gender">Gender *</Label>
-                      <Select value={employeeForm.gender} onValueChange={(value) => setEmployeeForm({ ...employeeForm, gender: value })}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Male">Male</SelectItem>
-                          <SelectItem value="Female">Female</SelectItem>
-                          <SelectItem value="Other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="department">Department *</Label>
-                      <Select
-                        value={employeeForm.department}
-                        onValueChange={(value) => {
-                          setEmployeeForm({ ...employeeForm, department: value });
-                        }}
-                      >
-                        <SelectTrigger id="department">
-                          <SelectValue placeholder="Select department">
-                            {employeeForm.department || 'Select department'}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {departments.length > 0 ? (
-                            departments.map((dept) => (
-                              <SelectItem key={dept._id || dept.id} value={dept.name}>
-                                {dept.name}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="no_departments" disabled>No departments available</SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="reportingManager">Reporting Manager</Label>
-                      <Select
-                        value={employeeForm.reportingManager || undefined}
-                        onValueChange={(value) => setEmployeeForm({ ...employeeForm, reportingManager: value })}
-                      >
-                        <SelectTrigger id="reportingManager">
-                          <SelectValue placeholder="Select manager">
-                            {employeeForm.reportingManager
-                              ? employees.find((e) => (e._id || e.id) === employeeForm.reportingManager)?.firstName + ' ' + employees.find((e) => (e._id || e.id) === employeeForm.reportingManager)?.lastName
-                              : 'Select manager'}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          {employees.map((emp: any) => (
-                            <SelectItem key={emp._id || emp.id} value={emp._id || emp.id}>
-                              {emp.firstName} {emp.lastName} {emp.employeeCode ? `(${emp.employeeCode})` : ''}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="secondLevelManager">Second Level Manager</Label>
-                      <Select
-                        value={employeeForm.secondLevelManager || undefined}
-                        onValueChange={(value) => setEmployeeForm({ ...employeeForm, secondLevelManager: value })}
-                      >
-                        <SelectTrigger id="secondLevelManager">
-                          <SelectValue placeholder="Select 2nd level manager">
-                            {employeeForm.secondLevelManager
-                              ? employees.find((e) => (e._id || e.id) === employeeForm.secondLevelManager)?.firstName + ' ' + employees.find((e) => (e._id || e.id) === employeeForm.secondLevelManager)?.lastName
-                              : 'Select manager'}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          {employees.map((emp: any) => (
-                            <SelectItem key={emp._id || emp.id} value={emp._id || emp.id}>
-                              {emp.firstName} {emp.lastName} {emp.employeeCode ? `(${emp.employeeCode})` : ''}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {/* Spec C1-01: Designation dropdown from Designation Master */}
-                    <div>
-                      <Label htmlFor="designation">Designation *</Label>
-                      <Select
-                        value={addFormDesignationId || undefined}
-                        onValueChange={handleDesignationChange}
-                      >
-                        <SelectTrigger id="designation">
-                          <SelectValue placeholder="Select designation">
-                            {addFormDesignationId
-                              ? addFormDesignationLabel || addFormDesignationId
-                              : 'Select designation'}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {designations.length > 0 ? (
-                            designations.map((desig: any) => (
-                              <SelectItem key={desig._id || desig.id} value={desig._id || desig.id}>
-                                {desig.name} {desig.grade ? `(${desig.grade})` : ''}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="no_designations" disabled>No designations available — add in Settings</SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Populated from Designation Master
-                      </p>
-                    </div>
-                    {/* Spec C1-02: Location dropdown from Location Master */}
-                    <div>
-                      <Label htmlFor="location">Location *</Label>
-                      <Select
-                        value={employeeForm.location}
-                        onValueChange={(value) => setEmployeeForm({ ...employeeForm, location: value })}
-                      >
-                        <SelectTrigger id="location">
-                          <SelectValue placeholder="Select location">
-                            {employeeForm.location
-                              ? locations.find((l: any) => (l._id || l.id) === employeeForm.location)?.name || employeeForm.location
-                              : 'Select location'}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {locations.length > 0 ? (
-                            locations.map((loc: any) => (
-                              <SelectItem key={loc._id || loc.id} value={loc._id || loc.id}>
-                                {loc.name} {loc.state ? `(${loc.state})` : ''}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="no_locations" disabled>No workplaces — add Branches under Org structure or Location Master</SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Populated from Location Master
-                      </p>
-                    </div>
-                    {/* Spec C1-03: Grade dropdown from Grade Master */}
-                    <div>
-                      <Label htmlFor="grade">Grade</Label>
-                      <Select
-                        value={employeeForm.grade}
-                        onValueChange={(value) => setEmployeeForm({ ...employeeForm, grade: value })}
-                      >
-                        <SelectTrigger id="grade">
-                          <SelectValue placeholder="Select grade">
-                            {employeeForm.grade
-                              ? grades.find((g: any) => (g._id || g.id) === employeeForm.grade)?.name || employeeForm.grade
-                              : 'Select grade'}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {grades.length > 0 ? (
-                            grades.map((g: any) => (
-                              <SelectItem key={g._id || g.id} value={g._id || g.id}>
-                                {g.name} {g.level ? `(Level ${g.level})` : ''}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="no_grades" disabled>No grades available — add in Settings</SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Auto-fills from Designation if mapping exists
-                      </p>
-                    </div>
-                    <div>
-                      <Label htmlFor="joinDate">Join Date *</Label>
-                      <Input
-                        id="joinDate"
-                        type="date"
-                        value={employeeForm.joinDate}
-                        onChange={(e) => setEmployeeForm({ ...employeeForm, joinDate: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="salary">Salary *</Label>
-                      <Input
-                        id="salary"
-                        type="number"
-                        value={employeeForm.salary}
-                        onChange={(e) => setEmployeeForm({ ...employeeForm, salary: e.target.value })}
-                        placeholder="50000"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="ctc">CTC (Cost to Company) *</Label>
-                      <Input
-                        id="ctc"
-                        type="number"
-                        value={employeeForm.ctc}
-                        onChange={(e) => setEmployeeForm({ ...employeeForm, ctc: e.target.value })}
-                        placeholder="600000"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex gap-2 pt-4">
-                    <Button variant="outline" onClick={() => setShowAddDialog(false)} className="flex-1">
-                      Cancel
-                    </Button>
-                    <Button onClick={handleCreateEmployee} disabled={isCreating} className="flex-1">
-                      {isCreating ? 'Creating...' : 'Create Employee'}
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
+          {hasPermission('manage_employees') &&
+            hasRole('HR Administrator') &&
+            currentUser?.role !== 'Auditor' && (
+            <Button className="gap-2" asChild>
+              <a href="/workforce/add-employee">
+                <Plus className="w-4 h-4" />
+                Add Employee
+              </a>
+            </Button>
           )}
         </div>
 
@@ -887,14 +430,16 @@ export default function WorkforcePage() {
                               >
                                 <MapPin className="w-4 h-4" />
                               </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                title="Assign payroll (salary & CTC)"
-                                onClick={() => handleOpenPayrollAssign(employee)}
-                              >
-                                <Banknote className="w-4 h-4" />
-                              </Button>
+                              {canAssignPayroll && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  title="Assign payroll (salary & CTC)"
+                                  onClick={() => handleOpenPayrollAssign(employee)}
+                                >
+                                  <Banknote className="w-4 h-4" />
+                                </Button>
+                              )}
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -1046,16 +591,18 @@ export default function WorkforcePage() {
                       >
                         Assign location
                       </Button>
-                      <Button
-                        variant="secondary"
-                        onClick={() => {
-                          setShowViewDialog(false);
-                          handleOpenPayrollAssign(selectedEmployee);
-                        }}
-                        className="flex-1 min-w-[140px]"
-                      >
-                        Assign payroll
-                      </Button>
+                      {canAssignPayroll && (
+                        <Button
+                          variant="secondary"
+                          onClick={() => {
+                            setShowViewDialog(false);
+                            handleOpenPayrollAssign(selectedEmployee);
+                          }}
+                          className="flex-1 min-w-[140px]"
+                        >
+                          Assign payroll
+                        </Button>
+                      )}
                     </>
                   )}
                 </div>
@@ -1064,7 +611,7 @@ export default function WorkforcePage() {
           </DialogContent>
         </Dialog>
 
-        {/* Assign payroll — monthly salary & annual CTC on employee (HR Admin) */}
+        {/* Assign payroll — Tenant Admin / Payroll Administrator only */}
         <Dialog
           open={showPayrollDialog}
           onOpenChange={(open) => {
